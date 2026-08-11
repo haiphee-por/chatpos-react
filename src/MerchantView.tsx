@@ -1,25 +1,6613 @@
-import { useState } from 'react'
-import { Bell, ChevronRight, CircleDollarSign, ClipboardList, CreditCard, LayoutDashboard, Menu, Package, Plus, QrCode, ReceiptText, Settings, ShoppingBag, Store, UsersRound, WalletCards, X } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import {
+  Bell,
+  Calendar,
+  CheckCircle2,
+  ChevronRight,
+  ChevronDown,
+  ArrowDown,
+  ArrowUp,
+  ClipboardList,
+  Clock,
+  Copy,
+  CreditCard,
+  Delete,
+  Eye,
+  EyeOff,
+  Globe,
+  Languages,
+  Image as ImageIcon,
+  LayoutDashboard,
+  Lock,
+  Menu,
+  Package,
+  Plus,
+  Printer,
+  QrCode,
+  ReceiptText,
+  Search,
+  Settings,
+  Store,
+  Trash2,
+  WalletCards,
+  X,
+  Check,
+  Tag,
+  Sparkles,
+  SlidersHorizontal,
+  ShieldAlert,
+  Link,
+  LayoutGrid,
+  Pencil,
+  ShoppingBag,
+  Truck,
+  ArrowUpDown,
+  Filter,
+  Home,
+  ShoppingCart,
+  Minus,
+  Receipt,
+  BarChart3,
+  TrendingUp,
+  ArrowUpRight,
+  User,
+  ShieldCheck,
+  Key,
+  Fingerprint,
+  Volume2,
+  Palette,
+  Database,
+  Code,
+  HelpCircle,
+  Utensils
+} from 'lucide-react'
 import './MerchantView.css'
 
-const navItems = [
-  { id: 'home', label: 'ภาพรวมร้านค้า', icon: LayoutDashboard }, { id: 'pos', label: 'ขายหน้าร้าน (POS)', icon: CreditCard }, { id: 'payment', label: 'คิดเงินด่วน', icon: QrCode },
-  { id: 'orders', label: 'ออเดอร์', icon: ClipboardList }, { id: 'inventory', label: 'สินค้า / สต็อก', icon: Package }, { id: 'reports', label: 'รายงานการเงิน', icon: ReceiptText },
-  { id: 'wallet', label: 'กระเป๋าเงิน', icon: WalletCards }, { id: 'settings', label: 'ตั้งค่าร้านค้า', icon: Settings },
-]
-const products = [{ name: 'ชาไทยเย็น', sold: 42, amount: '฿2,940' }, { name: 'ครัวซองต์เนยสด', sold: 31, amount: '฿2,480' }, { name: 'อเมริกาโน่เย็น', sold: 28, amount: '฿1,960' }, { name: 'ขนมปังสังขยา', sold: 19, amount: '฿1,330' }]
+/* ==========================================================================
+   WEB AUDIO API SOUND SYNTHESIZER (Tap / Click / Pop / Chime Audio Effects)
+   ========================================================================== */
+let audioCtx: AudioContext | null = null
 
-export function MerchantView() {
-  const [active, setActive] = useState('home')
-  const [mobileOpen, setMobileOpen] = useState(false)
-  const [notificationsOpen, setNotificationsOpen] = useState(false)
-  const current = navItems.find((item) => item.id === active) ?? navItems[0]
-  const navigate = (id: string) => { setActive(id); setMobileOpen(false) }
-  const sidebar = <aside className="merchant-sidebar"><div className="merchant-brand"><div className="merchant-mark">CP</div><div><strong>ChatPOS</strong><span>MERCHANT PORTAL</span></div></div><div className="merchant-store"><Store size={16} /><div><span>สาขาปัจจุบัน</span><strong>ร้านกาแฟบ้านสวน</strong><small>สาขาหลัก · M-001</small></div><ChevronRight size={15} /></div><nav>{navItems.map(({ id, label, icon: NavIcon }) => <button className={active === id ? 'active' : ''} key={id} onClick={() => navigate(id)} type="button"><NavIcon size={17} /><span>{label}</span></button>)}</nav><div className="merchant-user"><div className="merchant-avatar">PB</div><div><strong>พิมพ์ชนก ศรีสุข</strong><span>Merchant Owner</span></div></div></aside>
-  return <div className="merchant-app">{sidebar}{mobileOpen && <div className="merchant-mobile"><button className="merchant-backdrop" aria-label="ปิดเมนู" onClick={() => setMobileOpen(false)} type="button" /><div>{sidebar}<button className="merchant-close" aria-label="ปิดเมนู" onClick={() => setMobileOpen(false)} type="button"><X size={20} /></button></div></div>}<div className="merchant-main"><header className="merchant-topbar"><button className="merchant-menu-button" aria-label="เปิดเมนู" onClick={() => setMobileOpen(true)} type="button"><Menu size={20} /></button><div><p>Merchant Portal</p><h1>{current.label}</h1></div><div className="merchant-actions"><button aria-label="การแจ้งเตือน" className="merchant-icon-button" onClick={() => setNotificationsOpen((value) => !value)} type="button"><Bell size={18} /><b>3</b></button><div className="merchant-top-avatar">PB</div>{notificationsOpen && <div className="merchant-notifications"><strong>การแจ้งเตือน</strong><span>มีออเดอร์ใหม่ 4 รายการ</span><span>ยอดเงินเข้าวันนี้อัปเดตแล้ว</span></div>}</div></header><main className="merchant-content">{active === 'home' ? <MerchantHome onNavigate={navigate} /> : <MerchantSection active={active} label={current.label} />}</main></div></div>
+export function playTapSound(type: 'click' | 'pop' | 'success' | 'delete' | 'nav' = 'click') {
+  try {
+    if (!audioCtx) {
+      const AudioContextClass =
+        window.AudioContext ||
+        (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext
+      if (AudioContextClass) {
+        audioCtx = new AudioContextClass()
+      }
+    }
+    if (!audioCtx) return
+
+    if (audioCtx.state === 'suspended') {
+      audioCtx.resume()
+    }
+
+    const now = audioCtx.currentTime
+    const osc = audioCtx.createOscillator()
+    const gain = audioCtx.createGain()
+
+    osc.connect(gain)
+    gain.connect(audioCtx.destination)
+
+    if (type === 'click') {
+      osc.type = 'sine'
+      osc.frequency.setValueAtTime(600, now)
+      osc.frequency.exponentialRampToValueAtTime(200, now + 0.04)
+      gain.gain.setValueAtTime(0.12, now)
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.04)
+      osc.start(now)
+      osc.stop(now + 0.04)
+    } else if (type === 'pop') {
+      osc.type = 'sine'
+      osc.frequency.setValueAtTime(400, now)
+      osc.frequency.exponentialRampToValueAtTime(900, now + 0.06)
+      gain.gain.setValueAtTime(0.15, now)
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.06)
+      osc.start(now)
+      osc.stop(now + 0.06)
+    } else if (type === 'nav') {
+      osc.type = 'triangle'
+      osc.frequency.setValueAtTime(520, now)
+      osc.frequency.exponentialRampToValueAtTime(650, now + 0.05)
+      gain.gain.setValueAtTime(0.1, now)
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.05)
+      osc.start(now)
+      osc.stop(now + 0.05)
+    } else if (type === 'success') {
+      const osc2 = audioCtx.createOscillator()
+      const gain2 = audioCtx.createGain()
+      osc2.connect(gain2)
+      gain2.connect(audioCtx.destination)
+
+      osc.type = 'sine'
+      osc.frequency.setValueAtTime(523.25, now)
+      osc.frequency.setValueAtTime(659.25, now + 0.08)
+      gain.gain.setValueAtTime(0.15, now)
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.2)
+
+      osc2.type = 'sine'
+      osc2.frequency.setValueAtTime(783.99, now + 0.08)
+      gain2.gain.setValueAtTime(0.12, now + 0.08)
+      gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.25)
+
+      osc.start(now)
+      osc.stop(now + 0.2)
+      osc2.start(now + 0.08)
+      osc2.stop(now + 0.25)
+    } else if (type === 'delete') {
+      osc.type = 'sine'
+      osc.frequency.setValueAtTime(320, now)
+      osc.frequency.exponentialRampToValueAtTime(120, now + 0.08)
+      gain.gain.setValueAtTime(0.12, now)
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08)
+      osc.start(now)
+      osc.stop(now + 0.08)
+    }
+  } catch (err) {
+    // Audio safeguard
+  }
 }
 
-function MerchantHome({ onNavigate }: { onNavigate: (id: string) => void }) { return <><section className="merchant-heading"><div><p className="merchant-eyebrow">GOOD MORNING, MERCHANT</p><h2>สวัสดีครับ ร้านกาแฟบ้านสวน</h2><p>ภาพรวมยอดขายและการดำเนินงานของร้านวันนี้</p></div><button className="merchant-primary" onClick={() => onNavigate('pos')} type="button"><Plus size={16} /> เปิดการขายหน้าร้าน</button></section><section className="merchant-metrics"><Metric icon={CircleDollarSign} label="ยอดขายวันนี้" value="฿18,450" detail="+12.8% จากเมื่อวาน" tone="green" /><Metric icon={ShoppingBag} label="ออเดอร์วันนี้" value="126" detail="18 รายการรอดำเนินการ" tone="blue" /><Metric icon={WalletCards} label="ยอดถอนได้" value="฿84,250" detail="อัปเดตล่าสุดเมื่อ 5 นาทีที่แล้ว" tone="violet" /><Metric icon={UsersRound} label="ลูกค้าสะสม" value="2,840" detail="เพิ่มขึ้น 36 คนในเดือนนี้" tone="amber" /></section><section className="merchant-grid"><article className="merchant-panel sales-panel"><div className="merchant-panel-heading"><div><h3>ยอดขายประจำสัปดาห์</h3><p>รายรับจากทุกช่องทาง</p></div><button className="merchant-link" onClick={() => onNavigate('reports')} type="button">ดูรายงาน <ChevronRight size={14} /></button></div><div className="sales-chart"><div className="chart-y"><span>20k</span><span>15k</span><span>10k</span><span>5k</span><span>0</span></div><div className="chart-bars">{[52, 70, 45, 82, 65, 91, 74].map((height, index) => <div className="chart-bar-column" key={index}><div className="chart-bar" style={{ height: `${height}%` }} /><span>{['จ.', 'อ.', 'พ.', 'พฤ.', 'ศ.', 'ส.', 'อา.'][index]}</span></div>)}</div></div></article><article className="merchant-panel"><div className="merchant-panel-heading"><div><h3>เมนูขายดี</h3><p>สินค้าที่มียอดขายสูงสุดวันนี้</p></div><Package size={18} className="merchant-green-text" /></div><div className="product-list">{products.map((product, index) => <div className="product-row" key={product.name}><span className="product-rank">0{index + 1}</span><div><strong>{product.name}</strong><span>ขายแล้ว {product.sold} รายการ</span></div><b>{product.amount}</b></div>)}</div></article></section><section className="merchant-actions-grid"><button onClick={() => onNavigate('payment')} type="button"><QrCode size={20} /><strong>สร้าง QR รับเงิน</strong><span>รับชำระเงินอย่างรวดเร็ว</span></button><button onClick={() => onNavigate('inventory')} type="button"><Package size={20} /><strong>จัดการสินค้า</strong><span>ดูสต็อกและเพิ่มรายการสินค้า</span></button><button onClick={() => onNavigate('wallet')} type="button"><WalletCards size={20} /><strong>ถอนเงิน</strong><span>ยอดพร้อมถอน ฿84,250</span></button></section></> }
-function Metric({ icon: MetricIcon, label, value, detail, tone }: { icon: typeof CircleDollarSign; label: string; value: string; detail: string; tone: string }) { return <article className="merchant-metric"><div className={`merchant-metric-icon ${tone}`}><MetricIcon size={19} /></div><p>{label}</p><strong>{value}</strong><span>{detail}</span></article> }
-function MerchantSection({ active, label }: { active: string; label: string }) { const content: Record<string, { title: string; description: string; icon: typeof Store }> = { pos: { title: 'ขายหน้าร้าน (POS)', description: 'เลือกสินค้าและสร้างรายการขายใหม่', icon: CreditCard }, payment: { title: 'คิดเงินด่วน', description: 'สร้าง QR หรือรับชำระเงินสำหรับออเดอร์', icon: QrCode }, orders: { title: 'ออเดอร์ทั้งหมด', description: 'ติดตามรายการสั่งซื้อและสถานะการชำระเงิน', icon: ClipboardList }, inventory: { title: 'สินค้าและสต็อก', description: 'จัดการรายการสินค้า ราคา และจำนวนคงเหลือ', icon: Package }, reports: { title: 'รายงานการเงิน', description: 'วิเคราะห์ยอดขายตามช่วงเวลาและช่องทาง', icon: ReceiptText }, wallet: { title: 'กระเป๋าเงิน', description: 'ยอดรายรับ ยอดถอนได้ และประวัติการถอนเงิน', icon: WalletCards }, settings: { title: 'ตั้งค่าร้านค้า', description: 'จัดการข้อมูลร้าน สาขา และสิทธิ์ทีมงาน', icon: Settings } }; const item = content[active] ?? { title: label, description: 'จัดการข้อมูลร้านค้าของคุณ', icon: Store }; const SectionIcon = item.icon; return <section className="merchant-placeholder"><div className="merchant-placeholder-icon"><SectionIcon size={28} /></div><p className="merchant-eyebrow">MERCHANT WORKSPACE</p><h2>{item.title}</h2><p>{item.description}</p><div className="merchant-demo-note"><Checkmark /> หน้านี้พร้อมต่อเข้ากับ workflow จาก apps/merchant และ API จริง</div></section> }
-function Checkmark() { return <span className="merchant-check">✓</span> }
+/** Speech Synthesis: พูดยอดเงินเป็นภาษาไทยเมื่อกด */
+function speakBalance(amount: string) {
+  try {
+    if (!('speechSynthesis' in window)) return
+    window.speechSynthesis.cancel()
+
+    // Strip currency symbol & commas for clean number
+    const cleanNum = amount.replace(/[^0-9.]/g, '')
+    const num = parseFloat(cleanNum)
+    if (isNaN(num)) return
+
+    // Format text e.g. "ยอดเงินของคุณคือ ห้าสิบ บาท ศูนย์ สตางค์"
+    const baht = Math.floor(num)
+    const satang = Math.round((num - baht) * 100)
+
+    let text = `ยอดเงินของคุณคือ ${baht.toLocaleString()} บาท`
+    if (satang > 0) {
+      text += ` ${satang} สตางค์`
+    }
+
+    const utterance = new SpeechSynthesisUtterance(text)
+    utterance.lang = 'th-TH'
+    utterance.rate = 0.95
+    utterance.pitch = 1.1
+    utterance.volume = 1
+
+    // Try to pick a Thai voice if available
+    const voices = window.speechSynthesis.getVoices()
+    const thaiVoice = voices.find((v) => v.lang.startsWith('th'))
+    if (thaiVoice) utterance.voice = thaiVoice
+
+    playTapSound('success')
+    window.speechSynthesis.speak(utterance)
+  } catch (_) {
+    // Speech safeguard
+  }
+}
+
+const navItems = [
+  { id: 'home', label: 'ภาพรวมร้านค้า', icon: LayoutDashboard },
+  { id: 'pos', label: 'ขายหน้าร้าน (POS)', icon: CreditCard },
+  { id: 'payment', label: 'คิดเงินด่วน', icon: QrCode },
+  { id: 'orders', label: 'ออเดอร์', icon: ClipboardList },
+  { id: 'products', label: 'สินค้า / สต็อก', icon: Package },
+  { id: 'services', label: 'บริการ', icon: Clock },
+  { id: 'salespage', label: 'เซลเพจ', icon: Globe },
+  { id: 'reports', label: 'รายงานการเงิน', icon: ReceiptText },
+  { id: 'wallet', label: 'กระเป๋าเงิน', icon: WalletCards },
+  { id: 'settings', label: 'ตั้งค่าร้านค้า', icon: Settings },
+]
+
+export type CatalogItem = {
+  id: string
+  name: string
+  nameTh?: string
+  nameEn?: string
+  nameCn?: string
+  category: string
+  type: 'service' | 'product'
+  price: number
+  stock: number | null
+  soldCount: number
+  status: 'active' | 'out_of_stock' | 'paused'
+  // Multi-language descriptions (Short & Detailed)
+  shortDescTh?: string
+  shortDescEn?: string
+  shortDescCn?: string
+  fullDescTh?: string
+  fullDescEn?: string
+  fullDescCn?: string
+  // Multiple images gallery
+  images?: string[]
+}
+
+export type PaidTransaction = {
+  id: string
+  method: string
+  customer: string
+  amount: number
+  status: 'paid'
+}
+
+const initialCatalog: CatalogItem[] = [
+  {
+    id: '1',
+    name: 'ชาไทยเย็น (แก้วใหญ่)',
+    nameTh: 'ชาไทยเย็น (แก้วใหญ่)',
+    nameEn: 'Thai Iced Tea (Large)',
+    nameCn: '泰式冰奶茶 (大杯)',
+    shortDescTh: 'ชาไทยรสเข้มข้น หอมกลิ่นชาตรามือแท้',
+    shortDescEn: 'Rich authentic Thai tea with smooth condensed milk',
+    shortDescCn: '地道泰式手标奶茶 浓郁香甜',
+    fullDescTh: 'ชาไทยโบราณสูตรพิเศษ ใช้ใบชาคุณภาพเกรดพรีเมียม ชงสดใหม่ทุกแก้ว เสิร์ฟพร้อมน้ำแข็งเย็นชื่นใจ',
+    fullDescEn: 'Premium grade authentic Thai tea leaves brewed fresh per order. Served with ice and sweetened condensed milk.',
+    fullDescCn: '采用优质泰茶茶叶，现点现冲，配以特调鲜奶与浓缩炼乳，冰爽可口。',
+    images: ['/mascot/pos_1_scanning_barcode.png', '/mascot/pay_1_holding_coin.png'],
+    category: 'เครื่องดื่ม',
+    type: 'product',
+    price: 70,
+    stock: 42,
+    soldCount: 142,
+    status: 'active'
+  },
+  {
+    id: '2',
+    name: 'บริการตัดผมชาย + สระเซ็ต',
+    nameTh: 'บริการตัดผมชาย + สระเซ็ต',
+    nameEn: 'Men\'s Haircut + Wash & Styling',
+    nameCn: '男士理发 + 洗发造型',
+    shortDescTh: 'ตัดแต่งทรงผมสไตล์เกาหลี/วินเทจ พร้อมสระเซ็ต',
+    shortDescEn: 'Professional hair trimming, washing, and pomade styling',
+    shortDescCn: '专业男士剪发 洗发与抓发造型',
+    fullDescTh: 'บริการตัดผมชายโดยช่างผู้เชี่ยวชาญ วิเคราะห์ทรงผมให้เข้ากับรูปหน้า พร้อมสระผมด้วยแชมพูสูตรเย็นและจัดแต่งทรงด้วยผลิตภัณฑ์พรีเมียม',
+    fullDescEn: 'Complete men styling session including hair analysis, scalp wash, precision cutting, and wax/pomade finish.',
+    fullDescCn: '由专业理发师量身打造发型，包含凉感洗发、精细修剪及定型产品整发服务。',
+    images: ['/mascot/kyc_10_holding_pen.png', '/mascot/nabtang_welcome.png'],
+    category: 'บริการคิว',
+    type: 'service',
+    price: 250,
+    stock: null,
+    soldCount: 89,
+    status: 'active'
+  },
+  { id: '3', name: 'ครัวซองต์เนยสดฝรั่งเศส', category: 'เบเกอรี่', type: 'product', price: 80, stock: 8, soldCount: 65, status: 'active' },
+  { id: '4', name: 'บริการสปาเท้ารวมนวดกดจุด 45 นาที', category: 'บริการคิว', type: 'service', price: 350, stock: null, soldCount: 34, status: 'active' },
+  { id: '5', name: 'อเมริกาโน่คั่วกลาง (Hot/Ice)', category: 'เครื่องดื่ม', type: 'product', price: 70, stock: 55, soldCount: 120, status: 'active' },
+  { id: '6', name: 'บริการล้างรถดูดฝุ่นเคลือบสี (SUV)', category: 'บริการคิว', type: 'service', price: 400, stock: null, soldCount: 52, status: 'active' }
+]
+
+const initialPaidList: PaidTransaction[] = [
+  { id: 'tx-1', method: 'รับชำระเงินผ่าน PromptPay QR', customer: 'คุณสมชาย ใจดี · วันนี้, 10:35 น.', amount: 50, status: 'paid' },
+  { id: 'tx-2', method: 'รับชำระเงินผ่าน PromptPay QR', customer: 'คุณอนันต์ สุขใจ · เมื่อวาน, 18:20 น.', amount: 180, status: 'paid' },
+  { id: 'tx-3', method: 'รับชำระเงิน POS - เงินสด', customer: 'ลูกค้าหน้าร้าน · 22 ก.ค. 2569, 12:45 น.', amount: 250, status: 'paid' }
+]
+
+export function MerchantView() {
+  const getInitialTab = () => {
+    const hash = window.location.hash.replace('#', '').trim()
+    if (hash && navItems.some((item) => item.id === hash)) return hash
+    const saved = localStorage.getItem('merchant_active_tab')
+    if (saved && navItems.some((item) => item.id === saved)) return saved
+    return 'home'
+  }
+
+  const [active, setActive] = useState(getInitialTab)
+  const [mobileOpen, setMobileOpen] = useState(false)
+  const [notificationsOpen, setNotificationsOpen] = useState(false)
+
+  useEffect(() => {
+    localStorage.setItem('merchant_active_tab', active)
+    if (window.location.hash !== `#${active}`) {
+      window.location.hash = active
+    }
+  }, [active])
+
+  useEffect(() => {
+    const handleHashChange = () => {
+      const hash = window.location.hash.replace('#', '').trim()
+      if (hash && navItems.some((item) => item.id === hash)) {
+        setActive(hash)
+      }
+    }
+    window.addEventListener('hashchange', handleHashChange)
+    return () => window.removeEventListener('hashchange', handleHashChange)
+  }, [])
+
+  const current = navItems.find((item) => item.id === active) ?? navItems[0]
+  const navigate = (id: string) => {
+    setActive(id)
+    localStorage.setItem('merchant_active_tab', id)
+    window.location.hash = id
+    setMobileOpen(false)
+  }
+
+  const sidebar = (
+    <aside className="merchant-sidebar">
+      <div className="merchant-brand">
+        <img src="/logo.png" alt="Logo" style={{ width: '36px', height: '36px', objectFit: 'contain' }} />
+        <div>
+          <strong>ChatPOS</strong>
+          <span>MERCHANT PORTAL</span>
+        </div>
+      </div>
+      <div className="merchant-store">
+        <Store size={16} />
+        <div>
+          <span>สาขาปัจจุบัน</span>
+          <strong>ร้านกาแฟบ้านสวน</strong>
+          <small>สาขาหลัก · M-001</small>
+        </div>
+        <ChevronRight size={15} />
+      </div>
+      <nav>
+        {navItems.map(({ id, label, icon: NavIcon }) => (
+          <button
+            className={active === id ? 'active' : ''}
+            key={id}
+            onClick={() => navigate(id)}
+            type="button"
+          >
+            <NavIcon size={17} />
+            <span>{label}</span>
+          </button>
+        ))}
+      </nav>
+      <div className="merchant-user">
+        <div className="merchant-avatar">PB</div>
+        <div>
+          <strong>พิมพ์ชนก ศรีสุข</strong>
+          <span>Merchant Owner</span>
+        </div>
+      </div>
+    </aside>
+  )
+
+  return (
+    <div className="merchant-app">
+      {sidebar}
+      {mobileOpen && (
+        <div className="merchant-mobile">
+          <button className="merchant-backdrop" aria-label="ปิดเมนู" onClick={() => setMobileOpen(false)} type="button" />
+          <div>
+            {sidebar}
+            <button className="merchant-close" aria-label="ปิดเมนู" onClick={() => setMobileOpen(false)} type="button">
+              <X size={20} />
+            </button>
+          </div>
+        </div>
+      )}
+      <div className="merchant-main">
+        <header className="merchant-topbar">
+          <button className="merchant-menu-button" aria-label="เปิดเมนู" onClick={() => setMobileOpen(true)} type="button">
+            <Menu size={20} />
+          </button>
+          <div>
+            <p>Merchant Portal</p>
+            <h1>{current.label}</h1>
+          </div>
+          <div className="merchant-actions">
+            <button aria-label="การแจ้งเตือน" className="merchant-icon-button" onClick={() => setNotificationsOpen((value) => !value)} type="button">
+              <Bell size={18} />
+              <b>3</b>
+            </button>
+            <div className="merchant-top-avatar">PB</div>
+          </div>
+        </header>
+        <main className="merchant-content">
+          {active === 'home' ? (
+            <MerchantHome onNavigate={navigate} />
+          ) : active === 'pos' ? (
+            <PosView onNavigate={navigate} />
+          ) : active === 'payment' ? (
+            <QuickPayView />
+          ) : active === 'products' ? (
+            <ProductsView />
+          ) : active === 'services' ? (
+            <ServicesView />
+          ) : active === 'salespage' ? (
+            <SalesPageView />
+          ) : active === 'orders' ? (
+            <OrdersView onNavigate={navigate} />
+          ) : active === 'reports' ? (
+            <ReportsView />
+          ) : active === 'wallet' ? (
+            <WalletView />
+          ) : active === 'settings' ? (
+            <SettingsView />
+          ) : (
+            <MerchantSection active={active} label={current.label} />
+          )}
+        </main>
+
+        {/* Global Mobile Bottom Navigation Bar */}
+        <nav className="mh-global-bottom-bar">
+          <button
+            className={`mh-bottom-item ${active === 'orders' ? 'active' : ''}`}
+            onClick={() => navigate('orders')}
+            type="button"
+          >
+            <ClipboardList size={18} />
+            <span>ออเดอร์</span>
+          </button>
+
+          <button
+            className={`mh-bottom-item ${active === 'services' ? 'active' : ''}`}
+            onClick={() => navigate('services')}
+            type="button"
+          >
+            <Clock size={18} />
+            <span>บริการ</span>
+          </button>
+
+          <div className="mh-bottom-center-group">
+            <button
+              className={`mh-bottom-home-btn ${active === 'home' ? 'active' : ''}`}
+              onClick={() => navigate('home')}
+              type="button"
+            >
+              <Home size={20} />
+              <span>หน้าแรก</span>
+            </button>
+
+            <button
+              className={`mh-bottom-pay-btn ${active === 'payment' ? 'active' : ''}`}
+              onClick={() => navigate('payment')}
+              type="button"
+            >
+              <QrCode size={20} />
+              <span>คิดเงินด่วน</span>
+            </button>
+          </div>
+
+          <button
+            className={`mh-bottom-item ${active === 'salespage' ? 'active' : ''}`}
+            onClick={() => navigate('salespage')}
+            type="button"
+          >
+            <Globe size={18} />
+            <span>เซลเพจ</span>
+          </button>
+
+          <button
+            className={`mh-bottom-item ${active === 'settings' ? 'active' : ''}`}
+            onClick={() => navigate('settings')}
+            type="button"
+          >
+            <Settings size={18} />
+            <span>ตั้งค่า</span>
+          </button>
+        </nav>
+      </div>
+
+      {/* Full-Screen Notifications Overlay (Root Portal Level) */}
+      {notificationsOpen && (
+        <div className="mn-fullscreen-overlay">
+          <div className="mn-fullscreen-backdrop" onClick={() => setNotificationsOpen(false)} />
+          <div className="mn-fullscreen-card">
+            {/* Header */}
+            <div className="mn-header">
+              <div className="mn-header-left">
+                <div className="mn-bell-wrap">
+                  <Bell size={22} color="#ffffff" />
+                  <span className="mn-badge-num">3</span>
+                </div>
+                <div>
+                  <h2>ศูนย์แจ้งเตือนร้านค้า (Notifications)</h2>
+                  <p>อัปเดตออเดอร์ใหม่ ยอดเงินเข้า และการยืนยันตัวตนแบบ Real-time</p>
+                </div>
+              </div>
+              <button
+                className="mn-close-btn"
+                onClick={() => setNotificationsOpen(false)}
+                type="button"
+                aria-label="ปิดการแจ้งเตือน"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Filter Tabs */}
+            <div className="mn-filter-bar">
+              <button className="mn-filter-tab active" type="button">ทั้งหมด (5)</button>
+              <button className="mn-filter-tab" type="button">🛍️ ออเดอร์ (1)</button>
+              <button className="mn-filter-tab" type="button">💰 การเงิน (1)</button>
+              <button className="mn-filter-tab" type="button">🔒 KYC และความปลอดภัย (1)</button>
+            </div>
+
+            {/* Notification List */}
+            <div className="mn-list">
+              {/* Item 1: Order */}
+              <div className="mn-item unread">
+                <div className="mn-item-icon green">
+                  <ShoppingBag size={22} />
+                </div>
+                <div className="mn-item-body">
+                  <div className="mn-item-top">
+                    <strong>มีออเดอร์ใหม่ 4 รายการรอจัดส่ง</strong>
+                    <span className="mn-time">10:35 น.</span>
+                  </div>
+                  <p>รายการสั่งซื้อใหม่จากลูกค้าหน้าร้าน ยอดรวม ฿580.00 บาท (ออเดอร์ #ORD-2026-089)</p>
+                  <div className="mn-tags">
+                    <span className="mn-tag green">🛍️ ออเดอร์ใหม่</span>
+                    <span className="mn-tag-branch">สาขาหลัก · M-001</span>
+                  </div>
+                </div>
+                <span className="mn-unread-dot" />
+              </div>
+
+              {/* Item 2: Wallet */}
+              <div className="mn-item unread">
+                <div className="mn-item-icon blue">
+                  <WalletCards size={22} />
+                </div>
+                <div className="mn-item-body">
+                  <div className="mn-item-top">
+                    <strong>ยอดเงินเข้าวันนี้อัปเดตแล้ว +฿4,850.00</strong>
+                    <span className="mn-time">09:12 น.</span>
+                  </div>
+                  <p>โอนชำระเงินผ่าน PromptPay QR Code เข้ากระเป๋าเงินร้านค้าสำเร็จ 100%</p>
+                  <div className="mn-tags">
+                    <span className="mn-tag blue">💰 รับชำระเงิน</span>
+                    <span className="mn-tag-branch">พร้อมเพย์ QR</span>
+                  </div>
+                </div>
+                <span className="mn-unread-dot" />
+              </div>
+
+              {/* Item 3: KYC */}
+              <div className="mn-item unread amber-border">
+                <div className="mn-item-icon amber">
+                  <ShieldAlert size={22} />
+                </div>
+                <div className="mn-item-body">
+                  <div className="mn-item-top">
+                    <strong className="amber-text">จำเป็นต้องยืนยันตัวตน (KYC)</strong>
+                    <span className="mn-time">เมื่อวาน</span>
+                  </div>
+                  <p>กรุณาอัปโหลดบัตรประชาชนและเอกสารร้านค้าเพื่อปลดล็อกการรับชำระเงินทุกช่องทาง</p>
+                  <button
+                    className="mn-action-btn"
+                    onClick={() => {
+                      setNotificationsOpen(false)
+                      navigate('payment')
+                    }}
+                    type="button"
+                  >
+                    ไปที่หน้ายืนยันตัวตน KYC ›
+                  </button>
+                </div>
+                <span className="mn-unread-dot" />
+              </div>
+
+              {/* Item 4: Stock */}
+              <div className="mn-item">
+                <div className="mn-item-icon orange">
+                  <Package size={22} />
+                </div>
+                <div className="mn-item-body">
+                  <div className="mn-item-top">
+                    <strong>เตือนสต็อกสินค้าใกล้หมด</strong>
+                    <span className="mn-time">05 ส.ค.</span>
+                  </div>
+                  <p>เมล็ดกาแฟ อาราบิก้า พรีเมียม (250g) เหลือเพียง 3 ชิ้นในสต็อก</p>
+                </div>
+              </div>
+
+              {/* Item 5: System */}
+              <div className="mn-item">
+                <div className="mn-item-icon teal">
+                  <CheckCircle2 size={22} />
+                </div>
+                <div className="mn-item-body">
+                  <div className="mn-item-top">
+                    <strong>ระบบซิงค์ข้อมูล ChatPOS สำเร็จ</strong>
+                    <span className="mn-time">04 ส.ค.</span>
+                  </div>
+                  <p>ซิงค์ข้อมูลรายการสินค้า สต็อก และประวัติการขายประจำวันเรียบร้อยแล้ว</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="mn-footer">
+              <button className="mn-footer-action" onClick={() => alert('ทำเครื่องหมายอ่านแล้วทั้งหมด')} type="button">
+                <CheckCircle2 size={16} /> ทำเครื่องหมายอ่านแล้วทั้งหมด
+              </button>
+              <button className="mn-footer-close" onClick={() => setNotificationsOpen(false)} type="button">
+                ปิดหน้าต่างแจ้งเตือน
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function MerchantHome({ onNavigate }: { onNavigate: (id: string) => void }) {
+  const [showBalance, setShowBalance] = useState(true)
+  const [copiedId, setCopiedId] = useState(false)
+  const [now, setNow] = useState(() => new Date())
+
+  useEffect(() => {
+    const timer = setInterval(() => setNow(new Date()), 1000)
+    return () => clearInterval(timer)
+  }, [])
+
+  const handleCopyMerchantId = () => {
+    navigator.clipboard?.writeText('S072609429')
+    setCopiedId(true)
+    setTimeout(() => setCopiedId(false), 2000)
+  }
+
+  // Calculate formatted time and period icon
+  const hours = now.getHours()
+  const timeFormatted = now.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })
+  let timeEmoji = '☀️'
+  if (hours >= 6 && hours < 12) {
+    timeEmoji = '🌅' // เช้า
+  } else if (hours >= 12 && hours < 17) {
+    timeEmoji = '☀️' // บ่าย
+  } else if (hours >= 17 && hours < 19) {
+    timeEmoji = '🌆' // เย็น
+  } else {
+    timeEmoji = '🌙' // ดึก / กลางคืน
+  }
+
+  return (
+    <div className="merchant-home-view">
+      {/* 1. Top Green Store Status Card (GORRADA) */}
+      <section className="mh-store-card">
+        <div className="mh-store-info">
+          <div className="mh-status-row">
+            <span className="mh-status-pill">
+              <span className="pulse-dot" /> เปิดให้บริการ
+            </span>
+            <span className="mh-time-pill">
+              <Clock size={12} /> {timeFormatted} {timeEmoji}
+            </span>
+          </div>
+
+          <div className="mh-title-row">
+            <h2 className="mh-store-name">GORRADA</h2>
+            <button className="mh-store-badge-btn" type="button">
+              สมัครร้าน ›
+            </button>
+          </div>
+
+          <div className="mh-merchant-id-pill" onClick={handleCopyMerchantId} role="button" tabIndex={0}>
+            <span>Merchant ID : S072609429</span>
+            <Copy size={12} />
+            {copiedId && <small className="copied-tooltip">คัดลอกแล้ว!</small>}
+          </div>
+        </div>
+
+        <div className="mh-store-mascot">
+          <img
+            src="/mascot/nabtang_welcome.png"
+            className="mh-store-mascot-img"
+            alt="น้องนับตังค์ ChatPOS"
+          />
+        </div>
+      </section>
+
+      {/* 2. Total Balance Overview Card */}
+      <section className="mh-balance-card">
+        <div className="mh-balance-header">
+          <div className="mh-balance-title">
+            <span>ยอดเงินทั้งหมด</span>
+            <button
+              aria-label="ซ่อน/แสดงยอดเงิน"
+              className="mh-eye-toggle"
+              onClick={() => setShowBalance(!showBalance)}
+              type="button"
+            >
+              {showBalance ? <Eye size={16} /> : <EyeOff size={16} />}
+            </button>
+          </div>
+
+          <div className="mh-balance-mascot-graphic">
+            <div className="money-bag-graphic">
+              <span className="money-bag-emoji">💰</span>
+              <div className="mini-character-head" />
+            </div>
+          </div>
+        </div>
+
+        <div
+          className="mh-main-amount mh-main-amount-tappable"
+          onClick={() => { if (showBalance) speakBalance('50.00') }}
+          role="button"
+          tabIndex={0}
+          title="กดเพื่อฟังยอดเงิน"
+        >
+          ฿ {showBalance ? '50.00' : '•••.••'}
+          {showBalance && <span className="mh-speak-hint">🔊</span>}
+        </div>
+
+        <div className="mh-balance-sub-grid">
+          <div className="mh-sub-card mh-sub-green">
+            <div className="mh-sub-info">
+              <span>ยอดรับวันนี้</span>
+              <strong>฿ {showBalance ? '0.00' : '•••'}</strong>
+            </div>
+            <button className="mh-sub-link" onClick={() => onNavigate('reports')} type="button">
+              ดูรายการ ›
+            </button>
+          </div>
+
+          <div className="mh-sub-card mh-sub-blue">
+            <div className="mh-sub-info">
+              <span>ยอดพร้อมถอน</span>
+              <strong>฿ {showBalance ? '0.00' : '•••'}</strong>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* 3. 5 Main Feature App Buttons Grid */}
+      <section className="mh-app-grid">
+        {/* Row 1: POS, บัญชี, STOPPAY */}
+        <div className="mh-app-card mh-app-pos" onClick={() => onNavigate('pos')} role="button" tabIndex={0}>
+          <div className="mh-app-icon-wrap">
+            <CreditCard size={24} />
+          </div>
+          <strong>POS</strong>
+          <img src="/mascot/pay_3_holding_credit_card.png" className="mh-app-mascot-img" alt="POS" />
+        </div>
+
+        <div className="mh-app-card mh-app-account" onClick={() => onNavigate('wallet')} role="button" tabIndex={0}>
+          <div className="mh-app-icon-wrap">
+            <WalletCards size={24} />
+          </div>
+          <strong>บัญชี</strong>
+          <img src="/mascot/pay_5_wallet.png" className="mh-app-mascot-img" alt="บัญชี" />
+        </div>
+
+        <div className="mh-app-card mh-app-stoppay" onClick={() => onNavigate('settings')} role="button" tabIndex={0}>
+          <div className="mh-app-icon-wrap">
+            <ShieldAlert size={24} />
+          </div>
+          <strong>STOPPAY</strong>
+          <img src="/mascot/kyc_8_holding_shield.png" className="mh-app-mascot-img" alt="STOPPAY" />
+        </div>
+
+        {/* Row 2: ประวัติ, สิทธิพิเศษ */}
+        <div className="mh-app-card mh-app-history" onClick={() => onNavigate('orders')} role="button" tabIndex={0}>
+          <div className="mh-app-icon-wrap">
+            <ClipboardList size={24} />
+          </div>
+          <strong>ประวัติ</strong>
+          <img src="/mascot/trans_3_viewing_history.png" className="mh-app-mascot-img" alt="ประวัติ" />
+        </div>
+
+        <div className="mh-app-card mh-app-perks" onClick={() => onNavigate('reports')} role="button" tabIndex={0}>
+          <div className="mh-app-icon-wrap">
+            <Sparkles size={24} />
+          </div>
+          <strong>สิทธิพิเศษ</strong>
+          <img src="/mascot/nabtang_celebrating.png" className="mh-app-mascot-img" alt="สิทธิพิเศษ" />
+        </div>
+      </section>
+
+      {/* 4. Store Management System List ("ระบบจัดการร้านค้า") */}
+      <section className="mh-mgmt-section">
+        <h3 className="mh-mgmt-heading">ระบบจัดการร้านค้า</h3>
+
+        <div className="mh-mgmt-list">
+          {/* Item 1: สินค้า / สต็อก */}
+          <div className="mh-mgmt-item" onClick={() => onNavigate('products')} role="button" tabIndex={0}>
+            <div className="mh-mgmt-icon-wrap icon-green">
+              <Package size={22} />
+            </div>
+            <div className="mh-mgmt-text">
+              <strong>สินค้า / สต็อก</strong>
+              <span>จัดการสินค้าในคลัง ยอดคงเหลือ และการเตือนสต็อกต่ำ</span>
+            </div>
+            <ChevronRight className="mh-mgmt-arrow" size={18} />
+          </div>
+
+          {/* Item 2: บริการร้านค้า */}
+          <div className="mh-mgmt-item" onClick={() => onNavigate('services')} role="button" tabIndex={0}>
+            <div className="mh-mgmt-icon-wrap icon-blue">
+              <Clock size={22} />
+            </div>
+            <div className="mh-mgmt-text">
+              <strong>บริการร้านค้า</strong>
+              <span>จัดการบริการ คิวคุมเวลา และประวัติรายการชำระแล้ว</span>
+            </div>
+            <ChevronRight className="mh-mgmt-arrow" size={18} />
+          </div>
+
+          {/* Item 2: รายงาน */}
+          <div className="mh-mgmt-item" onClick={() => onNavigate('reports')} role="button" tabIndex={0}>
+            <div className="mh-mgmt-icon-wrap icon-emerald">
+              <ReceiptText size={22} />
+            </div>
+            <div className="mh-mgmt-text">
+              <strong>รายงาน</strong>
+              <span>รายงานสรุปยอดขาย กำไร และสถิติวิเคราะห์เชิงลึก</span>
+            </div>
+            <ChevronRight className="mh-mgmt-arrow" size={18} />
+          </div>
+
+          {/* Item 3: เซลเพจ */}
+          <div className="mh-mgmt-item" onClick={() => onNavigate('settings')} role="button" tabIndex={0}>
+            <div className="mh-mgmt-icon-wrap icon-teal">
+              <Globe size={22} />
+            </div>
+            <div className="mh-mgmt-text">
+              <strong>เซลเพจ</strong>
+              <span>ลิงก์สั่งซื้อออนไลน์สำหรับลูกค้า และหน้าร้านค้าเซลเพจ</span>
+            </div>
+            <ChevronRight className="mh-mgmt-arrow" size={18} />
+          </div>
+
+
+          {/* Item 5: ฮาร์ดแวร์ */}
+          <div className="mh-mgmt-item" onClick={() => onNavigate('settings')} role="button" tabIndex={0}>
+            <div className="mh-mgmt-icon-wrap icon-blue">
+              <Printer size={22} />
+            </div>
+            <div className="mh-mgmt-text">
+              <strong>ฮาร์ดแวร์</strong>
+              <span>ตั้งค่าเครื่องพิมพ์สลิปความร้อน เครื่องสแกนบาร์โค้ด และอุปกรณ์</span>
+            </div>
+            <ChevronRight className="mh-mgmt-arrow" size={18} />
+          </div>
+
+          {/* Item 6: บิล */}
+          <div className="mh-mgmt-item" onClick={() => onNavigate('wallet')} role="button" tabIndex={0}>
+            <div className="mh-mgmt-icon-wrap icon-mint">
+              <ReceiptText size={22} />
+            </div>
+            <div className="mh-mgmt-text">
+              <strong>บิล</strong>
+              <span>ตรวจสอบบิล ค่าบริการแพลตฟอร์มรายวัน และรอบเคลียร์ริ่งโอนเงิน</span>
+            </div>
+            <ChevronRight className="mh-mgmt-arrow" size={18} />
+          </div>
+        </div>
+      </section>
+    </div>
+  )
+}
+
+/* ==========================================================================
+   MULTI-LANGUAGE & MULTI-IMAGE ITEM FORM & DETAILS MODALS
+   ========================================================================== */
+function ItemFormModal({
+  isOpen,
+  onClose,
+  type,
+  onSave
+}: {
+  isOpen: boolean
+  onClose: () => void
+  type: 'product' | 'service'
+  onSave: (item: CatalogItem) => void
+}) {
+  const [activeLang, setActiveLang] = useState<'th' | 'en' | 'cn'>('th')
+
+  const [nameTh, setNameTh] = useState('')
+  const [nameEn, setNameEn] = useState('')
+  const [nameCn, setNameCn] = useState('')
+
+  const [shortDescTh, setShortDescTh] = useState('')
+  const [shortDescEn, setShortDescEn] = useState('')
+  const [shortDescCn, setShortDescCn] = useState('')
+
+  const [fullDescTh, setFullDescTh] = useState('')
+  const [fullDescEn, setFullDescEn] = useState('')
+  const [fullDescCn, setFullDescCn] = useState('')
+
+  const [category, setCategory] = useState(type === 'product' ? 'เครื่องดื่ม' : 'บริการคิว')
+  const [price, setPrice] = useState('')
+  const [stock, setStock] = useState('')
+
+  const [images, setImages] = useState<string[]>([])
+  const [imageUrlInput, setImageUrlInput] = useState('')
+
+  if (!isOpen) return null
+
+  const handleAddImage = () => {
+    if (!imageUrlInput.trim()) return
+    playTapSound('pop')
+    setImages((prev) => [...prev, imageUrlInput.trim()])
+    setImageUrlInput('')
+  }
+
+  const handleRemoveImage = (index: number) => {
+    playTapSound('delete')
+    setImages((prev) => prev.filter((_, i) => i !== index))
+  }
+
+  const handleAddPresetImage = (url: string) => {
+    playTapSound('pop')
+    if (images.includes(url)) return
+    setImages((prev) => [...prev, url])
+  }
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    playTapSound('success')
+    const mainName = nameTh || nameEn || nameCn || (type === 'product' ? 'สินค้าใหม่' : 'บริการใหม่')
+    const newItem: CatalogItem = {
+      id: Date.now().toString(),
+      name: mainName,
+      nameTh,
+      nameEn,
+      nameCn,
+      category,
+      type,
+      price: parseFloat(price) || 0,
+      stock: type === 'product' ? (parseInt(stock, 10) || 0) : null,
+      shortDescTh,
+      shortDescEn,
+      shortDescCn,
+      fullDescTh,
+      fullDescEn,
+      fullDescCn,
+      images,
+      soldCount: 0,
+      status: 'active'
+    }
+    onSave(newItem)
+
+    // Clear form
+    setNameTh('')
+    setNameEn('')
+    setNameCn('')
+    setShortDescTh('')
+    setShortDescEn('')
+    setShortDescCn('')
+    setFullDescTh('')
+    setFullDescEn('')
+    setFullDescCn('')
+    setPrice('')
+    setStock('')
+    setImages([])
+    onClose()
+  }
+
+  return (
+    <div className="qs-modal-overlay">
+      <div className="qs-modal qs-modal-large">
+        <div className="qs-modal-header">
+          <div>
+            <h3>{type === 'product' ? 'เพิ่มสินค้าใหม่ (3 ภาษา & หลายรูปภาพ)' : 'เพิ่มบริการใหม่ (3 ภาษา & หลายรูปภาพ)'}</h3>
+            <p>กรอกข้อมูล 3 ภาษา (ไทย/อังกฤษ/จีน), คำอธิบายย่อ-รายละเอียด และแนบรูปภาพหลายรูป</p>
+          </div>
+          <button className="qs-modal-close" onClick={() => { playTapSound('click'); onClose() }} type="button">
+            <X size={20} />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit}>
+          <div className="qs-modal-body">
+            {/* 1. Language Tabs Bar */}
+            <div className="qs-lang-tabs-container">
+              <div className="qs-lang-tabs-header">
+                <Languages size={16} color="#059669" />
+                <span>ภาษาข้อมูลชื่อและคำอธิบาย (3 ภาษา):</span>
+              </div>
+              <div className="qs-lang-pills">
+                <button
+                  type="button"
+                  className={`qs-lang-pill ${activeLang === 'th' ? 'active' : ''}`}
+                  onClick={() => { playTapSound('pop'); setActiveLang('th') }}
+                >
+                  🇹🇭 ไทย (TH) {nameTh ? '✓' : ''}
+                </button>
+                <button
+                  type="button"
+                  className={`qs-lang-pill ${activeLang === 'en' ? 'active' : ''}`}
+                  onClick={() => { playTapSound('pop'); setActiveLang('en') }}
+                >
+                  🇬🇧 English (EN) {nameEn ? '✓' : ''}
+                </button>
+                <button
+                  type="button"
+                  className={`qs-lang-pill ${activeLang === 'cn' ? 'active' : ''}`}
+                  onClick={() => { playTapSound('pop'); setActiveLang('cn') }}
+                >
+                  🇨🇳 中文 (CN) {nameCn ? '✓' : ''}
+                </button>
+              </div>
+            </div>
+
+            {/* 2. Active Language Form Fields */}
+            {activeLang === 'th' && (
+              <div className="qs-lang-form-box">
+                <div className="qs-form-group">
+                  <label htmlFor="name-th">ชื่อ{type === 'product' ? 'สินค้า' : 'บริการ'} (ภาษาไทย) *</label>
+                  <input
+                    id="name-th"
+                    value={nameTh}
+                    onChange={(e) => setNameTh(e.target.value)}
+                    placeholder="เช่น ชาไทยเย็น (แก้วใหญ่) หรือ บริการสปาเท้า"
+                    required
+                  />
+                </div>
+                <div className="qs-form-group">
+                  <label htmlFor="short-desc-th">คำอธิบายแบบย่อ (Short Description - ไทย)</label>
+                  <input
+                    id="short-desc-th"
+                    value={shortDescTh}
+                    onChange={(e) => setShortDescTh(e.target.value)}
+                    placeholder="เช่น ชาไทยรสเข้มข้น หอมกลิ่นชาตรามือแท้"
+                  />
+                </div>
+                <div className="qs-form-group">
+                  <label htmlFor="full-desc-th">คำอธิบายแบบรายละเอียด (Full Detailed Description - ไทย)</label>
+                  <textarea
+                    id="full-desc-th"
+                    rows={3}
+                    value={fullDescTh}
+                    onChange={(e) => setFullDescTh(e.target.value)}
+                    placeholder="เช่น ชาไทยโบราณสูตรพิเศษ ใช้ใบชาคุณภาพเกรดพรีเมียม ชงสดใหม่ทุกแก้ว เสิร์ฟพร้อมน้ำแข็งเย็นชื่นใจ เลือกระดับความหวานได้ตามใจชอบ"
+                  />
+                </div>
+              </div>
+            )}
+
+            {activeLang === 'en' && (
+              <div className="qs-lang-form-box">
+                <div className="qs-form-group">
+                  <label htmlFor="name-en">Name (English)</label>
+                  <input
+                    id="name-en"
+                    value={nameEn}
+                    onChange={(e) => setNameEn(e.target.value)}
+                    placeholder="e.g. Thai Iced Tea (Large) / Foot Spa Massage"
+                  />
+                </div>
+                <div className="qs-form-group">
+                  <label htmlFor="short-desc-en">Short Description (English)</label>
+                  <input
+                    id="short-desc-en"
+                    value={shortDescEn}
+                    onChange={(e) => setShortDescEn(e.target.value)}
+                    placeholder="e.g. Rich authentic Thai tea with condensed milk"
+                  />
+                </div>
+                <div className="qs-form-group">
+                  <label htmlFor="full-desc-en">Detailed Description (English)</label>
+                  <textarea
+                    id="full-desc-en"
+                    rows={3}
+                    value={fullDescEn}
+                    onChange={(e) => setFullDescEn(e.target.value)}
+                    placeholder="e.g. Premium grade authentic Thai tea leaves brewed fresh per order. Served with ice and sweetened condensed milk..."
+                  />
+                </div>
+              </div>
+            )}
+
+            {activeLang === 'cn' && (
+              <div className="qs-lang-form-box">
+                <div className="qs-form-group">
+                  <label htmlFor="name-cn">名称 (Chinese)</label>
+                  <input
+                    id="name-cn"
+                    value={nameCn}
+                    onChange={(e) => setNameCn(e.target.value)}
+                    placeholder="例如：泰式冰奶茶 (大杯) / 水疗足按摩"
+                  />
+                </div>
+                <div className="qs-form-group">
+                  <label htmlFor="short-desc-cn">简短描述 (Short Description - Chinese)</label>
+                  <input
+                    id="short-desc-cn"
+                    value={shortDescCn}
+                    onChange={(e) => setShortDescCn(e.target.value)}
+                    placeholder="例如：地道泰式手标奶茶 浓郁香甜"
+                  />
+                </div>
+                <div className="qs-form-group">
+                  <label htmlFor="full-desc-cn">详细描述 (Detailed Description - Chinese)</label>
+                  <textarea
+                    id="full-desc-cn"
+                    rows={3}
+                    value={fullDescCn}
+                    onChange={(e) => setFullDescCn(e.target.value)}
+                    placeholder="例如：采用优质泰茶茶叶，现点现冲，配以特调鲜奶与浓缩炼乳，冰爽可口..."
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* 3. Basic Details Row */}
+            <div className="qs-form-row">
+              <div className="qs-form-group">
+                <label htmlFor="item-cat">หมวดหมู่</label>
+                <select id="item-cat" value={category} onChange={(e) => setCategory(e.target.value)}>
+                  {type === 'product' ? (
+                    <>
+                      <option value="เครื่องดื่ม">เครื่องดื่ม</option>
+                      <option value="เบเกอรี่">เบเกอรี่ / อาหาร</option>
+                      <option value="ทั่วไป">สินค้าทั่วไป</option>
+                    </>
+                  ) : (
+                    <>
+                      <option value="บริการคิว">บริการคิว</option>
+                      <option value="นวดสปา">นวดสปา</option>
+                      <option value="ความงาม">ความงาม / ซาลอน</option>
+                    </>
+                  )}
+                </select>
+              </div>
+
+              <div className="qs-form-group">
+                <label htmlFor="item-price">ราคาขาย (บาท) *</label>
+                <input
+                  id="item-price"
+                  type="number"
+                  min="0"
+                  value={price}
+                  onChange={(e) => setPrice(e.target.value)}
+                  placeholder="0.00"
+                  required
+                />
+              </div>
+
+              {type === 'product' && (
+                <div className="qs-form-group">
+                  <label htmlFor="item-stock">จำนวนสต็อกเริ่มต้น *</label>
+                  <input
+                    id="item-stock"
+                    type="number"
+                    min="0"
+                    value={stock}
+                    onChange={(e) => setStock(e.target.value)}
+                    placeholder="เช่น 50"
+                    required
+                  />
+                </div>
+              )}
+            </div>
+
+            {/* 4. Multiple Images Section */}
+            <div className="qs-images-section">
+              <div className="qs-lang-tabs-header">
+                <ImageIcon size={16} color="#059669" />
+                <span>คลังรูปภาพประกอบ (เพิ่มได้มากกว่า 1 รูป):</span>
+              </div>
+
+              <div className="qs-image-input-row">
+                <input
+                  value={imageUrlInput}
+                  onChange={(e) => setImageUrlInput(e.target.value)}
+                  placeholder="ใส่ URL รูปภาพ หรือเลือกรูปภาพตัวอย่างด้านล่าง..."
+                />
+                <button type="button" className="qs-add-img-btn" onClick={handleAddImage}>
+                  + เพิ่มรูป
+                </button>
+              </div>
+
+              {/* Sample Presets */}
+              <div className="qs-preset-chips">
+                <span className="qs-preset-label">ภาพตัวอย่าง:</span>
+                <button
+                  type="button"
+                  className="qs-chip-btn"
+                  onClick={() => handleAddPresetImage('/mascot/pos_1_scanning_barcode.png')}
+                >
+                  + สแกนสินค้า
+                </button>
+                <button
+                  type="button"
+                  className="qs-chip-btn"
+                  onClick={() => handleAddPresetImage('/mascot/kyc_10_holding_pen.png')}
+                >
+                  + ปากกาบริการ
+                </button>
+                <button
+                  type="button"
+                  className="qs-chip-btn"
+                  onClick={() => handleAddPresetImage('/mascot/pay_1_holding_coin.png')}
+                >
+                  + เหรียญชำระเงิน
+                </button>
+                <button
+                  type="button"
+                  className="qs-chip-btn"
+                  onClick={() => handleAddPresetImage('/mascot/nabtang_welcome.png')}
+                >
+                  + น้องนับตังค์ 3D
+                </button>
+              </div>
+
+              {/* Gallery List */}
+              {images.length > 0 && (
+                <div className="qs-image-thumbnails-grid">
+                  {images.map((imgUrl, idx) => (
+                    <div key={idx} className="qs-thumb-box">
+                      <img src={imgUrl} alt={`ภาพที่ ${idx + 1}`} />
+                      <button
+                        type="button"
+                        className="qs-thumb-del"
+                        onClick={() => handleRemoveImage(idx)}
+                        title="ลบรูปนี้"
+                      >
+                        <X size={12} />
+                      </button>
+                      <span className="qs-thumb-index">รูปที่ {idx + 1}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="qs-modal-footer">
+            <button type="button" className="qs-btn-cancel" onClick={() => { playTapSound('click'); onClose() }}>
+              ยกเลิก
+            </button>
+            <button type="submit" className="qs-btn-submit">
+              บันทึก{type === 'product' ? 'สินค้า' : 'บริการ'} ({images.length} รูปภาพ)
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+function ItemDetailsModal({
+  item,
+  onClose
+}: {
+  item: CatalogItem | null
+  onClose: () => void
+}) {
+  const [activeLang, setActiveLang] = useState<'th' | 'en' | 'cn'>('th')
+
+  if (!item) return null
+
+  const getName = () => {
+    if (activeLang === 'en' && item.nameEn) return item.nameEn
+    if (activeLang === 'cn' && item.nameCn) return item.nameCn
+    return item.nameTh || item.name
+  }
+
+  const getShortDesc = () => {
+    if (activeLang === 'en' && item.shortDescEn) return item.shortDescEn
+    if (activeLang === 'cn' && item.shortDescCn) return item.shortDescCn
+    return item.shortDescTh || 'ไม่มีคำอธิบายย่อ'
+  }
+
+  const getFullDesc = () => {
+    if (activeLang === 'en' && item.fullDescEn) return item.fullDescEn
+    if (activeLang === 'cn' && item.fullDescCn) return item.fullDescCn
+    return item.fullDescTh || 'ไม่มีคำอธิบายแบบรายละเอียด'
+  }
+
+  return (
+    <div className="qs-modal-overlay">
+      <div className="qs-modal qs-modal-large">
+        <div className="qs-modal-header">
+          <div>
+            <h3>รายละเอียด{item.type === 'product' ? 'สินค้า' : 'บริการ'}: {item.name}</h3>
+            <p>หมวดหมู่: {item.category} · ราคา ฿{item.price.toLocaleString()}</p>
+          </div>
+          <button className="qs-modal-close" onClick={() => { playTapSound('click'); onClose() }} type="button">
+            <X size={20} />
+          </button>
+        </div>
+
+        <div className="qs-modal-body">
+          {/* Gallery view */}
+          {item.images && item.images.length > 0 && (
+            <div className="qs-details-gallery-box">
+              <label className="qs-field-group-label">🖼️ คลังรูปภาพประกอบ ({item.images.length} ภาพ):</label>
+              <div className="qs-gallery-row">
+                {item.images.map((img, idx) => (
+                  <div className="qs-gallery-thumb-item" key={idx}>
+                    <img src={img} alt={`รูปที่ ${idx + 1}`} />
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* 3-Language switcher bar */}
+          <div className="qs-lang-tabs-container">
+            <div className="qs-lang-tabs-header">
+              <Languages size={16} color="#059669" />
+              <span>สลับดูข้อมูลภาษาต่าง ๆ (3 ภาษา):</span>
+            </div>
+            <div className="qs-lang-pills">
+              <button
+                type="button"
+                className={`qs-lang-pill ${activeLang === 'th' ? 'active' : ''}`}
+                onClick={() => { playTapSound('pop'); setActiveLang('th') }}
+              >
+                🇹🇭 ไทย (TH)
+              </button>
+              <button
+                type="button"
+                className={`qs-lang-pill ${activeLang === 'en' ? 'active' : ''}`}
+                onClick={() => { playTapSound('pop'); setActiveLang('en') }}
+              >
+                🇬🇧 English (EN) {item.nameEn ? '✓' : ''}
+              </button>
+              <button
+                type="button"
+                className={`qs-lang-pill ${activeLang === 'cn' ? 'active' : ''}`}
+                onClick={() => { playTapSound('pop'); setActiveLang('cn') }}
+              >
+                🇨🇳 中文 (CN) {item.nameCn ? '✓' : ''}
+              </button>
+            </div>
+          </div>
+
+          <div className="qs-details-content-card">
+            <h4 style={{ margin: '0 0 12px', fontSize: '20px', color: '#0f172a', fontWeight: 900 }}>
+              {getName()}
+            </h4>
+
+            <div className="qs-desc-block">
+              <h5>📝 คำอธิบายแบบย่อ (Short Description):</h5>
+              <p>{getShortDesc()}</p>
+            </div>
+
+            <div className="qs-desc-block">
+              <h5>📄 คำอธิบายแบบรายละเอียด (Full Detailed Description):</h5>
+              <p>{getFullDesc()}</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="qs-modal-footer">
+          <button type="button" className="qs-btn-submit" onClick={() => { playTapSound('click'); onClose() }}>
+            ปิดหน้าต่าง
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/* ==========================================================================
+   PRODUCTS VIEW (หน้าจัดการสินค้าและคลังสต็อก)
+   ========================================================================== */
+function ProductsView() {
+  const [catalog, setCatalog] = useState<CatalogItem[]>(
+    initialCatalog.filter((i) => i.type === 'product')
+  )
+  const [activeFilter, setActiveFilter] = useState<'all' | 'in_stock' | 'low_stock' | 'out_of_stock'>('all')
+  const [searchQuery, setSearchQuery] = useState('')
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false)
+  const [selectedItem, setSelectedItem] = useState<CatalogItem | null>(null)
+
+  const handleSaveProduct = (newItem: CatalogItem) => {
+    setCatalog([newItem, ...catalog])
+  }
+
+  const filteredProducts = catalog.filter((item) => {
+    const matchesQuery =
+      item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      item.category.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (item.nameEn && item.nameEn.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (item.nameCn && item.nameCn.toLowerCase().includes(searchQuery.toLowerCase()))
+    if (activeFilter === 'in_stock') return matchesQuery && (item.stock ?? 0) > 10
+    if (activeFilter === 'low_stock') return matchesQuery && (item.stock ?? 0) > 0 && (item.stock ?? 0) <= 10
+    if (activeFilter === 'out_of_stock') return matchesQuery && (item.stock ?? 0) === 0
+    return matchesQuery
+  })
+
+  return (
+    <div className="queue-services-page">
+      {/* Action Hero Cards */}
+      <section className="ov-hero-action-cards">
+        <div
+          className="qs-card qs-card-orange"
+          onClick={() => { playTapSound('pop'); setIsAddModalOpen(true) }}
+          role="button"
+          tabIndex={0}
+        >
+          <div className="qs-card-icon-wrap qs-plus-icon">
+            <Plus size={22} />
+          </div>
+          <div className="qs-card-text">
+            <h3>เพิ่มสินค้าใหม่</h3>
+            <p>รองรับ 3 ภาษา & คลังภาพ</p>
+          </div>
+          <img src="/mascot/pos_1_scanning_barcode.png" className="qs-card-mascot-img" alt="เพิ่มสินค้า" />
+        </div>
+
+        <div
+          className="qs-card qs-card-blue"
+          onClick={() => { playTapSound('click'); alert('จัดการคลังสินค้า') }}
+          role="button"
+          tabIndex={0}
+        >
+          <div className="qs-card-icon-wrap">
+            <Package size={22} />
+          </div>
+          <div className="qs-card-text">
+            <h3>สต็อกสินค้าคงเหลือ</h3>
+          </div>
+          <img src="/mascot/pos_5_inventory_check.png" className="qs-card-mascot-img" alt="สต็อก" />
+        </div>
+      </section>
+
+      {/* Main Section Header */}
+      <section className="qs-section-header">
+        <div className="qs-section-title-wrap">
+          <div>
+            <h2>คลังสินค้าและสต็อก (Products & Stock)</h2>
+            <span className="qs-count-badge">
+              <Package size={13} />
+              {filteredProducts.length} รายการ
+            </span>
+          </div>
+
+          <div className="qs-excel-actions">
+            <button
+              type="button"
+              className="qs-excel-btn import"
+              onClick={() => {
+                playTapSound('pop')
+                const fileInput = document.createElement('input')
+                fileInput.type = 'file'
+                fileInput.accept = '.csv,.xlsx'
+                fileInput.onchange = () => {
+                  playTapSound('success')
+                  alert('นำเข้าข้อมูลสินค้าผ่าน Excel/CSV สำเร็จ! อัปเดตรายการสินค้าใหม่เรียบร้อยแล้ว')
+                }
+                fileInput.click()
+              }}
+            >
+              📥 นำเข้า Excel/CSV
+            </button>
+
+            <button
+              type="button"
+              className="qs-excel-btn export"
+              onClick={() => {
+                playTapSound('success')
+                alert('ดาวน์โหลดไฟล์รายการสินค้าคลังสต็อก (Products_Export.xlsx) สำเร็จ!')
+              }}
+            >
+              📤 ส่งออก Excel
+            </button>
+          </div>
+        </div>
+
+        <div className="qs-tab-pills">
+          <button
+            className={activeFilter === 'all' ? 'active' : ''}
+            onClick={() => { playTapSound('pop'); setActiveFilter('all') }}
+            type="button"
+          >
+            สินค้าทั้งหมด ({catalog.length})
+          </button>
+          <button
+            className={activeFilter === 'in_stock' ? 'active' : ''}
+            onClick={() => { playTapSound('pop'); setActiveFilter('in_stock') }}
+            type="button"
+          >
+            พร้อมขาย ({catalog.filter((p) => (p.stock ?? 0) > 10).length})
+          </button>
+          <button
+            className={activeFilter === 'low_stock' ? 'active' : ''}
+            onClick={() => { playTapSound('pop'); setActiveFilter('low_stock') }}
+            type="button"
+          >
+            สต็อกใกล้หมด ({catalog.filter((p) => (p.stock ?? 0) > 0 && (p.stock ?? 0) <= 10).length})
+          </button>
+          <button
+            className={activeFilter === 'out_of_stock' ? 'active' : ''}
+            onClick={() => { playTapSound('pop'); setActiveFilter('out_of_stock') }}
+            type="button"
+          >
+            สินค้าหมด ({catalog.filter((p) => (p.stock ?? 0) === 0).length})
+          </button>
+        </div>
+      </section>
+
+      {/* Table Section */}
+      <section className="qs-catalog-panel">
+        <div className="qs-search-toolbar">
+          <div className="qs-search-box">
+            <Search size={16} />
+            <input
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="ค้นหาชื่อสินค้า (ไทย / EN / 中文)..."
+              value={searchQuery}
+            />
+          </div>
+          <button className="qs-filter-btn" onClick={() => playTapSound('click')} type="button">
+            <SlidersHorizontal size={15} />
+            ตัวกรอง
+          </button>
+        </div>
+
+        <div className="table-scroll">
+          <table className="qs-table">
+            <thead>
+              <tr>
+                <th>รูปภาพ / สินค้า</th>
+                <th>รายละเอียด & ภาษา</th>
+                <th>ราคาขาย</th>
+                <th>จำนวนสต็อก</th>
+                <th>ยอดขาย</th>
+                <th>จัดการ</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredProducts.map((item) => (
+                <tr key={item.id} onClick={() => { playTapSound('pop'); setSelectedItem(item) }}>
+                  <td>
+                    <div className="qs-table-img-cell">
+                      {item.images && item.images.length > 0 ? (
+                        <div className="qs-table-thumb-wrap">
+                          <img src={item.images[0]} alt={item.name} />
+                          {item.images.length > 1 && (
+                            <span className="qs-thumb-count-badge">+{item.images.length - 1}</span>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="qs-no-img-badge">
+                          <Package size={16} color="#94a3b8" />
+                        </div>
+                      )}
+                    </div>
+                  </td>
+                  <td>
+                    <div className="qs-item-info">
+                      <strong className="qs-item-title-link">{item.name}</strong>
+                      {item.shortDescTh && (
+                        <span className="qs-short-desc-line">{item.shortDescTh}</span>
+                      )}
+                      <div className="qs-lang-badges-row">
+                        <span className="qs-lang-tag active">🇹🇭 TH</span>
+                        {item.nameEn && <span className="qs-lang-tag active">🇬🇧 EN</span>}
+                        {item.nameCn && <span className="qs-lang-tag active">🇨🇳 CN</span>}
+                        <span className="qs-cat-tag">หมวด: {item.category}</span>
+                      </div>
+                    </div>
+                  </td>
+                  <td>
+                    <strong className="qs-price">฿{item.price.toLocaleString()}</strong>
+                  </td>
+                  <td>
+                    {(item.stock ?? 0) === 0 ? (
+                      <span className="qs-stock-status qs-stock-low">
+                        ❌ สินค้าหมด (0 ชิ้น)
+                      </span>
+                    ) : (item.stock ?? 0) <= 10 ? (
+                      <span className="qs-stock-status qs-stock-low">
+                        ⚠️ สต็อกต่ำ ({item.stock} ชิ้น)
+                      </span>
+                    ) : (
+                      <span className="qs-stock-status qs-stock-ok">
+                        คงเหลือ {item.stock} ชิ้น
+                      </span>
+                    )}
+                  </td>
+                  <td className="muted">{item.soldCount} ชิ้น</td>
+                  <td>
+                    <button
+                      className="qs-edit-btn"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        playTapSound('pop')
+                        setSelectedItem(item)
+                      }}
+                      type="button"
+                    >
+                      ดูข้อมูล/แก้ไข
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      {/* Item Form Modal */}
+      <ItemFormModal
+        isOpen={isAddModalOpen}
+        onClose={() => setIsAddModalOpen(false)}
+        type="product"
+        onSave={handleSaveProduct}
+      />
+
+      {/* Item Details Modal */}
+      <ItemDetailsModal
+        item={selectedItem}
+        onClose={() => setSelectedItem(null)}
+      />
+    </div>
+  )
+}
+
+/* ==========================================================================
+   SERVICES VIEW (หน้าจัดการบริการและคิวลูกค้า)
+   ========================================================================== */
+function ServicesView() {
+  const [catalog, setCatalog] = useState<CatalogItem[]>(
+    initialCatalog.filter((i) => i.type === 'service')
+  )
+  const [paidList] = useState<PaidTransaction[]>(initialPaidList)
+  const [activeTab, setActiveTab] = useState<'services' | 'paid'>('services')
+  const [searchQuery, setSearchQuery] = useState('')
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false)
+  const [selectedItem, setSelectedItem] = useState<CatalogItem | null>(null)
+
+  const handleSaveService = (newItem: CatalogItem) => {
+    setCatalog([newItem, ...catalog])
+  }
+
+  const filteredServices = catalog.filter((item) =>
+    item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    item.category.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (item.nameEn && item.nameEn.toLowerCase().includes(searchQuery.toLowerCase())) ||
+    (item.nameCn && item.nameCn.toLowerCase().includes(searchQuery.toLowerCase()))
+  )
+
+  return (
+    <div className="queue-services-page">
+      {/* Hero Cards */}
+      <section className="qs-hero-cards">
+        <div
+          className={`qs-card qs-card-green ${activeTab === 'paid' ? 'active' : ''}`}
+          onClick={() => { playTapSound('nav'); setActiveTab('paid') }}
+          role="button"
+          tabIndex={0}
+        >
+          <div className="qs-card-icon-wrap">
+            <Calendar size={22} />
+          </div>
+          <div className="qs-card-text">
+            <h3>รายการชำระแล้ว</h3>
+          </div>
+          <img src="/mascot/pay_1_holding_coin.png" className="qs-card-mascot-img" alt="ชำระแล้ว" />
+        </div>
+
+        <div
+          className={`qs-card qs-card-blue ${activeTab === 'services' ? 'active' : ''}`}
+          onClick={() => { playTapSound('nav'); setActiveTab('services') }}
+          role="button"
+          tabIndex={0}
+        >
+          <div className="qs-card-icon-wrap">
+            <Settings size={22} />
+          </div>
+          <div className="qs-card-text">
+            <h3>จัดการบริการ</h3>
+          </div>
+          <img src="/mascot/pos_5_inventory_check.png" className="qs-card-mascot-img" alt="จัดการบริการ" />
+        </div>
+
+        <div
+          className="qs-card qs-card-orange"
+          onClick={() => { playTapSound('pop'); setIsAddModalOpen(true) }}
+          role="button"
+          tabIndex={0}
+        >
+          <div className="qs-card-icon-wrap qs-plus-icon">
+            <Plus size={24} />
+          </div>
+          <div className="qs-card-text">
+            <h3>เพิ่มบริการใหม่</h3>
+            <p>รองรับ 3 ภาษา & คลังภาพ</p>
+          </div>
+          <img src="/mascot/kyc_10_holding_pen.png" className="qs-card-mascot-img" alt="เพิ่มบริการใหม่" />
+        </div>
+      </section>
+
+      {/* Main Section Header */}
+      <section className="qs-section-header">
+        <div className="qs-section-title-wrap">
+          <h2>{activeTab === 'paid' ? 'รายการชำระแล้ว' : 'รายการบริการร้านค้า (Services)'}</h2>
+          <span className="qs-count-badge">
+            <Tag size={13} />
+            {activeTab === 'paid' ? `${paidList.length} รายการ` : `${filteredServices.length} รายการ`}
+          </span>
+        </div>
+
+        <div className="qs-tab-pills">
+          <button
+            className={activeTab === 'services' ? 'active' : ''}
+            onClick={() => { playTapSound('nav'); setActiveTab('services') }}
+            type="button"
+          >
+            บริการคิวทั้งหมด ({catalog.length})
+          </button>
+          <button
+            className={activeTab === 'paid' ? 'active' : ''}
+            onClick={() => { playTapSound('nav'); setActiveTab('paid') }}
+            type="button"
+          >
+            รายการชำระแล้ว ({paidList.length})
+          </button>
+        </div>
+      </section>
+
+      {activeTab === 'paid' ? (
+        <section className="qs-paid-transactions-list">
+          {paidList.map((tx) => (
+            <div className="qs-paid-card" key={tx.id} onClick={() => playTapSound('click')}>
+              <div className="qs-paid-check-wrap">
+                <Check size={22} strokeWidth={3} />
+              </div>
+              <div className="qs-paid-details">
+                <strong>{tx.method}</strong>
+                <span>{tx.customer}</span>
+              </div>
+              <div className="qs-paid-amount-wrap">
+                <b className="qs-paid-amount">+฿{tx.amount.toFixed(2)}</b>
+                <span className="qs-paid-badge">ชำระแล้ว</span>
+              </div>
+            </div>
+          ))}
+        </section>
+      ) : (
+        <section className="qs-catalog-panel">
+          <div className="qs-search-toolbar">
+            <div className="qs-search-box">
+              <Search size={16} />
+              <input
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="ค้นหาชื่อบริการ (ไทย / EN / 中文)..."
+                value={searchQuery}
+              />
+            </div>
+            <button className="qs-filter-btn" onClick={() => playTapSound('click')} type="button">
+              <SlidersHorizontal size={15} />
+              ตัวกรอง
+            </button>
+          </div>
+
+          <div className="table-scroll">
+            <table className="qs-table">
+              <thead>
+                <tr>
+                  <th>รูปภาพ / บริการ</th>
+                  <th>รายละเอียด & ภาษา</th>
+                  <th>ราคาบริการ</th>
+                  <th>สถานะบริการ</th>
+                  <th>ยอดขาย</th>
+                  <th>จัดการ</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredServices.map((item) => (
+                  <tr key={item.id} onClick={() => { playTapSound('pop'); setSelectedItem(item) }}>
+                    <td>
+                      <div className="qs-table-img-cell">
+                        {item.images && item.images.length > 0 ? (
+                          <div className="qs-table-thumb-wrap">
+                            <img src={item.images[0]} alt={item.name} />
+                            {item.images.length > 1 && (
+                              <span className="qs-thumb-count-badge">+{item.images.length - 1}</span>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="qs-no-img-badge">
+                            <Sparkles size={16} color="#0d7850" />
+                          </div>
+                        )}
+                      </div>
+                    </td>
+                    <td>
+                      <div className="qs-item-info">
+                        <strong className="qs-item-title-link">{item.name}</strong>
+                        {item.shortDescTh && (
+                          <span className="qs-short-desc-line">{item.shortDescTh}</span>
+                        )}
+                        <div className="qs-lang-badges-row">
+                          <span className="qs-lang-tag active">🇹🇭 TH</span>
+                          {item.nameEn && <span className="qs-lang-tag active">🇬🇧 EN</span>}
+                          {item.nameCn && <span className="qs-lang-tag active">🇨🇳 CN</span>}
+                          <span className="qs-cat-tag">หมวด: {item.category}</span>
+                        </div>
+                      </div>
+                    </td>
+                    <td>
+                      <strong className="qs-price">฿{item.price.toLocaleString()}</strong>
+                    </td>
+                    <td>
+                      <span className="qs-stock-status qs-stock-unlimited">
+                        <CheckCircle2 size={13} /> เปิดให้บริการ
+                      </span>
+                    </td>
+                    <td className="muted">{item.soldCount} ครั้ง</td>
+                    <td>
+                      <button
+                        className="qs-edit-btn"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          playTapSound('pop')
+                          setSelectedItem(item)
+                        }}
+                        type="button"
+                      >
+                        ดูข้อมูล/แก้ไข
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
+
+      {/* Item Form Modal */}
+      <ItemFormModal
+        isOpen={isAddModalOpen}
+        onClose={() => setIsAddModalOpen(false)}
+        type="service"
+        onSave={handleSaveService}
+      />
+
+      {/* Item Details Modal */}
+      <ItemDetailsModal
+        item={selectedItem}
+        onClose={() => setSelectedItem(null)}
+      />
+    </div>
+  )
+}
+
+function MerchantSection({ active, label }: { active: string; label: string }) {
+  const content: Record<string, { title: string; description: string; icon: typeof Store }> = {
+    pos: { title: 'ขายหน้าร้าน (POS)', description: 'เลือกสินค้าและสร้างรายการขายใหม่', icon: CreditCard },
+    payment: { title: 'คิดเงินด่วน', description: 'สร้าง QR หรือรับชำระเงินสำหรับออเดอร์', icon: QrCode },
+    orders: { title: 'ออเดอร์ทั้งหมด', description: 'ติดตามรายการสั่งซื้อและสถานะการชำระเงิน', icon: ClipboardList },
+    products: { title: 'คลังสินค้าและสต็อก', description: 'จัดการรายการสินค้า ราคา และจำนวนคงเหลือ', icon: Package },
+    services: { title: 'บริการคิวร้านค้า', description: 'จัดการบริการคิว และรายการชำระแล้ว', icon: Clock },
+    reports: { title: 'รายงานการเงิน', description: 'วิเคราะห์ยอดขายตามช่วงเวลาและช่องทาง', icon: ReceiptText },
+    wallet: { title: 'กระเป๋าเงิน', description: 'ยอดรายรับ ยอดถอนได้ และประวัติการถอนเงิน', icon: WalletCards },
+    settings: { title: 'ตั้งค่าร้านค้า', description: 'จัดการข้อมูลร้าน สาขา และสิทธิ์ทีมงาน', icon: Settings }
+  }
+  const item = content[active] ?? { title: label, description: 'จัดการข้อมูลร้านค้าของคุณ', icon: Store }
+  const SectionIcon = item.icon
+  return (
+    <section className="merchant-placeholder">
+      <div className="merchant-placeholder-icon">
+        <SectionIcon size={28} />
+      </div>
+      <p className="merchant-eyebrow">MERCHANT WORKSPACE</p>
+      <h2>{item.title}</h2>
+      <p>{item.description}</p>
+      <div className="merchant-demo-note">
+        <Checkmark /> หน้านี้พร้อมต่อเข้ากับ workflow จาก apps/merchant และ API จริง
+      </div>
+    </section>
+  )
+}
+
+function Checkmark() {
+  return <span className="merchant-check">✓</span>
+}
+
+/* ==========================================================================
+   SALES PAGES VIEW (Sales Pages / Link Page)
+   ========================================================================== */
+export type SalesPage = {
+  id: string
+  avatarText: string
+  title: string
+  slug: string
+  enabled: boolean
+  clicks: number
+  sales: number
+}
+
+type WizardFormData = {
+  // Step 1
+  template: string
+  pageName: string
+  domain: string
+  slug: string
+  // Step 2
+  seoTitle: string
+  seoDescription: string
+  seoKeywords: string
+  ogImage: string
+  products: { name: string; price: string; image: string }[]
+  // Step 3
+  heroImage: string
+  contentText: string
+  // Step 4
+  paymentChannels: string[]
+  // Step 5
+  shippingEnabled: boolean
+  shippingCost: string
+  shippingProviders: string[]
+  // Step 6
+  bannerImage: string
+  bannerUrl: string
+  bannerText: string
+  // Step 7 (review) — no extra data
+  // Step 8 (stats) — no extra data
+}
+
+const defaultWizardData: WizardFormData = {
+  template: 'shopfront',
+  pageName: '',
+  domain: 'chatpos.link',
+  slug: '',
+  seoTitle: '',
+  seoDescription: '',
+  seoKeywords: '',
+  ogImage: '',
+  products: [],
+  heroImage: '',
+  contentText: '',
+  paymentChannels: ['promptpay'],
+  shippingEnabled: false,
+  shippingCost: '0',
+  shippingProviders: [],
+  bannerImage: '',
+  bannerUrl: '',
+  bannerText: ''
+}
+
+const STEP_LABELS = [
+  'เลือกรูปแบบ',
+  'สินค้า & SEO',
+  'เนื้อหา & สื่อ',
+  'ชำระเงิน',
+  'จัดส่ง',
+  'แบนเนอร์',
+  'ตรวจสอบ',
+  'สถิติ'
+]
+
+const initialSalesPages: SalesPage[] = [
+  {
+    id: 'sp-1',
+    avatarText: 'J1',
+    title: 'J1',
+    slug: 'catalog-page',
+    enabled: true,
+    clicks: 1240,
+    sales: 24500
+  }
+]
+
+function SalesPageView() {
+  const [pages, setPages] = useState<SalesPage[]>(initialSalesPages)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [copiedId, setCopiedId] = useState<string | null>(null)
+
+  // Wizard state
+  const [showWizard, setShowWizard] = useState(false)
+  const [wizardStep, setWizardStep] = useState(1)
+  const [wizardData, setWizardData] = useState<WizardFormData>({ ...defaultWizardData })
+  const [editingPage, setEditingPage] = useState<SalesPage | null>(null)
+
+  // Product form state (Step 2)
+  const [tempProductName, setTempProductName] = useState('')
+  const [tempProductPrice, setTempProductPrice] = useState('')
+
+  const handleToggle = (id: string) => {
+    setPages(pages.map((p) => (p.id === id ? { ...p, enabled: !p.enabled } : p)))
+  }
+
+  const handleCopyLink = (page: SalesPage) => {
+    const fullUrl = `https://chatpos.link/${page.slug}`
+    navigator.clipboard?.writeText(fullUrl)
+    setCopiedId(page.id)
+    playTapSound('success')
+    setTimeout(() => setCopiedId(null), 2000)
+  }
+
+  const handleOpenLink = (page: SalesPage) => {
+    const fullUrl = `https://chatpos.link/${page.slug}`
+    navigator.clipboard?.writeText(fullUrl)
+    setCopiedId(page.id)
+    window.open(fullUrl, '_blank')
+    setTimeout(() => setCopiedId(null), 2000)
+  }
+
+  const handleOpenCreateWizard = () => {
+    playTapSound('pop')
+    setEditingPage(null)
+    setWizardData({ ...defaultWizardData })
+    setWizardStep(1)
+    setShowWizard(true)
+  }
+
+  const handleOpenEditWizard = (page: SalesPage) => {
+    playTapSound('pop')
+    setEditingPage(page)
+    setWizardData({
+      ...defaultWizardData,
+      pageName: page.title,
+      slug: page.slug
+    })
+    setWizardStep(1)
+    setShowWizard(true)
+  }
+
+  const handleNextStep = () => {
+    playTapSound('nav')
+    setWizardStep((s) => Math.min(s + 1, 8))
+  }
+
+  const handlePrevStep = () => {
+    playTapSound('nav')
+    setWizardStep((s) => Math.max(s - 1, 1))
+  }
+
+  const handlePublish = () => {
+    playTapSound('success')
+    if (editingPage) {
+      setPages(
+        pages.map((p) =>
+          p.id === editingPage.id
+            ? {
+                ...p,
+                title: wizardData.pageName || p.title,
+                slug: wizardData.slug || p.slug
+              }
+            : p
+        )
+      )
+    } else {
+      const newPage: SalesPage = {
+        id: `sp-${Date.now()}`,
+        avatarText: (wizardData.pageName || 'SP').slice(0, 2).toUpperCase(),
+        title: wizardData.pageName || 'เซลเพจใหม่',
+        slug: wizardData.slug || `page-${Date.now()}`,
+        enabled: true,
+        clicks: 0,
+        sales: 0
+      }
+      setPages([newPage, ...pages])
+    }
+    setWizardStep(8)
+  }
+
+  const handleAddProduct = () => {
+    if (!tempProductName) return
+    playTapSound('pop')
+    setWizardData({
+      ...wizardData,
+      products: [
+        ...wizardData.products,
+        { name: tempProductName, price: tempProductPrice || '0', image: '' }
+      ]
+    })
+    setTempProductName('')
+    setTempProductPrice('')
+  }
+
+  const handleRemoveProduct = (idx: number) => {
+    playTapSound('delete')
+    setWizardData({
+      ...wizardData,
+      products: wizardData.products.filter((_, i) => i !== idx)
+    })
+  }
+
+  const togglePayChannel = (ch: string) => {
+    playTapSound('pop')
+    const arr = wizardData.paymentChannels
+    setWizardData({
+      ...wizardData,
+      paymentChannels: arr.includes(ch) ? arr.filter((c) => c !== ch) : [...arr, ch]
+    })
+  }
+
+  const toggleShipProvider = (p: string) => {
+    playTapSound('pop')
+    const arr = wizardData.shippingProviders
+    setWizardData({
+      ...wizardData,
+      shippingProviders: arr.includes(p) ? arr.filter((x) => x !== p) : [...arr, p]
+    })
+  }
+
+  const filteredPages = pages.filter(
+    (p) =>
+      p.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      p.slug.toLowerCase().includes(searchQuery.toLowerCase())
+  )
+
+  /* ====================== WIZARD STEP RENDERER ====================== */
+  const renderWizardStep = () => {
+    switch (wizardStep) {
+      /* -------- STEP 1: Template & Name -------- */
+      case 1:
+        return (
+          <div className="spw-step-content">
+            <div className="spw-section-card">
+              <div className="spw-section-header">
+                <Store size={18} color="#059669" />
+                <h4>ขั้นตอนที่ 1: เลือกรูปแบบและตั้งชื่อหน้า</h4>
+              </div>
+              <p className="spw-section-desc">เลือกเทมเพลตและตั้งชื่อเว็บไซต์ร้านค้าของคุณ</p>
+
+              <div className="spw-form-group">
+                <label>เลือกเทมเพลต (Template)</label>
+                <div className="spw-template-grid">
+                  <div
+                    className={`spw-template-card ${wizardData.template === 'shopfront' ? 'selected' : ''}`}
+                    onClick={() => { playTapSound('pop'); setWizardData({ ...wizardData, template: 'shopfront' }) }}
+                  >
+                    <div className="spw-template-icon">
+                      <Store size={28} color="#059669" />
+                    </div>
+                    <strong>ShopFront</strong>
+                    <span>หน้าร้านค้าออนไลน์มาตรฐาน</span>
+                    {wizardData.template === 'shopfront' && <span className="spw-check-badge"><Check size={14} /></span>}
+                  </div>
+                  <div
+                    className={`spw-template-card ${wizardData.template === 'landing' ? 'selected' : ''}`}
+                    onClick={() => { playTapSound('pop'); setWizardData({ ...wizardData, template: 'landing' }) }}
+                  >
+                    <div className="spw-template-icon">
+                      <Globe size={28} color="#6366f1" />
+                    </div>
+                    <strong>Landing Page</strong>
+                    <span>หน้าแลนดิ้งเพจโปรโมชั่น</span>
+                    {wizardData.template === 'landing' && <span className="spw-check-badge"><Check size={14} /></span>}
+                  </div>
+                  <div
+                    className={`spw-template-card ${wizardData.template === 'catalog' ? 'selected' : ''}`}
+                    onClick={() => { playTapSound('pop'); setWizardData({ ...wizardData, template: 'catalog' }) }}
+                  >
+                    <div className="spw-template-icon">
+                      <LayoutGrid size={28} color="#f59e0b" />
+                    </div>
+                    <strong>Catalog</strong>
+                    <span>แค็ตตาล็อกสินค้าแบบกริด</span>
+                    {wizardData.template === 'catalog' && <span className="spw-check-badge"><Check size={14} /></span>}
+                  </div>
+                </div>
+              </div>
+
+              <div className="spw-form-group">
+                <label htmlFor="wz-page-name">ตั้งชื่อหน้าเว็บไซต์ *</label>
+                <input
+                  id="wz-page-name"
+                  value={wizardData.pageName}
+                  onChange={(e) => setWizardData({ ...wizardData, pageName: e.target.value })}
+                  placeholder="เช่น ร้านกาแฟบ้านสวน Official Shop"
+                />
+              </div>
+
+              <div className="spw-form-group">
+                <label htmlFor="wz-slug">เลือกโดเมนสำหรับ URL *</label>
+                <div className="spw-slug-row">
+                  <span className="spw-slug-prefix">https://{wizardData.domain}/</span>
+                  <input
+                    id="wz-slug"
+                    value={wizardData.slug}
+                    onChange={(e) => setWizardData({ ...wizardData, slug: e.target.value.toLowerCase().replace(/\s+/g, '-') })}
+                    placeholder="my-shop-page"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        )
+
+      /* -------- STEP 2: Products & SEO -------- */
+      case 2:
+        return (
+          <div className="spw-step-content">
+            <div className="spw-section-card">
+              <div className="spw-section-header">
+                <ShoppingBag size={18} color="#059669" />
+                <h4>ขั้นตอนที่ 2: สินค้าหรือ SEO</h4>
+              </div>
+              <p className="spw-section-desc">เพิ่มรายการสินค้าเข้าเซลเพจ และตั้งค่า SEO เพื่อให้ค้นหาเจอง่าย</p>
+
+              {/* Product List */}
+              <div className="spw-mini-section">
+                <label>เพิ่มรายการสินค้า</label>
+                <div className="spw-product-add-row">
+                  <input
+                    value={tempProductName}
+                    onChange={(e) => setTempProductName(e.target.value)}
+                    placeholder="ชื่อสินค้า เช่น ชาไทยเย็น"
+                  />
+                  <input
+                    value={tempProductPrice}
+                    onChange={(e) => setTempProductPrice(e.target.value)}
+                    placeholder="ราคา"
+                    type="number"
+                    style={{ maxWidth: 100 }}
+                  />
+                  <button type="button" className="spw-add-btn" onClick={handleAddProduct}>
+                    <Plus size={14} /> เพิ่ม
+                  </button>
+                </div>
+                {wizardData.products.length > 0 && (
+                  <div className="spw-product-list">
+                    {wizardData.products.map((p, idx) => (
+                      <div className="spw-product-item" key={idx}>
+                        <div>
+                          <strong>{p.name}</strong>
+                          <span>฿{parseFloat(p.price || '0').toLocaleString()}</span>
+                        </div>
+                        <button type="button" onClick={() => handleRemoveProduct(idx)} className="spw-remove-btn">
+                          <X size={14} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* SEO Fields */}
+              <div className="spw-seo-divider">
+                <Search size={14} />
+                <span>ตั้งค่า SEO (Search Engine Optimization)</span>
+              </div>
+
+              <div className="spw-form-group">
+                <label htmlFor="wz-seo-title">SEO Title</label>
+                <input
+                  id="wz-seo-title"
+                  value={wizardData.seoTitle}
+                  onChange={(e) => setWizardData({ ...wizardData, seoTitle: e.target.value })}
+                  placeholder="ชื่อที่จะแสดงบน Google เช่น ร้านกาแฟบ้านสวน"
+                />
+              </div>
+
+              <div className="spw-form-group">
+                <label htmlFor="wz-seo-desc">SEO Description</label>
+                <textarea
+                  id="wz-seo-desc"
+                  rows={2}
+                  value={wizardData.seoDescription}
+                  onChange={(e) => setWizardData({ ...wizardData, seoDescription: e.target.value })}
+                  placeholder="คำอธิบายสั้น ๆ 150-160 ตัวอักษร สำหรับ Google"
+                />
+              </div>
+
+              <div className="spw-form-group">
+                <label htmlFor="wz-seo-kw">Keywords (คั่นด้วยเครื่องหมายจุลภาค)</label>
+                <input
+                  id="wz-seo-kw"
+                  value={wizardData.seoKeywords}
+                  onChange={(e) => setWizardData({ ...wizardData, seoKeywords: e.target.value })}
+                  placeholder="กาแฟ, ชาไทย, เครื่องดื่ม, ร้านกาแฟ"
+                />
+              </div>
+
+              <div className="spw-form-group">
+                <label htmlFor="wz-og-img">Social Media OG Image URL</label>
+                <input
+                  id="wz-og-img"
+                  value={wizardData.ogImage}
+                  onChange={(e) => setWizardData({ ...wizardData, ogImage: e.target.value })}
+                  placeholder="https://example.com/og-image.jpg"
+                />
+                {wizardData.ogImage && (
+                  <div className="spw-og-preview">
+                    <img src={wizardData.ogImage} alt="OG Preview" />
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )
+
+      /* -------- STEP 3: Content & Media -------- */
+      case 3:
+        return (
+          <div className="spw-step-content">
+            <div className="spw-section-card">
+              <div className="spw-section-header">
+                <ImageIcon size={18} color="#059669" />
+                <h4>ขั้นตอนที่ 3: เนื้อหาและสื่อประชาสัมพันธ์</h4>
+              </div>
+              <p className="spw-section-desc">เพิ่มรูปภาพหลักและเนื้อหาข้อความสำหรับหน้าเซลเพจ</p>
+
+              <div className="spw-form-group">
+                <label htmlFor="wz-hero-img">รูปภาพหลัก (Hero Banner) URL</label>
+                <input
+                  id="wz-hero-img"
+                  value={wizardData.heroImage}
+                  onChange={(e) => setWizardData({ ...wizardData, heroImage: e.target.value })}
+                  placeholder="ใส่ URL รูปแบนเนอร์หลัก"
+                />
+                <div className="spw-preset-row">
+                  <span>ภาพตัวอย่าง:</span>
+                  <button type="button" className="qs-chip-btn" onClick={() => { playTapSound('pop'); setWizardData({ ...wizardData, heroImage: '/mascot/nabtang_welcome.png' }) }}>
+                    + น้องนับตังค์ 3D
+                  </button>
+                  <button type="button" className="qs-chip-btn" onClick={() => { playTapSound('pop'); setWizardData({ ...wizardData, heroImage: '/mascot/pos_1_scanning_barcode.png' }) }}>
+                    + สแกนสินค้า
+                  </button>
+                </div>
+                {wizardData.heroImage && (
+                  <div className="spw-hero-preview">
+                    <img src={wizardData.heroImage} alt="Hero Preview" />
+                  </div>
+                )}
+              </div>
+
+              <div className="spw-form-group">
+                <label htmlFor="wz-content">ข้อความเนื้อหาเซลเพจ</label>
+                <textarea
+                  id="wz-content"
+                  rows={4}
+                  value={wizardData.contentText}
+                  onChange={(e) => setWizardData({ ...wizardData, contentText: e.target.value })}
+                  placeholder="เขียนเนื้อหาอธิบายร้านค้า สินค้า หรือโปรโมชั่นของคุณ..."
+                />
+              </div>
+
+              {/* Mascot decoration */}
+              <div className="spw-mascot-decor">
+                <img src="/mascot/nabtang_welcome.png" alt="น้องนับตังค์" />
+                <span>เพิ่มรูปภาพและเนื้อหาช่วยให้เซลเพจดูน่าสนใจขึ้น!</span>
+              </div>
+            </div>
+          </div>
+        )
+
+      /* -------- STEP 4: Payment -------- */
+      case 4:
+        return (
+          <div className="spw-step-content">
+            <div className="spw-section-card">
+              <div className="spw-section-header">
+                <CreditCard size={18} color="#059669" />
+                <h4>ขั้นตอนที่ 4: ตั้งค่าระบบรับชำระเงิน (PAYMENT)</h4>
+              </div>
+              <p className="spw-section-desc">เลือกช่องทางรับชำระเงินที่ต้องการเปิดบนหน้าเซลเพจ</p>
+
+              <div className="spw-payment-grid">
+                {[
+                  { id: 'promptpay', name: 'PromptPay', img: '/payments/promptpay_front.png' },
+                  { id: 'truemoney', name: 'TrueMoney', img: '/payments/truemoney_front.png' },
+                  { id: 'visa_th', name: 'VISA / MasterCard', img: '/payments/mastercard_visa_combined.png' },
+                  { id: 'wechat', name: 'WeChat Pay', img: '/payments/wechatpay_front.png' },
+                  { id: 'linepay', name: 'LINE Pay', img: '/payments/linepay_front.png' },
+                  { id: 'alipay', name: 'Alipay', img: '/payments/alipay_front.png' },
+                  { id: 'shopeepay', name: 'ShopeePay', img: '/payments/shopeepay_front.png' }
+                ].map((ch) => (
+                  <div
+                    key={ch.id}
+                    className={`spw-pay-card ${wizardData.paymentChannels.includes(ch.id) ? 'selected' : ''}`}
+                    onClick={() => togglePayChannel(ch.id)}
+                  >
+                    <img src={ch.img} alt={ch.name} />
+                    <span>{ch.name}</span>
+                    {wizardData.paymentChannels.includes(ch.id) && (
+                      <span className="spw-pay-check"><CheckCircle2 size={18} /></span>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              <div className="spw-selected-summary">
+                <Check size={14} />
+                <span>เลือกแล้ว {wizardData.paymentChannels.length} ช่องทาง</span>
+              </div>
+            </div>
+          </div>
+        )
+
+      /* -------- STEP 5: Shipping -------- */
+      case 5:
+        return (
+          <div className="spw-step-content">
+            <div className="spw-section-card">
+              <div className="spw-section-header">
+                <Truck size={18} color="#059669" />
+                <h4>ขั้นตอนที่ 5: ตั้งค่าจัดส่งสินค้า (SHIPPING)</h4>
+              </div>
+              <p className="spw-section-desc">กำหนดค่าจัดส่งและเลือกผู้ให้บริการขนส่ง</p>
+
+              <div className="spw-toggle-row">
+                <span>เปิดระบบจัดส่งสินค้า</span>
+                <button
+                  type="button"
+                  className={`st-ios-switch ${wizardData.shippingEnabled ? 'active' : ''}`}
+                  onClick={() => { playTapSound('pop'); setWizardData({ ...wizardData, shippingEnabled: !wizardData.shippingEnabled }) }}
+                >
+                  <span className="st-switch-thumb" />
+                </button>
+              </div>
+
+              {wizardData.shippingEnabled && (
+                <>
+                  <div className="spw-form-group">
+                    <label htmlFor="wz-ship-cost">ค่าจัดส่งเริ่มต้น (บาท)</label>
+                    <input
+                      id="wz-ship-cost"
+                      type="number"
+                      min="0"
+                      value={wizardData.shippingCost}
+                      onChange={(e) => setWizardData({ ...wizardData, shippingCost: e.target.value })}
+                      placeholder="เช่น 50"
+                    />
+                  </div>
+
+                  <div className="spw-form-group">
+                    <label>เลือกผู้ให้บริการขนส่ง</label>
+                    <div className="spw-ship-providers">
+                      {[
+                        { id: 'kerry', name: 'Kerry Express', emoji: '📦' },
+                        { id: 'flash', name: 'Flash Express', emoji: '⚡' },
+                        { id: 'thaipost', name: 'ไปรษณีย์ไทย', emoji: '📮' },
+                        { id: 'jt', name: 'J&T Express', emoji: '🚚' },
+                        { id: 'grab', name: 'Grab Delivery', emoji: '🏍️' }
+                      ].map((p) => (
+                        <div
+                          key={p.id}
+                          className={`spw-ship-item ${wizardData.shippingProviders.includes(p.id) ? 'selected' : ''}`}
+                          onClick={() => toggleShipProvider(p.id)}
+                        >
+                          <span className="spw-ship-emoji">{p.emoji}</span>
+                          <span>{p.name}</span>
+                          {wizardData.shippingProviders.includes(p.id) && <Check size={14} color="#059669" />}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        )
+
+      /* -------- STEP 6: Promo Banner -------- */
+      case 6:
+        return (
+          <div className="spw-step-content">
+            <div className="spw-section-card">
+              <div className="spw-section-header">
+                <Sparkles size={18} color="#059669" />
+                <h4>ขั้นตอนที่ 6: แบนเนอร์โปรโมชั่น (PROMO BANNER)</h4>
+              </div>
+              <p className="spw-section-desc">เพิ่มแบนเนอร์โปรโมชั่นเพื่อดึงดูดลูกค้า</p>
+
+              <div className="spw-form-group">
+                <label htmlFor="wz-banner-img">URL รูปแบนเนอร์</label>
+                <input
+                  id="wz-banner-img"
+                  value={wizardData.bannerImage}
+                  onChange={(e) => setWizardData({ ...wizardData, bannerImage: e.target.value })}
+                  placeholder="https://example.com/banner.jpg"
+                />
+                {wizardData.bannerImage && (
+                  <div className="spw-banner-preview">
+                    <img src={wizardData.bannerImage} alt="Banner Preview" />
+                  </div>
+                )}
+              </div>
+
+              <div className="spw-form-group">
+                <label htmlFor="wz-banner-text">ข้อความบนแบนเนอร์</label>
+                <input
+                  id="wz-banner-text"
+                  value={wizardData.bannerText}
+                  onChange={(e) => setWizardData({ ...wizardData, bannerText: e.target.value })}
+                  placeholder="เช่น ลดสูงสุด 50% เฉพาะวันนี้!"
+                />
+              </div>
+
+              <div className="spw-form-group">
+                <label htmlFor="wz-banner-url">ลิงก์เมื่อกดแบนเนอร์ (ถ้ามี)</label>
+                <input
+                  id="wz-banner-url"
+                  value={wizardData.bannerUrl}
+                  onChange={(e) => setWizardData({ ...wizardData, bannerUrl: e.target.value })}
+                  placeholder="https://..."
+                />
+              </div>
+            </div>
+          </div>
+        )
+
+      /* -------- STEP 7: Review & Confirm -------- */
+      case 7:
+        return (
+          <div className="spw-step-content">
+            <div className="spw-section-card">
+              <div className="spw-section-header">
+                <CheckCircle2 size={18} color="#059669" />
+                <h4>ขั้นตอนที่ 7: ตรวจสอบและยืนยัน</h4>
+              </div>
+              <p className="spw-section-desc">ตรวจสอบข้อมูลทั้งหมดก่อนเผยแพร่เซลเพจ</p>
+
+              <div className="spw-review-grid">
+                <div className="spw-review-item">
+                  <label>เทมเพลต</label>
+                  <span>{wizardData.template === 'shopfront' ? 'ShopFront' : wizardData.template === 'landing' ? 'Landing Page' : 'Catalog'}</span>
+                </div>
+                <div className="spw-review-item">
+                  <label>ชื่อหน้า</label>
+                  <span>{wizardData.pageName || '—'}</span>
+                </div>
+                <div className="spw-review-item">
+                  <label>URL</label>
+                  <span>https://{wizardData.domain}/{wizardData.slug || '—'}</span>
+                </div>
+                <div className="spw-review-item">
+                  <label>สินค้า</label>
+                  <span>{wizardData.products.length} รายการ</span>
+                </div>
+                <div className="spw-review-item">
+                  <label>SEO Title</label>
+                  <span>{wizardData.seoTitle || '—'}</span>
+                </div>
+                <div className="spw-review-item">
+                  <label>ช่องทางชำระเงิน</label>
+                  <span>{wizardData.paymentChannels.length} ช่องทาง</span>
+                </div>
+                <div className="spw-review-item">
+                  <label>ระบบจัดส่ง</label>
+                  <span>{wizardData.shippingEnabled ? `เปิด (฿${wizardData.shippingCost})` : 'ปิด'}</span>
+                </div>
+                <div className="spw-review-item">
+                  <label>แบนเนอร์</label>
+                  <span>{wizardData.bannerText || (wizardData.bannerImage ? 'มีรูปแบนเนอร์' : '—')}</span>
+                </div>
+              </div>
+
+              {/* Live Preview Mascot */}
+              <div className="spw-review-mascot">
+                <img src="/mascot/kyc_10_holding_pen.png" alt="Review" />
+                <div>
+                  <strong>พร้อมเผยแพร่หน้าเซลเพจ!</strong>
+                  <span>กดปุ่ม "เผยแพร่เซลเพจ" ด้านล่างเพื่อเริ่มใช้งาน</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        )
+
+      /* -------- STEP 8: Statistics (Post-Publish) -------- */
+      case 8:
+        return (
+          <div className="spw-step-content">
+            <div className="spw-section-card spw-stats-card">
+              <div className="spw-section-header">
+                <BarChart3 size={18} color="#059669" />
+                <h4>ขั้นตอนที่ 8: สถิติเซลเพจ (STATISTICS)</h4>
+              </div>
+              <p className="spw-section-desc">ข้อมูลสถิติหลังจากเผยแพร่เซลเพจสำเร็จ</p>
+
+              <div className="spw-stats-success-banner">
+                <CheckCircle2 size={28} color="#059669" />
+                <div>
+                  <strong>เผยแพร่เซลเพจสำเร็จแล้ว! 🎉</strong>
+                  <span>https://{wizardData.domain}/{wizardData.slug || 'my-page'}</span>
+                </div>
+              </div>
+
+              <div className="spw-stats-grid">
+                <div className="spw-stat-box">
+                  <div className="spw-stat-icon blue"><Eye size={20} /></div>
+                  <div className="spw-stat-info">
+                    <span>จำนวนเข้าชม</span>
+                    <strong>0</strong>
+                  </div>
+                </div>
+                <div className="spw-stat-box">
+                  <div className="spw-stat-icon green"><ShoppingBag size={20} /></div>
+                  <div className="spw-stat-info">
+                    <span>ยอดขาย</span>
+                    <strong>฿0.00</strong>
+                  </div>
+                </div>
+                <div className="spw-stat-box">
+                  <div className="spw-stat-icon orange"><TrendingUp size={20} /></div>
+                  <div className="spw-stat-info">
+                    <span>Conversion Rate</span>
+                    <strong>0.00%</strong>
+                  </div>
+                </div>
+              </div>
+
+              <div className="spw-chart-placeholder">
+                <BarChart3 size={40} color="#cbd5e1" />
+                <span>กราฟแสดงผลเมื่อมีข้อมูลสถิติ</span>
+              </div>
+            </div>
+          </div>
+        )
+      default:
+        return null
+    }
+  }
+
+  /* ====================== MAIN RENDER ====================== */
+  if (showWizard) {
+    return (
+      <div className="spw-wizard-container">
+        {/* Wizard Header */}
+        <div className="spw-wizard-header">
+          <button className="spw-back-btn" onClick={() => { playTapSound('click'); setShowWizard(false) }} type="button">
+            <ChevronRight size={18} style={{ transform: 'rotate(180deg)' }} />
+            ย้อนกลับ
+          </button>
+          <h3>{editingPage ? `แก้ไข: ${editingPage.title}` : 'สร้างเซลเพจใหม่'}</h3>
+        </div>
+
+        {/* Step Progress Bar */}
+        <div className="spw-step-bar">
+          {STEP_LABELS.map((label, idx) => {
+            const stepNum = idx + 1
+            const isActive = stepNum === wizardStep
+            const isDone = stepNum < wizardStep
+            return (
+              <div
+                key={idx}
+                className={`spw-step-dot ${isActive ? 'active' : ''} ${isDone ? 'done' : ''}`}
+                onClick={() => { if (isDone || isActive) { playTapSound('pop'); setWizardStep(stepNum) } }}
+              >
+                <div className="spw-dot-circle">
+                  {isDone ? <Check size={12} /> : stepNum}
+                </div>
+                <span className="spw-dot-label">{label}</span>
+              </div>
+            )
+          })}
+        </div>
+
+        {/* Step Content */}
+        {renderWizardStep()}
+
+        {/* Bottom Navigation */}
+        <div className="spw-wizard-footer">
+          {wizardStep > 1 && wizardStep < 8 && (
+            <button type="button" className="spw-btn-prev" onClick={handlePrevStep}>
+              ← ย้อนกลับ
+            </button>
+          )}
+          {wizardStep < 7 && (
+            <button type="button" className="spw-btn-next" onClick={handleNextStep}>
+              ถัดไป →
+            </button>
+          )}
+          {wizardStep === 7 && (
+            <button type="button" className="spw-btn-publish" onClick={handlePublish}>
+              <CheckCircle2 size={16} /> เผยแพร่เซลเพจ
+            </button>
+          )}
+          {wizardStep === 8 && (
+            <button type="button" className="spw-btn-next" onClick={() => { playTapSound('click'); setShowWizard(false) }}>
+              กลับไปรายการเซลเพจ
+            </button>
+          )}
+        </div>
+      </div>
+    )
+  }
+
+  const [showCustomerPreviewModal, setShowCustomerPreviewModal] = useState(false)
+  const [showOgMetaModal, setShowOgMetaModal] = useState(false)
+  const [ogTitle, setOgTitle] = useState('POP CAFE ✨ - สั่งอาหารออนไลน์')
+  const [ogDesc, setOgDesc] = useState('สั่งอาหารและเครื่องดื่มผ่าน LINE OA หรือสแกน QR Code รับส่วนลดพิเศษทันที')
+
+  return (
+    <div className="salespage-container">
+      {/* 1. Title & Subtitle */}
+      <div className="sp-page-title-wrap">
+        <div>
+          <h2>รายการเซลเพจ & หน้าร้านออนไลน์</h2>
+          <p>จัดการหน้าร้านออนไลน์และตกแต่งลิงก์สำหรับส่งให้ลูกค้า</p>
+        </div>
+        <div className="sp-preview-actions">
+          <button
+            type="button"
+            className="sp-preview-btn live"
+            onClick={() => { playTapSound('pop'); setShowCustomerPreviewModal(true) }}
+          >
+            👁️ ดูตัวอย่างหน้าร้านฝั่งลูกค้าจริง (Live Preview)
+          </button>
+          <button
+            type="button"
+            className="sp-preview-btn meta"
+            onClick={() => { playTapSound('click'); setShowOgMetaModal(true) }}
+          >
+            📲 ตั้งค่า Social Share (LINE/FB)
+          </button>
+        </div>
+      </div>
+
+      {/* 2. Quota Summary Card */}
+      <div className="sp-quota-card">
+        <div className="sp-quota-top">
+          <span className="sp-quota-label">โควต้าการสร้างเซลเพจ</span>
+          <span className="sp-premium-badge">แผน Premium</span>
+        </div>
+        <div className="sp-quota-number">
+          <strong>{pages.length}</strong> <span>/ 10 หน้า</span>
+        </div>
+        <div className="sp-quota-progress-track">
+          <div className="sp-quota-progress-bar" style={{ width: `${(pages.length / 10) * 100}%` }} />
+        </div>
+        <span className="sp-quota-foot-text">คุณสามารถสร้างได้อีก {10 - pages.length} หน้า</span>
+      </div>
+
+      {/* 3. Primary Green Create Button */}
+      <button className="sp-main-create-btn" onClick={handleOpenCreateWizard} type="button">
+        <Plus size={20} />
+        <span>สร้างเซลเพจใหม่</span>
+      </button>
+
+      {/* 4. Search & Filter Bar */}
+      <div className="sp-toolbar-row">
+        <div className="sp-search-input-box">
+          <Search size={18} color="#94a3b8" />
+          <input
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="ค้นหาเซลเพจ..."
+            value={searchQuery}
+          />
+        </div>
+        <button className="sp-filter-btn" type="button" aria-label="ตัวกรอง" onClick={() => playTapSound('click')}>
+          <SlidersHorizontal size={20} color="#334155" />
+        </button>
+      </div>
+
+      {/* 5. Sales Page Cards List */}
+      <div className="sp-cards-list">
+        {filteredPages.map((page) => (
+          <div className="sp-new-item-card" key={page.id}>
+            <div className="sp-card-top-row">
+              <div className="sp-icon-box">
+                <LayoutGrid size={22} color="#4f46e5" />
+              </div>
+              <div className="sp-card-info">
+                <div className="sp-card-title-line">
+                  <strong>{page.title}</strong>
+                  <span className={`sp-status-pill ${page.enabled ? 'active' : ''}`} onClick={() => handleToggle(page.id)} style={{ cursor: 'pointer' }}>
+                    <span className="dot" /> {page.enabled ? 'เปิดใช้งานอยู่' : 'ปิดใช้งาน'}
+                  </span>
+                </div>
+                <div className="sp-card-sub-line">
+                  <Link size={13} color="#94a3b8" />
+                  <span>Catalog Page</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="sp-card-divider" />
+
+            <div className="sp-card-bottom-actions">
+              <button className="sp-act-edit" onClick={() => handleOpenEditWizard(page)} type="button">
+                <Pencil size={15} /> แก้ไข
+              </button>
+              <button className="sp-act-copy" onClick={() => handleCopyLink(page)} type="button">
+                <Copy size={15} /> {copiedId === page.id ? 'คัดลอกแล้ว!' : 'คัดลอกลิงก์'}
+              </button>
+              <button
+                className="sp-act-open"
+                onClick={() => handleOpenLink(page)}
+                type="button"
+                aria-label="คัดลอกและเปิดลิงก์"
+              >
+                <ArrowUpRight size={16} />
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Floating Action Button (FAB) */}
+      <button className="sp-fab-btn" onClick={handleOpenCreateWizard} type="button" aria-label="สร้างเซลเพจใหม่">
+        <Plus size={28} />
+      </button>
+
+      {/* Customer Live Mobile Preview Modal */}
+      {showCustomerPreviewModal && (
+        <div className="qs-modal-overlay" style={{ zIndex: 100030 }}>
+          <div className="qs-modal sp-customer-preview-modal" style={{ maxWidth: 420 }}>
+            <div className="qs-modal-header">
+              <div>
+                <h3>📱 ตัวอย่างหน้าร้านฝั่งลูกค้าจริง (Live Customer View)</h3>
+                <p>มุมมองโทรศัพท์มือถือเมื่อลูกค้าสแกนสั่งซื้อ</p>
+              </div>
+              <button
+                aria-label="ปิด"
+                className="qs-modal-close"
+                onClick={() => setShowCustomerPreviewModal(false)}
+                type="button"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="qs-modal-body sp-customer-phone-frame">
+              {/* iPhone Mockup Status Bar */}
+              <div className="sp-phone-top-bar">
+                <span>9:41</span>
+                <div className="sp-phone-notch" />
+                <span>5G 🔋</span>
+              </div>
+
+              {/* Store Header */}
+              <div className="sp-cust-store-header">
+                <img src="/logo.png" alt="Logo" className="sp-cust-logo" />
+                <div>
+                  <h4>POP CAFE ✨</h4>
+                  <p>เปิดให้บริการ · สั่งอาหาร & เครื่องดื่ม</p>
+                </div>
+              </div>
+
+              {/* Search Bar */}
+              <div className="sp-cust-search">
+                <Search size={14} color="#94a3b8" />
+                <input placeholder="ค้นหาเมนูอร่อย..." readOnly />
+              </div>
+
+              {/* Sample Product Grid */}
+              <div className="sp-cust-prod-grid">
+                <div className="sp-cust-card">
+                  <div className="sp-cust-img">☕</div>
+                  <h5>Iced Americano</h5>
+                  <strong>฿65</strong>
+                  <button type="button">+ สั่งซื้อ</button>
+                </div>
+                <div className="sp-cust-card">
+                  <div className="sp-cust-img">🥐</div>
+                  <h5>Croissant เนยสด</h5>
+                  <strong>฿65</strong>
+                  <button type="button">+ สั่งซื้อ</button>
+                </div>
+              </div>
+
+              {/* Cart Banner */}
+              <div className="sp-cust-cart-banner">
+                <div className="sp-cust-cart-text">
+                  <ShoppingBag size={16} />
+                  <span>2 รายการในตะกร้า</span>
+                </div>
+                <strong>฿130.00 ›</strong>
+              </div>
+            </div>
+
+            <div className="qs-modal-footer">
+              <button
+                className="qs-btn-submit"
+                onClick={() => setShowCustomerPreviewModal(false)}
+                type="button"
+              >
+                เสร็จสิ้น
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Social Open Graph Meta Modal */}
+      {showOgMetaModal && (
+        <div className="qs-modal-overlay" style={{ zIndex: 100030 }}>
+          <div className="qs-modal" style={{ maxWidth: 460 }}>
+            <div className="qs-modal-header">
+              <div>
+                <h3>📲 ตั้งค่า Social Share (LINE / Facebook)</h3>
+                <p>กำหนดข้อความและรูปภาพพรีวิวเมื่อส่งลิงก์แชร์ในโซเชียล</p>
+              </div>
+              <button
+                aria-label="ปิด"
+                className="qs-modal-close"
+                onClick={() => setShowOgMetaModal(false)}
+                type="button"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="qs-modal-body">
+              <div className="qs-form-group">
+                <label>หัวข้อเว็บไซต์ (Social Title)</label>
+                <input
+                  type="text"
+                  value={ogTitle}
+                  onChange={(e) => setOgTitle(e.target.value)}
+                />
+              </div>
+
+              <div className="qs-form-group">
+                <label>คำอธิบายย่อ (Meta Description)</label>
+                <textarea
+                  rows={3}
+                  value={ogDesc}
+                  onChange={(e) => setOgDesc(e.target.value)}
+                />
+              </div>
+
+              {/* Social Snippet Card Preview */}
+              <div className="sp-og-preview-card">
+                <div className="sp-og-preview-img">
+                  <span>🖼️ รูปภาพพรีวิวแชร์ (1200 x 630 px)</span>
+                </div>
+                <div className="sp-og-preview-text">
+                  <strong>{ogTitle}</strong>
+                  <p>{ogDesc}</p>
+                  <small>chatpos.link</small>
+                </div>
+              </div>
+            </div>
+
+            <div className="qs-modal-footer">
+              <button
+                className="qs-btn-cancel"
+                onClick={() => setShowOgMetaModal(false)}
+                type="button"
+              >
+                ยกเลิก
+              </button>
+              <button
+                className="qs-btn-submit"
+                onClick={() => {
+                  playTapSound('success')
+                  alert('บันทึกการตั้งค่า Social Open Graph Meta เรียบร้อยแล้ว!')
+                  setShowOgMetaModal(false)
+                }}
+                type="button"
+              >
+                บันทึกการตั้งค่า
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+/* ==========================================================================
+   ORDERS VIEW (All Orders Dashboard)
+   ========================================================================== */
+export type OrderItem = {
+  id: string
+  orderNo: string
+  customer: string
+  avatarText?: string
+  isVip?: boolean
+  date: string
+  status: 'pending' | 'processing' | 'completed' | 'cancelled'
+  amount: number
+  paymentMethod: string
+  cancelNote?: string
+}
+
+const initialOrders: OrderItem[] = [
+  {
+    id: 'ord-1',
+    orderNo: '#ORD250625-01',
+    customer: 'Coffee Shop Official',
+    isVip: true,
+    date: '25 มิ.ย. 2567 17:44',
+    status: 'pending',
+    amount: 102.00,
+    paymentMethod: 'PromptPay'
+  },
+  {
+    id: 'ord-2',
+    orderNo: '#ORD250625-02',
+    customer: 'Sweet Bakery',
+    avatarText: 'S',
+    date: '25 มิ.ย. 2567 17:30',
+    status: 'processing',
+    amount: 350.00,
+    paymentMethod: 'โอนเงิน 🏛️'
+  },
+  {
+    id: 'ord-3',
+    orderNo: '#ORD250625-03',
+    customer: 'Mook Shop',
+    avatarText: 'M',
+    date: '25 มิ.ย. 2567 16:58',
+    status: 'completed',
+    amount: 480.00,
+    paymentMethod: 'PromptPay'
+  },
+  {
+    id: 'ord-4',
+    orderNo: '#ORD250625-04',
+    customer: 'Nana Beauty',
+    avatarText: 'N',
+    date: '25 มิ.ย. 2567 16:15',
+    status: 'completed',
+    amount: 890.00,
+    paymentMethod: 'บัตรเครดิต 💳'
+  },
+  {
+    id: 'ord-5',
+    orderNo: '#ORD250625-05',
+    customer: 'Ploy Stationery',
+    avatarText: 'P',
+    date: '25 มิ.ย. 2567 15:40',
+    status: 'cancelled',
+    amount: 150.00,
+    paymentMethod: 'PromptPay',
+    cancelNote: 'ยกเลิกโดยลูกค้า'
+  }
+]
+
+export type SubQrItem = {
+  id: string
+  title: string
+  subtitle: string
+  slug: string
+  qrImgUrl: string
+  badgeText: string
+  badgeClass: string
+  canCustomAmount?: boolean
+}
+
+function OrdersView({ onNavigate }: { onNavigate?: (id: string) => void }) {
+  const [orders] = useState<OrderItem[]>(initialOrders)
+  const [activeFilter, setActiveFilter] = useState<'all' | 'pending' | 'processing' | 'completed' | 'cancelled'>('all')
+  const [searchQuery, setSearchQuery] = useState('')
+
+  // QR Code Center Modal State with refresh persistence
+  const [isQrModalOpen, setIsQrModalOpen] = useState(() => {
+    return localStorage.getItem('merchant_qr_modal_open') === 'true'
+  })
+  const [selectedQr, setSelectedQr] = useState<any | null>(null)
+  const [customAmountInput, setCustomAmountInput] = useState('')
+  const [generatedAmount, setGeneratedAmount] = useState<number | null>(null)
+  const [copiedQrId, setCopiedQrId] = useState<string | null>(null)
+  // Sub-QR Channel State
+  const [selectedChannel, setSelectedChannel] = useState<any | null>(null)
+  const [isAddSubModalOpen, setIsAddSubModalOpen] = useState(false)
+  const [newSubTitle, setNewSubTitle] = useState('')
+  const [newSubDesc, setNewSubDesc] = useState('')
+  const [newSubSlug, setNewSubSlug] = useState('')
+
+  // Channel Groups with Sub-QR Items
+  const [channelGroups, setChannelGroups] = useState<any[]>(() => {
+    const saved = localStorage.getItem('merchant_channel_groups')
+    if (saved) {
+      try { return JSON.parse(saved) } catch (e) {}
+    }
+    return [
+      {
+        id: 'channel-shop',
+        title: 'หน้าร้านค้าออนไลน์',
+        badgeText: 'สั่งของจากหน้าร้าน',
+        badgeClass: 'green',
+        mascotImg: '/mascot/nabtang_holding_phone.png',
+        defaultSlug: 'shop',
+        description: 'ลูกค้ากดตัวเลขระบุยอดเงิน แล้วเลือกช่องทางชำระเงิน',
+        subItems: [
+          {
+            id: 'sub-promptpay',
+            title: 'PromptPay QR (พร้อมเพย์รับชำระ)',
+            subtitle: 'รับเงินโอนเข้ากระเป๋าร้านค้า (Merchant ID: S072609429)',
+            slug: 'shop-promptpay',
+            qrImgUrl: '/payments/promptpay_front.png',
+            badgeText: '🟢 พร้อมใช้งาน',
+            badgeClass: 'green',
+            canCustomAmount: true
+          },
+          {
+            id: 'sub-truemoney',
+            title: 'TrueMoney Wallet QR Code',
+            subtitle: 'รับชำระเงินผ่าน TrueMoney Wallet',
+            slug: 'shop-truemoney',
+            qrImgUrl: '/payments/truemoney_front.png',
+            badgeText: '🟠 TrueMoney',
+            badgeClass: 'orange'
+          },
+          {
+            id: 'sub-wechat',
+            title: 'WeChat Pay / Alipay QR Code',
+            subtitle: 'รองรับนักท่องเที่ยวจีนและกระเป๋าเงินต่างประเทศ',
+            slug: 'shop-wechat',
+            qrImgUrl: '/payments/wechatpay_front.png',
+            badgeText: '🇨🇳 Global Pay',
+            badgeClass: 'blue'
+          },
+          {
+            id: 'sub-card',
+            title: 'Credit Card QR (บัตรเครดิตออนไลน์)',
+            subtitle: 'รับชำระเงินผ่านบัตรเครดิต/เดบิต VISA & MasterCard',
+            slug: 'shop-card',
+            qrImgUrl: '/payments/mastercard_visa_combined.png',
+            badgeText: '💳 บัตรเครดิต',
+            badgeClass: 'blue'
+          }
+        ]
+      },
+      {
+        id: 'channel-table',
+        title: 'สแกนสั่งอาหารที่โต๊ะ',
+        badgeText: 'สั่งตามโต๊ะ',
+        badgeClass: 'green',
+        mascotImg: '/mascot/menu_stoppay.png',
+        defaultSlug: 'table',
+        description: 'ลูกค้าเลือกอาหารหรือเมนูก่อน แล้วกรอกเฉพาะหมายเหตุ ระบบจะระบุหมายเลขโต๊ะให้อัตโนมัติ',
+        subItems: [
+          {
+            id: 'sub-t01',
+            title: 'คิวอาร์ประจำ โต๊ะที่ 1 (Table #01)',
+            subtitle: 'โซนห้องแอร์ด้านใน - พักได้ 4 ท่าน',
+            slug: 't01',
+            qrImgUrl: '/payments/promptpay_front.png',
+            badgeText: '🍽️ โต๊ะ 01',
+            badgeClass: 'green'
+          },
+          {
+            id: 'sub-t02',
+            title: 'คิวอาร์ประจำ โต๊ะที่ 2 (Table #02)',
+            subtitle: 'โซนห้องแอร์ด้านใน - พักได้ 4 ท่าน',
+            slug: 't02',
+            qrImgUrl: '/payments/promptpay_front.png',
+            badgeText: '🍽️ โต๊ะ 02',
+            badgeClass: 'green'
+          },
+          {
+            id: 'sub-t03',
+            title: 'คิวอาร์ประจำ โต๊ะที่ 3 (Table #03)',
+            subtitle: 'โซนระเบียงริมสวน (Outdoor Garden)',
+            slug: 't03',
+            qrImgUrl: '/payments/promptpay_front.png',
+            badgeText: '🌿 โต๊ะ 03',
+            badgeClass: 'green'
+          },
+          {
+            id: 'sub-vip01',
+            title: 'คิวอาร์ประจำ โต๊ะ VIP 1 (VIP Room 1)',
+            subtitle: 'ห้องปาร์ตี้ส่วนตัว VIP 1 (รองรับ 10 ท่าน)',
+            slug: 'vip01',
+            qrImgUrl: '/payments/promptpay_front.png',
+            badgeText: '👑 VIP 01',
+            badgeClass: 'purple'
+          }
+        ]
+      },
+      {
+        id: 'channel-delivery',
+        title: 'เดลิเวอรี & รับเองที่ร้าน',
+        badgeText: 'ส่งบ้าน / รับเอง',
+        badgeClass: 'blue',
+        mascotImg: '/mascot/pay_channel_4_wechat.png',
+        defaultSlug: 'delivery',
+        description: 'เลือกเมนู กรอกชื่อ เบอร์ และหมายเหตุ พร้อมเลือกวันที่และเวลาจัดส่งหรือรับสินค้าเองที่ร้าน',
+        subItems: [
+          {
+            id: 'sub-deliv-home',
+            title: 'จัดส่งถึงบ้าน (Home Delivery)',
+            subtitle: 'สั่งไรเดอร์จัดส่งอาหารและสินค้าถึงที่พัก',
+            slug: 'delivery-home',
+            qrImgUrl: '/payments/promptpay_front.png',
+            badgeText: '🚚 Delivery',
+            badgeClass: 'blue'
+          },
+          {
+            id: 'sub-pickup-store',
+            title: 'รับสินค้าเองที่ร้าน (Self-Pickup)',
+            subtitle: 'สั่งล่วงหน้า ชำระเงิน แล้วมารับที่เคาน์เตอร์',
+            slug: 'pickup-store',
+            qrImgUrl: '/payments/promptpay_front.png',
+            badgeText: '🛍️ Self-Pickup',
+            badgeClass: 'green'
+          },
+          {
+            id: 'sub-drivethru',
+            title: 'สั่งผ่านช่อง Drive-Thru',
+            subtitle: 'สั่งล่วงหน้า รับสินค้าที่ช่องรับสินค้าไดร์ฟทรู',
+            slug: 'drivethru',
+            qrImgUrl: '/payments/promptpay_front.png',
+            badgeText: '🚗 Drive-Thru',
+            badgeClass: 'orange'
+          }
+        ]
+      },
+      {
+        id: 'channel-booking',
+        title: 'จองโต๊ะ & สั่งล่วงหน้า',
+        badgeText: 'จองโต๊ะ / สั่งล่วงหน้า',
+        badgeClass: 'purple',
+        mascotImg: '/mascot/pay_channel_2_card.png',
+        defaultSlug: 'booking',
+        description: 'จองโต๊ะหรือสั่งล่วงหน้า กรอกข้อมูลและเลือกวันเวลา โดยจะเลือกเมนูตอนนี้หรือเลือกทีหลังก็ได้',
+        subItems: [
+          {
+            id: 'sub-reserve-table',
+            title: 'คิวอาร์จองโต๊ะทานอาหารล่วงหน้า',
+            subtitle: 'เลือกจำนวนท่าน วันและเวลารับบริการ',
+            slug: 'reserve-table',
+            qrImgUrl: '/payments/promptpay_front.png',
+            badgeText: '📅 จองโต๊ะ',
+            badgeClass: 'purple'
+          },
+          {
+            id: 'sub-preorder-food',
+            title: 'คิวอาร์สั่งเมนูอาหารล่วงหน้า (Pre-order)',
+            subtitle: 'เลือกเมนู มัดจำ/จ่ายล่วงหน้า มาถึงทานได้ทันที',
+            slug: 'preorder-food',
+            qrImgUrl: '/payments/promptpay_front.png',
+            badgeText: '🍱 สั่งล่วงหน้า',
+            badgeClass: 'green'
+          },
+          {
+            id: 'sub-reserve-vip',
+            title: 'คิวอาร์จองห้องรับรอง VIP / จัดเลี้ยง',
+            subtitle: 'จองห้องจัดเลี้ยงส่วนตัวสำหรับกลุ่มคณะ',
+            slug: 'reserve-vip',
+            qrImgUrl: '/payments/promptpay_front.png',
+            badgeText: '👑 จองห้อง VIP',
+            badgeClass: 'purple'
+          }
+        ]
+      },
+      {
+        id: 'channel-custom',
+        title: 'คิวอาร์ลิงก์กำหนดเอง',
+        badgeText: 'ตั้งค่าอิสระ',
+        badgeClass: 'slate',
+        mascotImg: '/mascot/pay_channel_1_promptpay.png',
+        defaultSlug: 'custom',
+        description: 'สร้างคิวอาร์สั่งสินค้า สำหรับทำแคมเปญการตลาด โปรโมชันเฉพาะกลุ่ม หรือเมนูพิเศษๆ',
+        subItems: [
+          {
+            id: 'sub-line-promo',
+            title: 'แคมเปญโปรโมชัน Line OA Official',
+            subtitle: 'แจกโค้ดส่วนลดสำหรับลูกค้าที่สแกนจาก Line OA',
+            slug: 'line-promo',
+            qrImgUrl: '/payments/promptpay_front.png',
+            badgeText: '💚 Line OA',
+            badgeClass: 'green'
+          },
+          {
+            id: 'sub-discount-100',
+            title: 'แคมเปญคูปองลด 100 บาท',
+            subtitle: 'รับส่วนลด 100 บาท เมื่อซื้อสินค้าครบ 500 บาท',
+            slug: 'coupon-100',
+            qrImgUrl: '/payments/promptpay_front.png',
+            badgeText: '🎉 ลด 100.-',
+            badgeClass: 'orange'
+          },
+          {
+            id: 'sub-festive-menu',
+            title: 'คิวอาร์เมนูพิเศษประจำเทศกาล',
+            subtitle: 'เมนูฤดูกาล Seasonal & Special Festive Menu',
+            slug: 'festive-menu',
+            qrImgUrl: '/payments/promptpay_front.png',
+            badgeText: '✨ Seasonal',
+            badgeClass: 'purple'
+          }
+        ]
+      }
+    ]
+  })
+
+  const [subSearch, setSubSearch] = useState('')
+  const [isBatchPrintModalOpen, setIsBatchPrintModalOpen] = useState(false)
+
+  const handleDeleteSubQr = (subId: string) => {
+    if (!selectedChannel) return
+    const updatedGroups = channelGroups.map((group) => {
+      if (group.id === selectedChannel.id) {
+        return {
+          ...group,
+          subItems: group.subItems.filter((item: SubQrItem) => item.id !== subId)
+        }
+      }
+      return group
+    })
+
+    setChannelGroups(updatedGroups)
+    localStorage.setItem('merchant_channel_groups', JSON.stringify(updatedGroups))
+    const updatedSel = updatedGroups.find((g) => g.id === selectedChannel.id)
+    setSelectedChannel(updatedSel)
+    playTapSound('pop')
+  }
+
+  const handleAddSubQr = () => {
+    if (!newSubTitle.trim()) return
+    const cleanSlug = (newSubSlug.trim() || 'qr-' + Date.now()).replace(/^\/+/, '').toLowerCase()
+    const newSub: SubQrItem = {
+      id: 'sub-' + Date.now(),
+      title: newSubTitle.trim(),
+      subtitle: newSubDesc.trim() || 'คิวอาร์รับออเดอร์สร้างใหม่',
+      slug: cleanSlug,
+      qrImgUrl: '/payments/promptpay_front.png',
+      badgeText: '✨ คิวอาร์ใหม่',
+      badgeClass: 'green'
+    }
+
+    const updatedGroups = channelGroups.map((group) => {
+      if (group.id === selectedChannel.id) {
+        return { ...group, subItems: [...group.subItems, newSub] }
+      }
+      return group
+    })
+
+    setChannelGroups(updatedGroups)
+    localStorage.setItem('merchant_channel_groups', JSON.stringify(updatedGroups))
+    const updatedSelectedChannel = updatedGroups.find((g) => g.id === selectedChannel.id)
+    setSelectedChannel(updatedSelectedChannel)
+
+    setNewSubTitle('')
+    setNewSubDesc('')
+    setNewSubSlug('')
+    setIsAddSubModalOpen(false)
+    playTapSound('success')
+  }
+
+  // Custom /xx Slugs State
+  const [qrSlugs, setQrSlugs] = useState<Record<string, string>>(() => {
+    const saved = localStorage.getItem('merchant_qr_slugs')
+    if (saved) {
+      try { return JSON.parse(saved) } catch (e) {}
+    }
+    return {
+      'qr-salespage': 'shop',
+      'qr-table': 'table',
+      'qr-delivery': 'delivery',
+      'qr-booking': 'booking',
+      'qr-custom': 'custom',
+      'qr-promptpay': 'pay',
+      'qr-stoppay': 'stoppay',
+      'qr-truemoney': 'truemoney',
+      'qr-wechat': 'wechat',
+      'qr-card': 'card'
+    }
+  })
+  const [editingSlugId, setEditingSlugId] = useState<string | null>(null)
+  const [slugInputVal, setSlugInputVal] = useState('')
+
+  useEffect(() => {
+    localStorage.setItem('merchant_qr_modal_open', isQrModalOpen ? 'true' : 'false')
+  }, [isQrModalOpen])
+
+  const handleSaveSlug = (id: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation()
+    const cleanSlug = slugInputVal.trim().replace(/^\/+/, '').toLowerCase()
+    if (!cleanSlug) return
+    const updated = { ...qrSlugs, [id]: cleanSlug }
+    setQrSlugs(updated)
+    localStorage.setItem('merchant_qr_slugs', JSON.stringify(updated))
+    setEditingSlugId(null)
+    playTapSound('success')
+  }
+
+  const filteredOrders = orders.filter((ord) => {
+    const matchesSearch =
+      ord.orderNo.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      ord.customer.toLowerCase().includes(searchQuery.toLowerCase())
+    if (activeFilter === 'all') return matchesSearch
+    return matchesSearch && ord.status === activeFilter
+  })
+
+  const handleCopyQrLink = (url: string, id: string) => {
+    navigator.clipboard?.writeText(url)
+    setCopiedQrId(id)
+    playTapSound('success')
+    setTimeout(() => setCopiedQrId(null), 2000)
+  }
+
+  const handleGenerateCustomQr = (item: any) => {
+    const num = parseFloat(customAmountInput)
+    if (isNaN(num) || num <= 0) return
+    playTapSound('success')
+    setGeneratedAmount(num)
+    setSelectedQr(item)
+  }
+
+  return (
+    <div className="orders-view">
+      {/* Top 4 Status Metric Cards */}
+      <section className="ov-status-grid">
+        <div
+          className={`ov-metric-card ov-card-all ${activeFilter === 'all' ? 'active' : ''}`}
+          onClick={() => setActiveFilter('all')}
+          role="button"
+          tabIndex={0}
+        >
+          <div className="ov-card-icon icon-green">
+            <ShoppingBag size={20} />
+          </div>
+          <div className="ov-card-text">
+            <span>ทั้งหมด</span>
+            <strong>{orders.length}</strong>
+            <small>ออเดอร์</small>
+          </div>
+        </div>
+
+        <div
+          className={`ov-metric-card ov-card-yellow ${activeFilter === 'pending' ? 'active' : ''}`}
+          onClick={() => setActiveFilter('pending')}
+          role="button"
+          tabIndex={0}
+        >
+          <div className="ov-card-icon icon-yellow">
+            <Clock size={20} />
+          </div>
+          <div className="ov-card-text">
+            <span>รอชำระเงิน</span>
+            <strong>{orders.filter(o => o.status === 'pending').length}</strong>
+            <small>ออเดอร์</small>
+          </div>
+        </div>
+
+        <div
+          className={`ov-metric-card ov-card-blue ${activeFilter === 'processing' ? 'active' : ''}`}
+          onClick={() => setActiveFilter('processing')}
+          role="button"
+          tabIndex={0}
+        >
+          <div className="ov-card-icon icon-blue">
+            <Truck size={20} />
+          </div>
+          <div className="ov-card-text">
+            <span>กำลังดำเนินการ</span>
+            <strong>{orders.filter(o => o.status === 'processing').length}</strong>
+            <small>ออเดอร์</small>
+          </div>
+        </div>
+
+        <div
+          className={`ov-metric-card ov-card-mint ${activeFilter === 'completed' ? 'active' : ''}`}
+          onClick={() => setActiveFilter('completed')}
+          role="button"
+          tabIndex={0}
+        >
+          <div className="ov-card-icon icon-mint">
+            <CheckCircle2 size={20} />
+          </div>
+          <div className="ov-card-text">
+            <span>เสร็จสิ้น</span>
+            <strong>{orders.filter(o => o.status === 'completed').length}</strong>
+            <small>ออเดอร์</small>
+          </div>
+        </div>
+      </section>
+
+      {/* Top Action Cards */}
+      <section className="ov-hero-action-cards">
+        <div
+          className="qs-card qs-card-orange"
+          onClick={() => (onNavigate ? onNavigate('products') : alert('เปิดหน้ารายการสินค้า'))}
+          role="button"
+          tabIndex={0}
+        >
+          <div className="qs-card-icon-wrap qs-plus-icon">
+            <Plus size={22} />
+          </div>
+          <div className="qs-card-text">
+            <h3>เพิ่มสินค้าใหม่</h3>
+          </div>
+          <img src="/mascot/pos_1_scanning_barcode.png" className="qs-card-mascot-img" alt="เพิ่มสินค้า" />
+        </div>
+
+        <div
+          className="qs-card qs-card-blue"
+          onClick={() => { playTapSound('pop'); setIsQrModalOpen(true) }}
+          role="button"
+          tabIndex={0}
+        >
+          <div className="qs-card-icon-wrap">
+            <QrCode size={22} />
+          </div>
+          <div className="qs-card-text">
+            <h3>คิวอาร์โค้ด</h3>
+          </div>
+          <img src="/mascot/pay_2_scanning_qr.png" className="qs-card-mascot-img" alt="QR Codes" />
+        </div>
+      </section>
+
+      {/* Search Toolbar & Filter */}
+      <section className="ov-search-row">
+        <div className="ov-search-box">
+          <Search size={16} />
+          <input
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="ค้นหาออเดอร์ / ชื่อลูกค้า / หมายเลขออเดอร์..."
+            value={searchQuery}
+          />
+        </div>
+        <button className="ov-filter-btn" type="button">
+          <Filter size={15} /> ตัวกรอง
+        </button>
+      </section>
+
+      {/* Filter Tabs */}
+      <section className="ov-tab-pills">
+        <button
+          className={activeFilter === 'all' ? 'active' : ''}
+          onClick={() => setActiveFilter('all')}
+          type="button"
+        >
+          ☰ ทั้งหมด
+        </button>
+        <button
+          className={activeFilter === 'pending' ? 'active' : ''}
+          onClick={() => setActiveFilter('pending')}
+          type="button"
+        >
+          🕒 รอชำระเงิน
+        </button>
+        <button
+          className={activeFilter === 'processing' ? 'active' : ''}
+          onClick={() => setActiveFilter('processing')}
+          type="button"
+        >
+          📥 กำลังดำเนินการ
+        </button>
+        <button
+          className={activeFilter === 'completed' ? 'active' : ''}
+          onClick={() => setActiveFilter('completed')}
+          type="button"
+        >
+          ✓ เสร็จสิ้น
+        </button>
+        <button
+          className={activeFilter === 'cancelled' ? 'active' : ''}
+          onClick={() => setActiveFilter('cancelled')}
+          type="button"
+        >
+          🔴 ยกเลิก
+        </button>
+      </section>
+
+      {/* Order Cards List Panel */}
+      <section className="ov-orders-panel">
+        <div className="ov-panel-toolbar">
+          <button className="ov-sort-btn" type="button">
+            <ArrowUpDown size={13} /> ล่าสุด ↑↓
+          </button>
+          <button className="ov-manage-btn" type="button">
+            ⚙️ จัดการออเดอร์
+          </button>
+        </div>
+
+        <div className="ov-orders-list">
+          {filteredOrders.map((ord) => (
+            <div className="ov-order-card" key={ord.id}>
+              {/* Left Avatar Icon */}
+              <div className={`ov-avatar-wrap ${ord.avatarText ? `avatar-${ord.avatarText.toLowerCase()}` : 'avatar-green'}`}>
+                {ord.avatarText ? (
+                  <span>{ord.avatarText}</span>
+                ) : (
+                  <ShoppingBag size={20} />
+                )}
+              </div>
+
+              {/* Order Info */}
+              <div className="ov-order-info">
+                <div className="ov-order-no-row">
+                  <strong>{ord.orderNo}</strong>
+                  {ord.isVip && <span className="ov-vip-badge">VIP</span>}
+                </div>
+                <span className="ov-customer-name">{ord.customer}</span>
+                <span className="ov-date-time">📅 {ord.date}</span>
+              </div>
+
+              {/* Status & Amount */}
+              <div className="ov-order-status-col">
+                {ord.status === 'pending' && (
+                  <span className="ov-status-badge badge-pending">🕒 รอชำระเงิน</span>
+                )}
+                {ord.status === 'processing' && (
+                  <span className="ov-status-badge badge-processing">🚚 กำลังดำเนินการ</span>
+                )}
+                {ord.status === 'completed' && (
+                  <span className="ov-status-badge badge-completed">🟢 เสร็จสิ้น</span>
+                )}
+                {ord.status === 'cancelled' && (
+                  <span className="ov-status-badge badge-cancelled">🔴 ยกเลิก</span>
+                )}
+
+                <div className={`ov-amount ${ord.status === 'cancelled' ? 'cancelled-amount' : ''}`}>
+                  ฿{ord.amount.toFixed(2)}
+                </div>
+
+                <div className="ov-payment-method">
+                  <span>{ord.paymentMethod}</span>
+                  {ord.cancelNote && <small className="ov-cancel-note">{ord.cancelNote}</small>}
+                </div>
+              </div>
+
+              {/* Right Arrow */}
+              <button aria-label="ดูรายละเอียดออเดอร์" className="ov-arrow-btn" type="button">
+                <ChevronRight size={18} />
+              </button>
+            </div>
+          ))}
+
+          {filteredOrders.length === 0 && (
+            <div className="empty-state">ไม่พบออเดอร์ตามเงื่อนไขที่เลือก</div>
+          )}
+        </div>
+
+        {/* Pagination Footer */}
+        <div className="ov-pagination">
+          <button className="ov-page-btn disabled" disabled type="button">
+            ‹ ก่อนหน้า
+          </button>
+          <span className="ov-page-indicator">1 / 4</span>
+          <button className="ov-page-btn" type="button">
+            ถัดไป ›
+          </button>
+        </div>
+      </section>
+
+      {/* QR Code Management Modal (Matching User Design Mockup 100%) */}
+      {isQrModalOpen && (
+        <div className="qrm-modal-overlay">
+          <div className="qrm-modal-card">
+            {/* Header Banner with Emerald Green Gradient */}
+            <div className="qrm-header">
+              <div className="qrm-header-top-row">
+                <button
+                  className="qrm-back-btn"
+                  onClick={() => { playTapSound('click'); setIsQrModalOpen(false) }}
+                  type="button"
+                  aria-label="ย้อนกลับ"
+                >
+                  <ChevronRight size={20} style={{ transform: 'rotate(180deg)' }} />
+                </button>
+                <span className="qrm-badge-tag">QR MANAGEMENT</span>
+              </div>
+
+              <div className="qrm-title-row">
+                <div className="qrm-title-icon-box">
+                  <QrCode size={26} color="#059669" />
+                </div>
+                <div className="qrm-title-text">
+                  <h2>ตั้งค่า QR Code</h2>
+                  <p>POP CAFE ✨ · ตั้งค่าช่องทางคิวอาร์รับออเดอร์</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Scrollable Body */}
+            <div className="qrm-body">
+              {selectedChannel ? (
+                /* Sub-Channel QR Code List View */
+                <div className="qrm-subchannel-view">
+                  <div className="qrm-subchannel-top-bar">
+                    <button
+                      type="button"
+                      className="qrm-sub-back-btn"
+                      onClick={() => { playTapSound('click'); setSelectedChannel(null) }}
+                    >
+                      <ChevronRight size={16} style={{ transform: 'rotate(180deg)' }} /> ย้อนกลับหมวดหมู่
+                    </button>
+                    <div className="qrm-top-right-group">
+                      <button
+                        type="button"
+                        className="qrm-print-sheet-btn"
+                        onClick={() => { playTapSound('pop'); setIsBatchPrintModalOpen(true) }}
+                      >
+                        <Printer size={14} /> 🖨️ พิมพ์สติ๊กเกอร์ QR ทุกโต๊ะ/ช่องทาง
+                      </button>
+                      <span className={`qrm-pill ${selectedChannel.badgeClass}`}>{selectedChannel.badgeText}</span>
+                    </div>
+                  </div>
+
+                  <div className="qrm-subchannel-heading">
+                    <h3>{selectedChannel.title}</h3>
+                    <p>{selectedChannel.description}</p>
+                  </div>
+
+                  {/* Search Sub-QR Bar */}
+                  <div className="qrm-sub-search-box">
+                    <Search size={15} />
+                    <input
+                      type="text"
+                      placeholder="ค้นหาชื่อคิวอาร์ หรือ /xx slug..."
+                      value={subSearch}
+                      onChange={(e) => setSubSearch(e.target.value)}
+                    />
+                  </div>
+
+                  <div className="qrm-sub-tip-banner">
+                    💡 รายการคิวอาร์โค้ดประจำช่องทางนี้ (มีทั้งหมด {selectedChannel.subItems.length} รายการ)
+                  </div>
+
+                  {/* Sub QR Items List */}
+                  <div className="qrm-menu-list">
+                    {selectedChannel.subItems
+                      .filter((item: any) =>
+                        item.title.toLowerCase().includes(subSearch.toLowerCase()) ||
+                        item.slug.toLowerCase().includes(subSearch.toLowerCase()) ||
+                        (qrSlugs[item.id] || '').toLowerCase().includes(subSearch.toLowerCase())
+                      )
+                      .map((sub: any) => (
+                        <div key={sub.id} className="qrm-menu-card qrm-sub-card">
+                          <div className={`qrm-card-icon-box ${sub.badgeClass || 'green'}`}>
+                            <QrCode size={22} />
+                          </div>
+                          <div className="qrm-card-body">
+                            <div className="qrm-card-title-row">
+                              <h3>{sub.title}</h3>
+                            </div>
+                            <span className={`qrm-pill ${sub.badgeClass || 'green'}`}>{sub.badgeText}</span>
+                            <p>{sub.subtitle}</p>
+
+                            {/* URL Slug /xx Bar */}
+                            <div className="qrm-slug-bar" onClick={(e) => e.stopPropagation()}>
+                              <span className="qrm-slug-tag">🔗 chatpos.link/<strong>{qrSlugs[sub.id] || sub.slug}</strong></span>
+                              {editingSlugId === sub.id ? (
+                                <div className="qrm-slug-edit-row">
+                                  <span className="qrm-slash">/</span>
+                                  <input
+                                    type="text"
+                                    className="qrm-slug-input"
+                                    value={slugInputVal}
+                                    onChange={(e) => setSlugInputVal(e.target.value)}
+                                    placeholder="ระบุ /xx"
+                                    autoFocus
+                                  />
+                                  <button type="button" className="qrm-slug-save-btn" onClick={(e) => handleSaveSlug(sub.id, e)}>บันทึก</button>
+                                  <button type="button" className="qrm-slug-cancel-btn" onClick={() => setEditingSlugId(null)}>ยกเลิก</button>
+                                </div>
+                              ) : (
+                                <button
+                                  type="button"
+                                  className="qrm-slug-edit-btn"
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    setEditingSlugId(sub.id)
+                                    setSlugInputVal(qrSlugs[sub.id] || sub.slug)
+                                  }}
+                                >
+                                  ✏️ ตั้งค่า /xx
+                                </button>
+                              )}
+                            </div>
+
+                            {/* Action Buttons Row */}
+                            <div className="qrm-sub-actions-row">
+                              <button
+                                type="button"
+                                className="qrm-sub-action-btn view-qr"
+                                onClick={() => { playTapSound('pop'); setSelectedQr(sub) }}
+                              >
+                                👁️ ดูรูป QR Code
+                              </button>
+                              <button
+                                type="button"
+                                className="qrm-sub-action-btn copy-link"
+                                onClick={() => handleCopyQrLink('https://chatpos.link/' + (qrSlugs[sub.id] || sub.slug), sub.id)}
+                              >
+                                <Copy size={13} /> {copiedQrId === sub.id ? 'คัดลอกแล้ว!' : 'คัดลอกลิงก์'}
+                              </button>
+                              <button
+                                type="button"
+                                className="qrm-sub-action-btn delete-btn"
+                                onClick={() => {
+                                  if (confirm(`คุณต้องการลบ "${sub.title}" หรือไม่?`)) {
+                                    handleDeleteSubQr(sub.id)
+                                  }
+                                }}
+                              >
+                                🗑️ ลบ
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                  </div>
+
+                  {/* Add New Sub-QR Button */}
+                  <button
+                    type="button"
+                    className="qrm-add-sub-qr-btn"
+                    onClick={() => { playTapSound('pop'); setIsAddSubModalOpen(true) }}
+                  >
+                    ➕ สร้าง / เพิ่ม คิวอาร์โค้ดใหม่ในหมวดนี้
+                  </button>
+                </div>
+              ) : (
+                /* 5 Main Channel Cards List */
+                <>
+                  <div className="qrm-tip-card">
+                    <div className="qrm-tip-icon">💡</div>
+                    <div className="qrm-tip-text">
+                      <strong>เลือกประเภท QR ที่ต้องการจัดการ</strong>
+                      <p>สร้างและตั้งค่า QR สำหรับหน้าร้าน โต๊ะออเดอร์ เดลิเวอรี หรือแคมเปญได้จากเมนูด้านล่าง</p>
+                    </div>
+                  </div>
+
+                  <div className="qrm-menu-list">
+                    {/* 1. หน้าร้านค้าออนไลน์ */}
+                    <div
+                      className="qrm-menu-card"
+                      onClick={() => { playTapSound('pop'); setSelectedChannel(channelGroups[0]) }}
+                      role="button"
+                      tabIndex={0}
+                    >
+                      <div className="qrm-card-icon-box green">
+                        <QrCode size={22} color="#059669" />
+                      </div>
+                      <div className="qrm-card-body">
+                        <div className="qrm-card-title-row">
+                          <h3>หน้าร้านค้าออนไลน์</h3>
+                        </div>
+                        <span className="qrm-pill green">สั่งของจากหน้าร้าน · {channelGroups[0]?.subItems?.length || 4} รายการ</span>
+                        <p>ลูกค้ากดตัวเลขระบุยอดเงิน แล้วเลือกช่องทางชำระเงิน</p>
+
+                        <div className="qrm-slug-bar" onClick={(e) => e.stopPropagation()}>
+                          <span className="qrm-slug-tag">🔗 chatpos.link/<strong>{qrSlugs['channel-shop'] || 'shop'}</strong></span>
+                          {editingSlugId === 'channel-shop' ? (
+                            <div className="qrm-slug-edit-row">
+                              <span className="qrm-slash">/</span>
+                              <input
+                                type="text"
+                                className="qrm-slug-input"
+                                value={slugInputVal}
+                                onChange={(e) => setSlugInputVal(e.target.value)}
+                                placeholder="ระบุ /xx เช่น shop"
+                                autoFocus
+                              />
+                              <button type="button" className="qrm-slug-save-btn" onClick={(e) => handleSaveSlug('channel-shop', e)}>บันทึก</button>
+                              <button type="button" className="qrm-slug-cancel-btn" onClick={() => setEditingSlugId(null)}>ยกเลิก</button>
+                            </div>
+                          ) : (
+                            <button
+                              type="button"
+                              className="qrm-slug-edit-btn"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                setEditingSlugId('channel-shop')
+                                setSlugInputVal(qrSlugs['channel-shop'] || 'shop')
+                              }}
+                            >
+                              ✏️ ตั้งค่า /xx
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                      <div className="qrm-card-arrow">
+                        <ChevronRight size={18} />
+                      </div>
+                    </div>
+
+                    {/* 2. สแกนสั่งอาหารที่โต๊ะ */}
+                    <div
+                      className="qrm-menu-card"
+                      onClick={() => { playTapSound('pop'); setSelectedChannel(channelGroups[1]) }}
+                      role="button"
+                      tabIndex={0}
+                    >
+                      <div className="qrm-card-icon-box green">
+                        <Utensils size={22} color="#059669" />
+                      </div>
+                      <div className="qrm-card-body">
+                        <div className="qrm-card-title-row">
+                          <h3>สแกนสั่งอาหารที่โต๊ะ</h3>
+                        </div>
+                        <span className="qrm-pill green">สั่งตามโต๊ะ · {channelGroups[1]?.subItems?.length || 4} รายการ</span>
+                        <p>ลูกค้าเลือกอาหารหรือเมนูก่อน แล้วกรอกเฉพาะหมายเหตุ ระบบจะระบุหมายเลขโต๊ะให้อัตโนมัติ</p>
+
+                        <div className="qrm-slug-bar" onClick={(e) => e.stopPropagation()}>
+                          <span className="qrm-slug-tag">🔗 chatpos.link/<strong>{qrSlugs['channel-table'] || 'table'}</strong></span>
+                          {editingSlugId === 'channel-table' ? (
+                            <div className="qrm-slug-edit-row">
+                              <span className="qrm-slash">/</span>
+                              <input
+                                type="text"
+                                className="qrm-slug-input"
+                                value={slugInputVal}
+                                onChange={(e) => setSlugInputVal(e.target.value)}
+                                placeholder="ระบุ /xx เช่น table"
+                                autoFocus
+                              />
+                              <button type="button" className="qrm-slug-save-btn" onClick={(e) => handleSaveSlug('channel-table', e)}>บันทึก</button>
+                              <button type="button" className="qrm-slug-cancel-btn" onClick={() => setEditingSlugId(null)}>ยกเลิก</button>
+                            </div>
+                          ) : (
+                            <button
+                              type="button"
+                              className="qrm-slug-edit-btn"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                setEditingSlugId('channel-table')
+                                setSlugInputVal(qrSlugs['channel-table'] || 'table')
+                              }}
+                            >
+                              ✏️ ตั้งค่า /xx
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                      <div className="qrm-card-arrow">
+                        <ChevronRight size={18} />
+                      </div>
+                    </div>
+
+                    {/* 3. เดลิเวอรี & รับเองที่ร้าน */}
+                    <div
+                      className="qrm-menu-card"
+                      onClick={() => { playTapSound('pop'); setSelectedChannel(channelGroups[2]) }}
+                      role="button"
+                      tabIndex={0}
+                    >
+                      <div className="qrm-card-icon-box blue">
+                        <Truck size={22} color="#2563eb" />
+                      </div>
+                      <div className="qrm-card-body">
+                        <div className="qrm-card-title-row">
+                          <h3>เดลิเวอรี & รับเองที่ร้าน</h3>
+                        </div>
+                        <span className="qrm-pill blue">ส่งบ้าน / รับเอง · {channelGroups[2]?.subItems?.length || 3} รายการ</span>
+                        <p>เลือกเมนู กรอกชื่อ เบอร์ และหมายเหตุ พร้อมเลือกวันที่และเวลาจัดส่งหรือรับสินค้าเองที่ร้าน</p>
+
+                        <div className="qrm-slug-bar" onClick={(e) => e.stopPropagation()}>
+                          <span className="qrm-slug-tag">🔗 chatpos.link/<strong>{qrSlugs['channel-delivery'] || 'delivery'}</strong></span>
+                          {editingSlugId === 'channel-delivery' ? (
+                            <div className="qrm-slug-edit-row">
+                              <span className="qrm-slash">/</span>
+                              <input
+                                type="text"
+                                className="qrm-slug-input"
+                                value={slugInputVal}
+                                onChange={(e) => setSlugInputVal(e.target.value)}
+                                placeholder="ระบุ /xx เช่น delivery"
+                                autoFocus
+                              />
+                              <button type="button" className="qrm-slug-save-btn" onClick={(e) => handleSaveSlug('channel-delivery', e)}>บันทึก</button>
+                              <button type="button" className="qrm-slug-cancel-btn" onClick={() => setEditingSlugId(null)}>ยกเลิก</button>
+                            </div>
+                          ) : (
+                            <button
+                              type="button"
+                              className="qrm-slug-edit-btn"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                setEditingSlugId('channel-delivery')
+                                setSlugInputVal(qrSlugs['channel-delivery'] || 'delivery')
+                              }}
+                            >
+                              ✏️ ตั้งค่า /xx
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                      <div className="qrm-card-arrow">
+                        <ChevronRight size={18} />
+                      </div>
+                    </div>
+
+                    {/* 4. จองโต๊ะ & สั่งล่วงหน้า */}
+                    <div
+                      className="qrm-menu-card"
+                      onClick={() => { playTapSound('pop'); setSelectedChannel(channelGroups[3]) }}
+                      role="button"
+                      tabIndex={0}
+                    >
+                      <div className="qrm-card-icon-box purple">
+                        <Calendar size={22} color="#7c3aed" />
+                      </div>
+                      <div className="qrm-card-body">
+                        <div className="qrm-card-title-row">
+                          <h3>จองโต๊ะ & สั่งล่วงหน้า</h3>
+                        </div>
+                        <span className="qrm-pill purple">จองโต๊ะ / สั่งล่วงหน้า · {channelGroups[3]?.subItems?.length || 3} รายการ</span>
+                        <p>จองโต๊ะหรือสั่งล่วงหน้า กรอกข้อมูลและเลือกวันเวลา โดยจะเลือกเมนูตอนนี้หรือเลือกทีหลังก็ได้</p>
+
+                        <div className="qrm-slug-bar" onClick={(e) => e.stopPropagation()}>
+                          <span className="qrm-slug-tag">🔗 chatpos.link/<strong>{qrSlugs['channel-booking'] || 'booking'}</strong></span>
+                          {editingSlugId === 'channel-booking' ? (
+                            <div className="qrm-slug-edit-row">
+                              <span className="qrm-slash">/</span>
+                              <input
+                                type="text"
+                                className="qrm-slug-input"
+                                value={slugInputVal}
+                                onChange={(e) => setSlugInputVal(e.target.value)}
+                                placeholder="ระบุ /xx เช่น booking"
+                                autoFocus
+                              />
+                              <button type="button" className="qrm-slug-save-btn" onClick={(e) => handleSaveSlug('channel-booking', e)}>บันทึก</button>
+                              <button type="button" className="qrm-slug-cancel-btn" onClick={() => setEditingSlugId(null)}>ยกเลิก</button>
+                            </div>
+                          ) : (
+                            <button
+                              type="button"
+                              className="qrm-slug-edit-btn"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                setEditingSlugId('channel-booking')
+                                setSlugInputVal(qrSlugs['channel-booking'] || 'booking')
+                              }}
+                            >
+                              ✏️ ตั้งค่า /xx
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                      <div className="qrm-card-arrow">
+                        <ChevronRight size={18} />
+                      </div>
+                    </div>
+
+                    {/* 5. คิวอาร์ลิงก์กำหนดเอง */}
+                    <div
+                      className="qrm-menu-card"
+                      onClick={() => { playTapSound('pop'); setSelectedChannel(channelGroups[4]) }}
+                      role="button"
+                      tabIndex={0}
+                    >
+                      <div className="qrm-card-icon-box slate">
+                        <Sparkles size={22} color="#475569" />
+                      </div>
+                      <div className="qrm-card-body">
+                        <div className="qrm-card-title-row">
+                          <h3>คิวอาร์ลิงก์กำหนดเอง</h3>
+                        </div>
+                        <span className="qrm-pill slate">ตั้งค่าอิสระ · {channelGroups[4]?.subItems?.length || 3} รายการ</span>
+                        <p>สร้างคิวอาร์สั่งสินค้า สำหรับทำแคมเปญการตลาด โปรโมชันเฉพาะกลุ่ม หรือเมนูพิเศษๆ</p>
+
+                        <div className="qrm-slug-bar" onClick={(e) => e.stopPropagation()}>
+                          <span className="qrm-slug-tag">🔗 chatpos.link/<strong>{qrSlugs['channel-custom'] || 'custom'}</strong></span>
+                          {editingSlugId === 'channel-custom' ? (
+                            <div className="qrm-slug-edit-row">
+                              <span className="qrm-slash">/</span>
+                              <input
+                                type="text"
+                                className="qrm-slug-input"
+                                value={slugInputVal}
+                                onChange={(e) => setSlugInputVal(e.target.value)}
+                                placeholder="ระบุ /xx เช่น promo"
+                                autoFocus
+                              />
+                              <button type="button" className="qrm-slug-save-btn" onClick={(e) => handleSaveSlug('channel-custom', e)}>บันทึก</button>
+                              <button type="button" className="qrm-slug-cancel-btn" onClick={() => setEditingSlugId(null)}>ยกเลิก</button>
+                            </div>
+                          ) : (
+                            <button
+                              type="button"
+                              className="qrm-slug-edit-btn"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                setEditingSlugId('channel-custom')
+                                setSlugInputVal(qrSlugs['channel-custom'] || 'custom')
+                              }}
+                            >
+                              ✏️ ตั้งค่า /xx
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                      <div className="qrm-card-arrow">
+                        <ChevronRight size={18} />
+                      </div>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add New Sub-QR Modal Form */}
+      {isAddSubModalOpen && selectedChannel && (
+        <div className="qs-modal-overlay" style={{ zIndex: 100010 }}>
+          <div className="qs-modal" style={{ maxWidth: 440 }}>
+            <div className="qs-modal-header">
+              <div>
+                <h3>➕ เพิ่ม คิวอาร์โค้ดใหม่</h3>
+                <p>หมวดหมู่: {selectedChannel.title}</p>
+              </div>
+              <button
+                aria-label="ปิด"
+                className="qs-modal-close"
+                onClick={() => { playTapSound('click'); setIsAddSubModalOpen(false) }}
+                type="button"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="qs-modal-body">
+              <div className="qs-form-group">
+                <label>ชื่อรายการคิวอาร์โค้ด</label>
+                <input
+                  type="text"
+                  placeholder="เช่น คิวอาร์ประจำ โต๊ะที่ 4, แคมเปญ TikTok"
+                  value={newSubTitle}
+                  onChange={(e) => setNewSubTitle(e.target.value)}
+                />
+              </div>
+
+              <div className="qs-form-group">
+                <label>คำอธิบายย่อ</label>
+                <input
+                  type="text"
+                  placeholder="เช่น โซนระเบียง VIP, ส่วนลด 50 บาท"
+                  value={newSubDesc}
+                  onChange={(e) => setNewSubDesc(e.target.value)}
+                />
+              </div>
+
+              <div className="qs-form-group">
+                <label>URL Slug (/xx)</label>
+                <input
+                  type="text"
+                  placeholder="เช่น t04 หรือ tiktok-promo"
+                  value={newSubSlug}
+                  onChange={(e) => setNewSubSlug(e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div className="qs-modal-footer">
+              <button
+                className="qs-btn-cancel"
+                onClick={() => setIsAddSubModalOpen(false)}
+                type="button"
+              >
+                ยกเลิก
+              </button>
+              <button
+                className="qs-btn-submit"
+                onClick={handleAddSubQr}
+                type="button"
+              >
+                บันทึกคิวอาร์ใหม่
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Batch QR Print Sticker Sheet Modal */}
+      {isBatchPrintModalOpen && selectedChannel && (
+        <div className="qs-modal-overlay" style={{ zIndex: 100020 }}>
+          <div className="qs-modal qs-modal-large" style={{ maxWidth: 820 }}>
+            <div className="qs-modal-header no-print">
+              <div>
+                <h3>🖨️ พิมพ์สติ๊กเกอร์ QR Code ทุกโต๊ะ / ช่องทาง</h3>
+                <p>หมวดหมู่: {selectedChannel.title} ({selectedChannel.subItems.length} รายการ)</p>
+              </div>
+              <button
+                aria-label="ปิด"
+                className="qs-modal-close"
+                onClick={() => { playTapSound('click'); setIsBatchPrintModalOpen(false) }}
+                type="button"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="qs-modal-body qrm-print-sheet-body">
+              <div className="qrm-print-banner no-print">
+                💡 คำแนะนำ: กดปุ่ม "สั่งพิมพ์สติ๊กเกอร์" ด้านล่าง ระบบจะเปิดหน้าสั่งพิมพ์สติ๊กเกอร์ขนาดมาตรฐานสำหรับนำไปแปะบนโต๊ะอาหารหรือแผ่นป้ายประจำร้าน
+              </div>
+
+              <div className="qrm-sticker-grid">
+                {selectedChannel.subItems.map((sub: SubQrItem) => (
+                  <div key={sub.id} className="qrm-sticker-card">
+                    <div className="qrm-sticker-header">
+                      <img src="/logo.png" alt="ChatPOS Logo" className="qrm-sticker-logo" />
+                      <div>
+                        <h4>POP CAFE ✨</h4>
+                        <p>สแกนสั่งอาหาร / ชำระเงิน</p>
+                      </div>
+                    </div>
+                    <div className="qrm-sticker-title">{sub.title}</div>
+                    <div className="qrm-sticker-qr-box">
+                      <img src={sub.qrImgUrl || '/payments/promptpay_front.png'} alt={sub.title} />
+                    </div>
+                    <div className="qrm-sticker-slug">
+                      🔗 chatpos.link/<strong>{qrSlugs[sub.id] || sub.slug}</strong>
+                    </div>
+                    <div className="qrm-sticker-footer">
+                      Merchant ID: S072609429
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="qs-modal-footer no-print">
+              <button
+                className="qs-btn-cancel"
+                onClick={() => setIsBatchPrintModalOpen(false)}
+                type="button"
+              >
+                ยกเลิก
+              </button>
+              <button
+                className="qs-btn-submit"
+                onClick={() => { playTapSound('success'); window.print() }}
+                type="button"
+              >
+                <Printer size={15} /> สั่งพิมพ์สติ๊กเกอร์ (Print)
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Selected QR Code Detail Overlay */}
+      {selectedQr && (
+        <div className="qs-modal-overlay" style={{ zIndex: 100005 }}>
+          <div className="qs-modal" style={{ maxWidth: 420 }}>
+            <div className="qs-modal-header">
+              <div>
+                <h3>{selectedQr.title}</h3>
+                <p>{selectedQr.subtitle}</p>
+              </div>
+              <button
+                aria-label="ปิด"
+                className="qs-modal-close"
+                onClick={() => { playTapSound('click'); setSelectedQr(null); setGeneratedAmount(null) }}
+                type="button"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="qs-modal-body" style={{ textAlign: 'center' }}>
+              <div className="qrm-detail-qr-box">
+                <img src={selectedQr.qrImgUrl} alt={selectedQr.title} />
+              </div>
+              {generatedAmount && (
+                <div className="qrm-custom-amount-badge">
+                  ยอดเงินชำระ: <strong>฿{generatedAmount.toLocaleString('th-TH', { minimumFractionDigits: 2 })}</strong>
+                </div>
+              )}
+              <div className="qrm-detail-merchant">
+                <span>Merchant ID: <strong>S072609429</strong></span>
+                <br />
+                <span className="qrm-active-link-indicator">🔗 ลิงก์ตรง: <strong>https://chatpos.link/{qrSlugs[selectedQr.id] || 'shop'}</strong></span>
+              </div>
+
+              {/* Custom Amount Form */}
+              {selectedQr.canCustomAmount && (
+                <div className="qrm-custom-input-group">
+                  <label htmlFor="qrm-amount-in">ระบุยอดเงินสร้าง QR Code เฉพาะรายการ</label>
+                  <div className="qrm-input-btn-row">
+                    <input
+                      id="qrm-amount-in"
+                      type="number"
+                      placeholder="ใส่ยอดเงิน เช่น 150"
+                      value={customAmountInput}
+                      onChange={(e) => setCustomAmountInput(e.target.value)}
+                    />
+                    <button
+                      type="button"
+                      className="qrm-btn-gen"
+                      onClick={() => handleGenerateCustomQr(selectedQr)}
+                    >
+                      สร้าง QR
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="qs-modal-footer">
+              <button
+                className="qs-btn-cancel"
+                onClick={() => handleCopyQrLink(selectedQr.linkUrl || 'https://chatpos.link/qr', selectedQr.id)}
+                type="button"
+              >
+                <Copy size={14} /> {copiedQrId === selectedQr.id ? 'คัดลอกแล้ว!' : 'คัดลอกลิงก์'}
+              </button>
+              <button
+                className="qs-btn-submit"
+                onClick={() => { playTapSound('success'); alert('เริ่มดาวน์โหลดรูปภาพ QR Code สำเร็จ') }}
+                type="button"
+              >
+                ดาวน์โหลด QR
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+/* ==========================================================================
+   1. POS VIEW (ขายหน้าร้าน)
+   ========================================================================== */
+export type PosItem = {
+  id: string
+  name: string
+  category: 'drink' | 'bakery' | 'service'
+  price: number
+  stock: number
+  tag?: string
+  image?: string
+  icon?: string
+}
+
+export type HeldOrder = {
+  id: string
+  tableName: string
+  items: { product: PosItem; qty: number }[]
+  total: number
+  time: string
+}
+
+const posProducts: PosItem[] = [
+  {
+    id: 'p-1',
+    name: 'Espresso ร้อน (Hot Espresso)',
+    category: 'drink',
+    price: 55,
+    stock: 99,
+    tag: 'HOT',
+    icon: '☕',
+    image: 'https://images.unsplash.com/photo-1510591509098-f4fdc6d0ff04?w=300&auto=format&fit=crop&q=80'
+  },
+  {
+    id: 'p-2',
+    name: 'Iced Americano (กาแฟดำเย็น)',
+    category: 'drink',
+    price: 65,
+    stock: 80,
+    tag: 'BEST',
+    icon: '🧊☕',
+    image: 'https://images.unsplash.com/photo-1517701604599-bb29b565090c?w=300&auto=format&fit=crop&q=80'
+  },
+  {
+    id: 'p-3',
+    name: 'Iced Matcha Latte (มัทฉะลาเต้)',
+    category: 'drink',
+    price: 75,
+    stock: 45,
+    tag: 'POPULAR',
+    icon: '🍵',
+    image: 'https://images.unsplash.com/photo-1536256263959-770b48d82b0a?w=300&auto=format&fit=crop&q=80'
+  },
+  {
+    id: 'p-4',
+    name: 'Croissant เนยสดแท้ (Butter Croissant)',
+    category: 'bakery',
+    price: 65,
+    stock: 18,
+    tag: 'FRESH',
+    icon: '🥐',
+    image: 'https://images.unsplash.com/photo-1555507036-ab1f4038808a?w=300&auto=format&fit=crop&q=80'
+  },
+  {
+    id: 'p-5',
+    name: 'Cheesecake หน้าไหม้ (Basque Cheesecake)',
+    category: 'bakery',
+    price: 120,
+    stock: 12,
+    tag: 'DELICIOUS',
+    icon: '🍰',
+    image: 'https://images.unsplash.com/photo-1533134242443-d4fd215305ad?w=300&auto=format&fit=crop&q=80'
+  },
+  {
+    id: 'p-6',
+    name: 'บริการจองโต๊ะจัดเลี้ยง VIP',
+    category: 'service',
+    price: 500,
+    stock: 999,
+    tag: 'SERVICE',
+    icon: '👑',
+    image: '/mascot/nabtang_welcome.png'
+  }
+]
+
+function PosView({ onNavigate }: { onNavigate?: (tab: string) => void }) {
+  const [category, setCategory] = useState('all' as 'all' | 'drink' | 'bakery' | 'service')
+  const [search, setSearch] = useState('')
+  
+
+
+  // Table Status & Interactive Floor Map State
+  const [tables, setTables] = useState([
+    { id: 't01', name: 'โต๊ะ 01', zone: 'โซนในร้าน A', status: 'occupied', total: 850, itemsCount: 3, time: '12:15 น.' },
+    { id: 't02', name: 'โต๊ะ 02', zone: 'โซนในร้าน A', status: 'vacant', total: 0, itemsCount: 0, time: '-' },
+    { id: 't03', name: 'โต๊ะ 03', zone: 'โซนริมสวน B', status: 'occupied', total: 420, itemsCount: 2, time: '12:35 น.' },
+    { id: 'tvip01', name: 'โต๊ะ VIP 01', zone: 'ห้อง VIP', status: 'vacant', total: 0, itemsCount: 0, time: '-' }
+  ])
+  const [activeTableId, setActiveTableId] = useState('t01')
+  const [tableFilter, setTableFilter] = useState<'all' | 'occupied' | 'vacant'>('all')
+  const [showFullMapModal, setShowFullMapModal] = useState(false)
+  const [isAddTableModalOpen, setIsAddTableModalOpen] = useState(false)
+  const [newTableName, setNewTableName] = useState('')
+  const [newTableZone, setNewTableZone] = useState('โซนในร้าน A')
+
+  const handleAddNewTable = () => {
+    if (!newTableName.trim()) return
+    playTapSound('success')
+    const newT = {
+      id: 't-' + Date.now(),
+      name: newTableName.trim(),
+      zone: newTableZone,
+      status: 'vacant',
+      total: 0,
+      itemsCount: 0,
+      time: '-'
+    }
+    setTables([...tables, newT])
+    setActiveTableId(newT.id)
+    setNewTableName('')
+    setIsAddTableModalOpen(false)
+  }
+  
+  const [cart, setCart] = useState([
+    { product: posProducts[0], qty: 2 },
+    { product: posProducts[3], qty: 1 }
+  ])
+  const [showReceiptModal, setShowReceiptModal] = useState(false)
+  const [lastPaidMethod, setLastPaidMethod] = useState('')
+
+  // Hold Order State
+  const [heldOrders, setHeldOrders] = useState(() => {
+    const saved = localStorage.getItem('pos_held_orders')
+    if (saved) {
+      try { return JSON.parse(saved) as HeldOrder[] } catch (e) {}
+    }
+    return [] as HeldOrder[]
+  })
+  const [showHeldOrdersModal, setShowHeldOrdersModal] = useState(false)
+
+  // Split Bill State
+  const [showSplitModal, setShowSplitModal] = useState(false)
+  const [splitCount, setSplitCount] = useState(2)
+
+  // Live Customer Orders Sync
+  const [liveCustomerOrders, setLiveCustomerOrders] = useState<any[]>(() => {
+    try {
+      return JSON.parse(localStorage.getItem('merchant_live_orders') || '[]')
+    } catch (e) {
+      return []
+    }
+  })
+
+  // Sync products catalog to localStorage
+  useEffect(() => {
+    localStorage.setItem('pos_products_catalog', JSON.stringify(posProducts))
+  }, [])
+
+  // Listen to Live Customer Orders
+  useEffect(() => {
+    const handleSync = () => {
+      try {
+        const orders = JSON.parse(localStorage.getItem('merchant_live_orders') || '[]')
+        setLiveCustomerOrders(orders)
+      } catch (e) {}
+    }
+    window.addEventListener('storage', handleSync)
+    const timer = setInterval(handleSync, 2000)
+    return () => {
+      window.removeEventListener('storage', handleSync)
+      clearInterval(timer)
+    }
+  }, [])
+
+  const handleUpdateCustomerOrderStatus = (orderId: string, nextStatus: string) => {
+    playTapSound('success')
+    const updated = liveCustomerOrders.map(o => o.id === orderId ? { ...o, status: nextStatus } : o)
+    setLiveCustomerOrders(updated)
+    localStorage.setItem('merchant_live_orders', JSON.stringify(updated))
+    localStorage.setItem('cust_orders_t01', JSON.stringify(updated.filter(o => o.tableNo === 'โต๊ะ 01')))
+    window.dispatchEvent(new Event('storage'))
+  }
+
+  const handleAddToCart = (product: PosItem) => {
+    playTapSound('pop')
+    const existing = cart.find((item) => item.product.id === product.id)
+    if (existing) {
+      setCart(cart.map((item) => (item.product.id === product.id ? { ...item, qty: item.qty + 1 } : item)))
+    } else {
+      setCart([...cart, { product, qty: 1 }])
+    }
+  }
+
+  const handleUpdateQty = (id: string, delta: number) => {
+    playTapSound('click')
+    setCart(
+      cart
+        .map((item) => (item.product.id === id ? { ...item, qty: item.qty + delta } : item))
+        .filter((item) => item.qty > 0)
+    )
+  }
+
+  const handleClearCart = () => {
+    playTapSound('pop')
+    setCart([])
+  }
+
+  const subtotal = cart.reduce((sum, item) => sum + item.product.price * item.qty, 0)
+  const vat = subtotal * 0.07
+  const total = subtotal + vat
+
+  const handleHoldOrder = () => {
+    if (cart.length === 0) return
+    playTapSound('success')
+    const activeTableObj = tables.find(t => t.id === activeTableId)
+    const newHeld = {
+      id: 'hold-' + Date.now(),
+      tableName: activeTableObj ? activeTableObj.name : 'หน้าร้าน',
+      items: [...cart],
+      total: total,
+      time: new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })
+    }
+    const updated = [newHeld, ...heldOrders]
+    setHeldOrders(updated)
+    localStorage.setItem('pos_held_orders', JSON.stringify(updated))
+    setCart([])
+    alert(`พักออเดอร์ของ ${newHeld.tableName} เรียบร้อยแล้ว!`)
+  }
+
+  const handleResumeHeldOrder = (heldId: string) => {
+    playTapSound('pop')
+    const target = heldOrders.find(h => h.id === heldId)
+    if (target) {
+      setCart(target.items)
+      const updated = heldOrders.filter(h => h.id !== heldId)
+      setHeldOrders(updated)
+      localStorage.setItem('pos_held_orders', JSON.stringify(updated))
+      setShowHeldOrdersModal(false)
+    }
+  }
+
+  const handleProceedToQuickPay = (method: string = 'promptpay') => {
+    if (cart.length === 0) return
+    playTapSound('success')
+    setLastPaidMethod(method)
+    const activeTableObj = tables.find(t => t.id === activeTableId)
+    const orderPayload = {
+      id: 'pos-' + Date.now(),
+      tableName: activeTableObj ? activeTableObj.name : 'ขายหน้าร้าน',
+      items: cart.map(i => ({
+        id: i.product.id,
+        name: i.product.name,
+        qty: i.qty,
+        price: i.product.price,
+        total: i.product.price * i.qty
+      })),
+      subtotal,
+      vat,
+      total,
+      method,
+      time: new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })
+    }
+    localStorage.setItem('pending_pos_checkout', JSON.stringify(orderPayload))
+    window.dispatchEvent(new Event('storage'))
+    if (onNavigate) {
+      onNavigate('payment')
+    } else {
+      window.location.hash = 'payment'
+    }
+  }
+
+  const filtered = posProducts.filter(
+    (p) =>
+      (category === 'all' || p.category === category) &&
+      p.name.toLowerCase().includes(search.toLowerCase())
+  )
+
+  return (
+    <div className="pos-view-container">
+      {/* 1. Hero Action Cards (Style หน้าบริการ / Quick Services) */}
+      <section className="ov-hero-action-cards" style={{ marginBottom: '18px' }}>
+        <div
+          className="qs-card qs-card-green"
+          onClick={() => alert('เปิดระบบขายหน้าร้าน POS')}
+          role="button"
+          tabIndex={0}
+        >
+          <div className="qs-card-icon-wrap qs-plus-icon">
+            <Store size={22} />
+          </div>
+          <div className="qs-card-text">
+            <h3>ระบบขายหน้าร้าน (POS)</h3>
+            <p style={{ margin: '4px 0 0', fontSize: '11px', opacity: 0.85 }}>สแกนบาร์โค้ด และสั่งอาหาร QR</p>
+          </div>
+          <img src="/mascot/pos_1_scanning_barcode.png" className="qs-card-mascot-img" alt="POS" />
+        </div>
+
+        <div
+          className="qs-card qs-card-blue"
+          onClick={() => { playTapSound('pop'); alert('ซิงก์ออเดอร์ QR กับลูกค้าเรียลไทม์') }}
+          role="button"
+          tabIndex={0}
+        >
+          <div className="qs-card-icon-wrap">
+            <QrCode size={22} />
+          </div>
+          <div className="qs-card-text">
+            <h3>คิวอาร์สั่งอาหาร (QR Order)</h3>
+            <p style={{ margin: '4px 0 0', fontSize: '11px', opacity: 0.85 }}>
+              {liveCustomerOrders.length > 0 ? `🔔 มีออเดอร์ใหม่ (${liveCustomerOrders.length})` : 'สแกนสั่งอาหารประจำโต๊ะ'}
+            </p>
+          </div>
+          <img src="/mascot/pay_2_scanning_qr.png" className="qs-card-mascot-img" alt="QR Order" />
+        </div>
+
+        <div
+          className="qs-card qs-card-orange"
+          onClick={() => { playTapSound('pop'); setShowHeldOrdersModal(true) }}
+          role="button"
+          tabIndex={0}
+        >
+          <div className="qs-card-icon-wrap">
+            <Clock size={22} />
+          </div>
+          <div className="qs-card-text">
+            <h3>ออเดอร์ที่พักไว้ ({heldOrders.length})</h3>
+            <p style={{ margin: '4px 0 0', fontSize: '11px', opacity: 0.85 }}>รอดึงกลับมาคิดเงิน หรือหารจ่าย</p>
+          </div>
+          <img src="/mascot/nabtang_holding_phone.png" className="qs-card-mascot-img" alt="Held Orders" />
+        </div>
+      </section>
+
+      {/* 2. Metric Status Cards (Style หน้าบริการ) */}
+      <section className="ov-status-grid" style={{ marginBottom: '18px' }}>
+        <div className="ov-metric-card ov-card-all">
+          <div className="ov-card-icon icon-green">
+            <ShoppingBag size={20} />
+          </div>
+          <div className="ov-card-text">
+            <span>ยอดขาย POS วันนี้</span>
+            <strong>฿18,450.00</strong>
+            <small>42 รายการสำเร็จ</small>
+          </div>
+        </div>
+
+        <div className="ov-metric-card ov-card-yellow">
+          <div className="ov-card-icon icon-yellow">
+            <Utensils size={20} />
+          </div>
+          <div className="ov-card-text">
+            <span>ผังโต๊ะอาหาร</span>
+            <strong>2 / 4 โต๊ะ</strong>
+            <small>โต๊ะ 01, โต๊ะ 03</small>
+          </div>
+        </div>
+
+        <div className="ov-metric-card ov-card-blue">
+          <div className="ov-card-icon icon-blue">
+            <QrCode size={20} />
+          </div>
+          <div className="ov-card-text">
+            <span>ออเดอร์ QR สั่งเข้ามา</span>
+            <strong>{liveCustomerOrders.length} ออเดอร์</strong>
+            <small>ซิงก์เรียลไทม์กับจอลูกค้า</small>
+          </div>
+        </div>
+
+        <div className="ov-metric-card ov-card-mint">
+          <div className="ov-card-icon icon-mint">
+            <Clock size={20} />
+          </div>
+          <div className="ov-card-text">
+            <span>ออเดอร์พักไว้</span>
+            <strong>{heldOrders.length} รายการ</strong>
+            <small>รอดึงมาคิดเงินต่อ</small>
+          </div>
+        </div>
+      </section>
+
+      {/* Top Table Selection Map Bar (100x Easiest & Fastest to Use) */}
+      <div className="pos-table-map-bar">
+        <div className="pos-table-map-left">
+          <div className="pos-table-map-label">
+            <Utensils size={16} /> <strong>ผังโต๊ะอาหาร ({tables.length})</strong>
+          </div>
+
+          {/* Quick Filter Pills */}
+          <div className="pos-table-filter-pills">
+            <button
+              type="button"
+              className={`pos-tf-pill ${tableFilter === 'all' ? 'active' : ''}`}
+              onClick={() => setTableFilter('all')}
+            >
+              ทั้งหมด ({tables.length})
+            </button>
+            <button
+              type="button"
+              className={`pos-tf-pill occupied ${tableFilter === 'occupied' ? 'active' : ''}`}
+              onClick={() => setTableFilter('occupied')}
+            >
+              🔴 ไม่ว่าง ({tables.filter(t => t.status === 'occupied').length})
+            </button>
+            <button
+              type="button"
+              className={`pos-tf-pill vacant ${tableFilter === 'vacant' ? 'active' : ''}`}
+              onClick={() => setTableFilter('vacant')}
+            >
+              🟢 โต๊ะว่าง ({tables.filter(t => t.status === 'vacant').length})
+            </button>
+          </div>
+        </div>
+
+        {/* Table Selector Pills Grid */}
+        <div className="pos-table-pills">
+          {tables
+            .filter(t => tableFilter === 'all' || t.status === tableFilter)
+            .map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                className={`pos-table-pill ${activeTableId === t.id ? 'active' : ''} ${t.status}`}
+                onClick={() => { playTapSound('pop'); setActiveTableId(t.id) }}
+              >
+                <span className={`pos-table-dot ${t.status}`} />
+                <div className="pos-table-pill-text">
+                  <strong>{t.name}</strong>
+                  {t.status === 'occupied' ? (
+                    <span className="pos-table-badge occupied">฿{t.total}</span>
+                  ) : (
+                    <span className="pos-table-badge vacant">ว่าง</span>
+                  )}
+                </div>
+              </button>
+            ))}
+        </div>
+
+        <div className="pos-table-actions-right">
+          <button
+            type="button"
+            className="pos-action-btn-map"
+            onClick={() => { playTapSound('pop'); setShowFullMapModal(true) }}
+          >
+            🗺️ ผังโต๊ะใหญ่
+          </button>
+          <button
+            type="button"
+            className="pos-action-btn-add"
+            onClick={() => { playTapSound('pop'); setIsAddTableModalOpen(true) }}
+          >
+            <Plus size={14} /> เพิ่มโต๊ะ
+          </button>
+        </div>
+      </div>
+
+      {/* Live Customer Order Alert Banner */}
+      {liveCustomerOrders.length > 0 && (
+        <div className="pos-live-order-banner" style={{ background: '#f0fdf4', border: '1.5px solid #a7f3d0', padding: '12px 16px', borderRadius: '14px', marginBottom: '14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span style={{ fontSize: '18px' }}>🔔</span>
+            <div>
+              <strong style={{ fontSize: '13px', color: '#047857' }}>ออเดอร์ใหม่ทาง QR จาก {liveCustomerOrders[0].tableNo || 'โต๊ะ 01'} ({liveCustomerOrders[0].orderNo})</strong>
+              <p style={{ margin: 0, fontSize: '11px', color: '#065f46' }}>
+                {liveCustomerOrders[0].items.map((i: any) => `${i.menuItem.name} x${i.qty}`).join(', ')} · ยอด ฿{liveCustomerOrders[0].totalAmount.toFixed(2)} ({liveCustomerOrders[0].paymentMethod})
+              </p>
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: '6px' }}>
+            {liveCustomerOrders[0].status === 'received' && (
+              <button
+                type="button"
+                className="pos-btn-resume"
+                style={{ background: '#059669' }}
+                onClick={() => handleUpdateCustomerOrderStatus(liveCustomerOrders[0].id, 'cooking')}
+              >
+                👨‍🍳 รับออเดอร์ ➔ เริ่มปรุง
+              </button>
+            )}
+            {liveCustomerOrders[0].status === 'cooking' && (
+              <button
+                type="button"
+                className="pos-btn-resume"
+                style={{ background: '#3b82f6' }}
+                onClick={() => handleUpdateCustomerOrderStatus(liveCustomerOrders[0].id, 'ready')}
+              >
+                🔔 พร้อมเสิร์ฟ
+              </button>
+            )}
+            {liveCustomerOrders[0].status === 'ready' && (
+              <button
+                type="button"
+                className="pos-btn-resume"
+                style={{ background: '#10b981' }}
+                onClick={() => handleUpdateCustomerOrderStatus(liveCustomerOrders[0].id, 'completed')}
+              >
+                ✅ เช็คบิล / ปิดออเดอร์
+              </button>
+            )}
+            {liveCustomerOrders[0].status === 'completed' && (
+              <span className="wv-ready-badge" style={{ background: '#dcfce7', color: '#15803d', padding: '4px 8px', borderRadius: '8px', fontSize: '11px', fontWeight: 800 }}>
+                ✅ ชำระเงินแล้ว
+              </span>
+            )}
+          </div>
+        </div>
+      )}
+
+      <div className="pos-main-body">
+        {/* Left Column: Catalog & Categories */}
+        <div className="pos-catalog-section">
+          <div className="pos-toolbar">
+            <div className="pos-search-box">
+              <Search size={16} />
+              <input
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="ค้นหาชื่อสินค้า / รหัสบาร์โค้ด..."
+                value={search}
+              />
+            </div>
+          </div>
+
+          <div className="pos-category-tabs">
+            <button className={category === 'all' ? 'active' : ''} onClick={() => setCategory('all')} type="button">
+              ทั้งหมด ({posProducts.length})
+            </button>
+            <button className={category === 'drink' ? 'active' : ''} onClick={() => setCategory('drink')} type="button">
+              ☕ เครื่องดื่ม
+            </button>
+            <button className={category === 'bakery' ? 'active' : ''} onClick={() => setCategory('bakery')} type="button">
+              🥐 เบเกอรี่
+            </button>
+            <button className={category === 'service' ? 'active' : ''} onClick={() => setCategory('service')} type="button">
+              ✨ บริการ
+            </button>
+          </div>
+
+          <div className="pos-products-grid">
+            {filtered.map((prod) => (
+              <div className="pos-product-card" key={prod.id} onClick={() => handleAddToCart(prod)}>
+                {prod.tag && <span className="pos-card-tag">{prod.tag}</span>}
+                <div className="pos-card-img-wrap">
+                  {prod.image ? (
+                    <img
+                      src={prod.image}
+                      alt={prod.name}
+                      className="pos-card-img"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src = '/mascot/pos_1_scanning_barcode.png'
+                      }}
+                    />
+                  ) : (
+                    <div className="pos-card-img-placeholder">
+                      {prod.icon || '☕'}
+                    </div>
+                  )}
+                  {prod.icon && <span className="pos-card-icon-badge">{prod.icon}</span>}
+                </div>
+                <h4>{prod.name}</h4>
+                <div className="pos-card-footer">
+                  <strong className="pos-card-price">฿{prod.price}</strong>
+                  <button className="pos-add-btn" type="button">
+                    <Plus size={14} /> เพิ่ม
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Right Column: Interactive Cart */}
+        <div className="pos-cart-section">
+          <div className="pos-cart-header">
+            <div className="pos-cart-title">
+              <ShoppingCart size={18} />
+              <h3>รายการในตะกร้า ({cart.reduce((s, i) => s + i.qty, 0)})</h3>
+            </div>
+            {cart.length > 0 && (
+              <button className="pos-clear-btn" onClick={handleClearCart} type="button">
+                <Trash2 size={14} /> ล้างรายการ
+              </button>
+            )}
+          </div>
+
+          <div className="pos-cart-items">
+            {cart.map((item) => (
+              <div className="pos-cart-row" key={item.product.id}>
+                <div className="pos-cart-item-name">
+                  <strong>{item.product.name}</strong>
+                  <small>฿{item.product.price} / ชิ้น</small>
+                </div>
+                <div className="pos-qty-controls">
+                  <button onClick={() => handleUpdateQty(item.product.id, -1)} type="button">
+                    <Minus size={12} />
+                  </button>
+                  <span>{item.qty}</span>
+                  <button onClick={() => handleUpdateQty(item.product.id, 1)} type="button">
+                    <Plus size={12} />
+                  </button>
+                </div>
+                <strong className="pos-cart-item-total">฿{item.product.price * item.qty}</strong>
+              </div>
+            ))}
+
+            {cart.length === 0 && (
+              <div className="pos-empty-cart">
+                <ShoppingCart size={32} />
+                <p>ยังไม่มีสินค้าในตะกร้า</p>
+                <small>เลือกรายการสินค้าจากด้านซ้ายเพื่อคิดเงิน</small>
+              </div>
+            )}
+          </div>
+
+          <div className="pos-cart-summary">
+            <div className="pos-summary-row">
+              <span>ยอดรวมสินค้า</span>
+              <strong>฿{subtotal.toFixed(2)}</strong>
+            </div>
+            <div className="pos-summary-row">
+              <span>ภาษี VAT (7%)</span>
+              <strong>฿{vat.toFixed(2)}</strong>
+            </div>
+            <div className="pos-summary-total">
+              <span>ยอดชำระสุทธิ</span>
+              <strong>฿{total.toFixed(2)}</strong>
+            </div>
+
+            {/* Quick Actions Row: Hold & Split Bill */}
+            <div className="pos-cart-secondary-actions">
+              <button
+                type="button"
+                className="pos-secondary-btn hold"
+                disabled={cart.length === 0}
+                onClick={handleHoldOrder}
+              >
+                ⏸️ พักออเดอร์
+              </button>
+              <button
+                type="button"
+                className="pos-secondary-btn split"
+                disabled={cart.length === 0}
+                onClick={() => { playTapSound('pop'); setShowSplitModal(true) }}
+              >
+                ✂️ แยกบิล / หารชำระ
+              </button>
+            </div>
+
+            <div className="pos-pay-actions">
+              <button
+                className="pos-pay-btn btn-summary-next"
+                disabled={cart.length === 0}
+                onClick={() => handleProceedToQuickPay('promptpay')}
+                type="button"
+                style={{
+                  background: 'linear-gradient(135deg, #059669 0%, #10b981 100%)',
+                  color: '#ffffff',
+                  fontSize: '15px',
+                  fontWeight: 900,
+                  padding: '14px 18px',
+                  borderRadius: '14px',
+                  width: '100%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px',
+                  boxShadow: '0 6px 18px rgba(16, 185, 129, 0.3)',
+                  border: 'none',
+                  cursor: cart.length === 0 ? 'not-allowed' : 'pointer',
+                  opacity: cart.length === 0 ? 0.5 : 1
+                }}
+              >
+                <ReceiptText size={18} /> {"⚡ ไปหน้าคิดเงินด่วนเลือกช่องทางชำระเงิน (฿" + total.toFixed(2) + ") ›"}
+              </button>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '6px', width: '100%' }}>
+                <button
+                  className="pos-pay-btn btn-promptpay"
+                  disabled={cart.length === 0}
+                  onClick={() => handleProceedToQuickPay('promptpay')}
+                  type="button"
+                >
+                  <img
+                    src="/payments/promptpay_front.png"
+                    alt="PromptPay"
+                    style={{ height: '20px', width: 'auto', objectFit: 'contain', borderRadius: '3px', filter: 'brightness(0) invert(1)' }}
+                  />
+                  PromptPay
+                </button>
+                <button
+                  className="pos-pay-btn btn-cash"
+                  disabled={cart.length === 0}
+                  onClick={() => handleProceedToQuickPay('cash')}
+                  type="button"
+                >
+                  <img
+                    src="/mascot/pay_7_holding_banknotes.png"
+                    alt="Cash"
+                    style={{ height: '22px', width: 'auto', objectFit: 'contain' }}
+                  />
+                  เงินสด
+                </button>
+                <button
+                  className="pos-pay-btn btn-card"
+                  disabled={cart.length === 0}
+                  onClick={() => handleProceedToQuickPay('card')}
+                  type="button"
+                >
+                  <img
+                    src="/payments/mastercard_visa_combined.png"
+                    alt="Credit Card"
+                    style={{ height: '18px', width: 'auto', objectFit: 'contain', borderRadius: '3px' }}
+                  />
+                  บัตรเครดิต
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Held Orders Modal */}
+      {showHeldOrdersModal && (
+        <div className="qs-modal-overlay" style={{ zIndex: 100015 }}>
+          <div className="qs-modal" style={{ maxWidth: 480 }}>
+            <div className="qs-modal-header">
+              <div>
+                <h3>📋 ออเดอร์ที่พักไว้ ({heldOrders.length} รายการ)</h3>
+                <p>เลือกออเดอร์ที่ต้องการดึงกลับมาคิดเงินต่อ</p>
+              </div>
+              <button
+                aria-label="ปิด"
+                className="qs-modal-close"
+                onClick={() => setShowHeldOrdersModal(false)}
+                type="button"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="qs-modal-body">
+              {heldOrders.map((held) => (
+                <div key={held.id} className="pos-held-card">
+                  <div className="pos-held-header">
+                    <strong>{held.tableName}</strong>
+                    <span>พักเมื่อ {held.time} น.</span>
+                  </div>
+                  <div className="pos-held-items-preview">
+                    {held.items.map((i, idx) => (
+                      <span key={idx}>{i.product.name} x{i.qty}</span>
+                    ))}
+                  </div>
+                  <div className="pos-held-footer">
+                    <strong className="pos-held-total">฿{held.total.toFixed(2)}</strong>
+                    <button
+                      type="button"
+                      className="pos-btn-resume"
+                      onClick={() => handleResumeHeldOrder(held.id)}
+                    >
+                      ▶️ ดึงกลับมาคิดเงิน
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="qs-modal-footer">
+              <button
+                className="qs-btn-cancel"
+                onClick={() => setShowHeldOrdersModal(false)}
+                type="button"
+              >
+                ปิด
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+
+
+      {/* Interactive Floor Plan Map Modal */}
+      {showFullMapModal && (
+        <div className="qs-modal-overlay" style={{ zIndex: 100020 }}>
+          <div className="qs-modal qs-modal-large" style={{ maxWidth: 720 }}>
+            <div className="qs-modal-header">
+              <div>
+                <h3>🗺️ ผังโต๊ะอาหารจำลอง (Interactive Table Map)</h3>
+                <p>คลิกเลือกโต๊ะเพื่อเปิดบิล สั่งอาหารเพิ่ม หรือเช็คบิลได้ทันที</p>
+              </div>
+              <button
+                aria-label="ปิด"
+                className="qs-modal-close"
+                onClick={() => setShowFullMapModal(false)}
+                type="button"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="qs-modal-body">
+              <div className="pos-floor-grid">
+                {tables.map((t) => (
+                  <div
+                    key={t.id}
+                    className={`pos-floor-card ${t.status} ${activeTableId === t.id ? 'selected' : ''}`}
+                    onClick={() => {
+                      playTapSound('pop')
+                      setActiveTableId(t.id)
+                      setShowFullMapModal(false)
+                    }}
+                    role="button"
+                    tabIndex={0}
+                  >
+                    <div className="pos-fc-header">
+                      <strong>{t.name}</strong>
+                      <span className={`pos-fc-badge ${t.status}`}>
+                        {t.status === 'occupied' ? '🔴 มีลูกค้า' : '🟢 ว่าง'}
+                      </span>
+                    </div>
+                    <div className="pos-fc-zone">{t.zone || 'โซนในร้าน'}</div>
+                    <div className="pos-fc-body">
+                      {t.status === 'occupied' ? (
+                        <>
+                          <div className="pos-fc-amount">฿{t.total.toFixed(2)}</div>
+                          <div className="pos-fc-meta">{t.itemsCount || 3} รายการ · เปิด {t.time || '12:00 น.'}</div>
+                        </>
+                      ) : (
+                        <div className="pos-fc-vacant-text">พร้อมให้บริการ</div>
+                      )}
+                    </div>
+                    <div className="pos-fc-footer">
+                      <button type="button" className="pos-fc-btn">
+                        {t.status === 'occupied' ? '🛒 เลือกโต๊ะนี้' : '✨ เปิดโต๊ะนี้'}
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="qs-modal-footer">
+              <button
+                type="button"
+                className="qs-btn-primary"
+                onClick={() => {
+                  playTapSound('pop')
+                  setIsAddTableModalOpen(true)
+                  setShowFullMapModal(false)
+                }}
+              >
+                <Plus size={16} /> เพิ่มโต๊ะใหม่
+              </button>
+              <button
+                type="button"
+                className="qs-btn-cancel"
+                onClick={() => setShowFullMapModal(false)}
+              >
+                ปิด
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add New Table Modal */}
+      {isAddTableModalOpen && (
+        <div className="qs-modal-overlay" style={{ zIndex: 100025 }}>
+          <div className="qs-modal" style={{ maxWidth: 420 }}>
+            <div className="qs-modal-header">
+              <div>
+                <h3>➕ เพิ่มโต๊ะอาหารใหม่</h3>
+                <p>สร้างโต๊ะอาหารใหม่สำหรับสาขาหน้าร้าน</p>
+              </div>
+              <button
+                aria-label="ปิด"
+                className="qs-modal-close"
+                onClick={() => setIsAddTableModalOpen(false)}
+                type="button"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="qs-modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <div>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 800, color: '#334155', marginBottom: 6 }}>
+                  ชื่อโต๊ะอาหาร *
+                </label>
+                <input
+                  type="text"
+                  placeholder="เช่น โต๊ะ 05, โต๊ะ Outdoor 01, VIP 02..."
+                  value={newTableName}
+                  onChange={(e) => setNewTableName(e.target.value)}
+                  style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: '1.5px solid #cbd5e1', outline: 'none', fontSize: 13 }}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 800, color: '#334155', marginBottom: 6 }}>
+                  เลือกโซน *
+                </label>
+                <select
+                  value={newTableZone}
+                  onChange={(e) => setNewTableZone(e.target.value)}
+                  style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: '1.5px solid #cbd5e1', outline: 'none', fontSize: 13, background: '#ffffff' }}
+                >
+                  <option value="โซนในร้าน A">โซนในร้าน A</option>
+                  <option value="โซนริมสวน B">โซนริมสวน B</option>
+                  <option value="ห้อง VIP">ห้อง VIP</option>
+                  <option value="โซน Outdoor">โซน Outdoor</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="qs-modal-footer">
+              <button
+                type="button"
+                className="qs-btn-primary"
+                onClick={handleAddNewTable}
+              >
+                บันทึกสร้างโต๊ะ
+              </button>
+              <button
+                type="button"
+                className="qs-btn-cancel"
+                onClick={() => setIsAddTableModalOpen(false)}
+              >
+                ยกเลิก
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Split Bill Modal */}
+      {showSplitModal && (
+        <div className="qs-modal-overlay" style={{ zIndex: 100020 }}>
+          <div className="qs-modal" style={{ maxWidth: 440 }}>
+            <div className="qs-modal-header">
+              <div>
+                <h3>✂️ แยกบิล / หารชำระเงิน</h3>
+                <p>คำนวณยอดชำระเงินต่อคนสำหรับโต๊ะนี้</p>
+              </div>
+              <button
+                aria-label="ปิด"
+                className="qs-modal-close"
+                onClick={() => setShowSplitModal(false)}
+                type="button"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="qs-modal-body">
+              <div className="pos-split-calculator">
+                <div className="pos-split-total-banner">
+                  <span>ยอดสุทธิทั้งสิ้น:</span>
+                  <strong>฿{total.toFixed(2)}</strong>
+                </div>
+
+                <div className="qs-form-group">
+                  <label>จำนวนคนหาร (Persons)</label>
+                  <div className="pos-split-stepper">
+                    <button type="button" onClick={() => setSplitCount(Math.max(1, splitCount - 1))}>-</button>
+                    <span>{splitCount} คน</span>
+                    <button type="button" onClick={() => setSplitCount(splitCount + 1)}>+</button>
+                  </div>
+                </div>
+
+                <div className="pos-split-result-box">
+                  <span>ยอดที่ต้องจ่ายต่อคน:</span>
+                  <strong className="pos-split-per-person">฿{(total / splitCount).toFixed(2)}</strong>
+                </div>
+              </div>
+            </div>
+
+            <div className="qs-modal-footer">
+              <button
+                className="qs-btn-cancel"
+                onClick={() => setShowSplitModal(false)}
+                type="button"
+              >
+                ยกเลิก
+              </button>
+              <button
+                className="qs-btn-submit"
+                onClick={() => {
+                  playTapSound('success')
+                  alert(`หารจ่ายเท่ากันคนละ ฿${(total / splitCount).toFixed(2)} สำเร็จ!`)
+                  setShowSplitModal(false)
+                }}
+                type="button"
+              >
+                ยืนยันการแยกบิล
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Receipt Modal */}
+      {showReceiptModal && (
+        <div className="qs-modal-overlay">
+          <div className="qs-modal">
+            <div className="qs-modal-header">
+              <div>
+                <h3>ใบเสร็จรับเงิน (Receipt)</h3>
+                <p>ชำระสำเร็จผ่าน {lastPaidMethod}</p>
+              </div>
+              <button className="qs-modal-close" onClick={() => { setShowReceiptModal(false); handleClearCart(); }} type="button">
+                <X size={20} />
+              </button>
+            </div>
+            <div className="qs-modal-body text-center">
+              <div className="receipt-box">
+                <h4>ร้านกาแฟบ้านสวน (ChatPOS)</h4>
+                <small>สาขาหลัก M-001 · เลขประจำตัวผู้เสียภาษี 010556209429</small>
+                <hr />
+                {cart.map((i) => (
+                  <div className="receipt-line" key={i.product.id}>
+                    <span>{i.product.name} x{i.qty}</span>
+                    <strong>฿{i.product.price * i.qty}</strong>
+                  </div>
+                ))}
+                <hr />
+                <div className="receipt-line total-line">
+                  <strong>ยอดรวมสุทธิ</strong>
+                  <strong>฿{total.toFixed(2)}</strong>
+                </div>
+              </div>
+            </div>
+            <div className="qs-modal-footer">
+              <button className="qs-btn-cancel" onClick={() => { setShowReceiptModal(false); handleClearCart(); }} type="button">
+                ปิด
+              </button>
+              <button className="qs-btn-submit" onClick={() => alert('ส่งสั่งพิมพ์ไปยังเครื่องพิมพ์สลิปแล้ว!')} type="button">
+                <Printer size={15} /> พิมพ์ใบเสร็จ
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+export type QuickPayMethod = 'promptpay' | 'truemoney' | 'visa_th' | 'visa_int' | 'wechat' | 'linepay' | 'alipay' | 'shopeepay'
+export type VoiceGender = 'female' | 'male'
+export type QrPayMode = 'pay_first' | 'pay_later' | 'table_controlled'
+
+/* ==========================================================================
+   2. QUICK PAY VIEW (คิดเงินด่วน / STOPPAY QR)
+   ========================================================================== */
+function QuickPayView() {
+  const [pendingPosOrder, setPendingPosOrder] = useState<any>(() => {
+    try {
+      const saved = localStorage.getItem('pending_pos_checkout')
+      return saved ? JSON.parse(saved) : null
+    } catch (e) {
+      return null
+    }
+  })
+
+  const [amountStr, setAmountStr] = useState(() => {
+    try {
+      const saved = localStorage.getItem('pending_pos_checkout')
+      if (saved) {
+        const parsed = JSON.parse(saved)
+        if (parsed && parsed.total) return parsed.total.toString()
+      }
+    } catch (e) {}
+    return '0'
+  })
+
+  useEffect(() => {
+    const syncPendingOrder = () => {
+      try {
+        const saved = localStorage.getItem('pending_pos_checkout')
+        if (saved) {
+          const parsed = JSON.parse(saved)
+          setPendingPosOrder(parsed)
+          if (parsed && parsed.total) setAmountStr(parsed.total.toString())
+        } else {
+          setPendingPosOrder(null)
+        }
+      } catch (e) {}
+    }
+    syncPendingOrder()
+    window.addEventListener('storage', syncPendingOrder)
+    return () => window.removeEventListener('storage', syncPendingOrder)
+  }, [])
+
+  const handleClearPendingPosOrder = () => {
+    localStorage.removeItem('pending_pos_checkout')
+    setPendingPosOrder(null)
+    setAmountStr('0')
+    playTapSound('pop')
+  }
+
+  const [selectedMethod, setSelectedMethod] = useState('promptpay' as QuickPayMethod)
+  const [isKycModalOpen, setIsKycModalOpen] = useState(false)
+  const [isKycVerified, setIsKycVerified] = useState(false)
+  const [operator, setOperator] = useState<string | null>(null)
+  const [prevAmount, setPrevAmount] = useState<number | null>(null)
+
+  const handleKeyClick = (val: string) => {
+    if (val === 'ล้าง') {
+      setAmountStr('0')
+      setOperator(null)
+      setPrevAmount(null)
+      return
+    }
+    if (val === 'ลบ') {
+      setAmountStr(amountStr.length > 1 ? amountStr.slice(0, -1) : '0')
+      return
+    }
+    if (val === '+' || val === '-' || val === '*' || val === '/') {
+      setPrevAmount(parseFloat(amountStr) || 0)
+      setOperator(val)
+      setAmountStr('0')
+      return
+    }
+    if (val === '=') {
+      if (operator && prevAmount !== null) {
+        const current = parseFloat(amountStr) || 0
+        let result = current
+        if (operator === '+') result = prevAmount + current
+        if (operator === '-') result = prevAmount - current
+        if (operator === '*') result = prevAmount * current
+        if (operator === '/') result = current !== 0 ? prevAmount / current : 0
+        // Clamp to max 10M
+        if (result > 10000000) result = 10000000
+        if (result < 0) result = 0
+        setAmountStr(result.toString())
+        setOperator(null)
+        setPrevAmount(null)
+      }
+      return
+    }
+
+    if (val === '00') {
+      if (amountStr !== '0') {
+        const next = amountStr + '00'
+        if (parseFloat(next) <= 10000000) setAmountStr(next)
+      }
+      return
+    }
+
+    if (val === '.') {
+      if (!amountStr.includes('.')) {
+        setAmountStr(amountStr + '.')
+      }
+      return
+    }
+
+    // Build next string & enforce max 10,000,000 baht
+    const nextStr = amountStr === '0' ? val : amountStr + val
+    if (parseFloat(nextStr) <= 10000000) {
+      setAmountStr(nextStr)
+    }
+  }
+
+  const handleAddPreset = (addVal: number) => {
+    const current = parseFloat(amountStr) || 0
+    const next = current + addVal
+    if (next <= 10000000) setAmountStr(next.toString())
+  }
+
+  const handleChannelClick = (method: QuickPayMethod) => {
+    if (!isKycVerified) {
+      setIsKycModalOpen(true)
+    } else {
+      setSelectedMethod(method)
+    }
+  }
+
+  const numAmount = parseFloat(amountStr) || 0
+
+  return (
+    <div className="qp-full-container">
+      {/* 0. Pre-filled POS Order Banner */}
+      {pendingPosOrder && (
+        <div style={{
+          background: 'linear-gradient(135deg, #059669 0%, #047857 100%)',
+          color: '#ffffff',
+          borderRadius: 16,
+          padding: '14px 18px',
+          marginBottom: 16,
+          boxShadow: '0 6px 20px rgba(5, 150, 105, 0.25)',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: 12
+        }}>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 15, fontWeight: 900, marginBottom: 4 }}>
+              <ReceiptText size={18} />
+              <span>ออเดอร์ส่งตรงจาก POS: {pendingPosOrder.tableName || 'ขายหน้าร้าน'}</span>
+              <span style={{ background: '#ffffff', color: '#047857', fontSize: 11, fontWeight: 900, padding: '2px 8px', borderRadius: 8 }}>
+                {pendingPosOrder.items ? pendingPosOrder.items.length : 0} รายการ
+              </span>
+            </div>
+            <div style={{ fontSize: 12, opacity: 0.9 }}>
+              รายการ: {pendingPosOrder.items ? pendingPosOrder.items.map((i: any) => `${i.name} x${i.qty}`).join(', ') : '-'}
+            </div>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{ textAlign: 'right' }}>
+              <span style={{ fontSize: 11, opacity: 0.8, display: 'block' }}>ยอดชำระสุทธิ (นำเข้าอัตโนมัติ)</span>
+              <strong style={{ fontSize: 20, fontWeight: 900 }}>฿{pendingPosOrder.total ? pendingPosOrder.total.toFixed(2) : '0.00'}</strong>
+            </div>
+            <button
+              type="button"
+              onClick={handleClearPendingPosOrder}
+              style={{
+                background: 'rgba(255,255,255,0.2)',
+                color: '#ffffff',
+                border: 'none',
+                padding: '6px 12px',
+                borderRadius: 10,
+                fontSize: 11,
+                fontWeight: 800,
+                cursor: 'pointer'
+              }}
+            >
+              <X size={14} /> ยกเลิกรายการนี้
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* 1. KYC Alert Banner Card */}
+      {!isKycVerified ? (
+        <div className="qp-kyc-banner">
+          <div className="qp-kyc-info">
+            <div className="qp-kyc-icon-wrap">
+              <ShieldAlert size={22} />
+            </div>
+            <div>
+              <strong>จำเป็นต้องยืนยันตัวตน (KYC)</strong>
+              <span>ยืนยันก่อนเพื่อเปิดใช้งานคิดเงินและรับชำระ</span>
+            </div>
+          </div>
+          <button className="qp-kyc-action-btn" onClick={() => setIsKycModalOpen(true)} type="button">
+            ยืนยันตัวตน ›
+          </button>
+        </div>
+      ) : (
+        <div className="qp-kyc-banner verified">
+          <div className="qp-kyc-info">
+            <div className="qp-kyc-icon-wrap green">
+              <CheckCircle2 size={22} />
+            </div>
+            <div>
+              <strong>ยืนยันตัวตน (KYC) สำเร็จแล้ว</strong>
+              <span>เปิดใช้งานช่องทางรับชำระเงินทุกระบบเรียบร้อย</span>
+            </div>
+          </div>
+          <button className="qp-kyc-action-btn verified" onClick={() => setIsKycVerified(false)} type="button">
+            จำลองล็อก KYC
+          </button>
+        </div>
+      )}
+
+      {/* 2. Amount Display Section */}
+      <div className="qp-amount-section" style={{ position: 'relative', overflow: 'hidden' }}>
+        <div>
+          <span className="qp-amount-label">ยอดที่ต้องชำระ</span>
+          <div className="qp-amount-row">
+            <strong className={`qp-amount-val ${numAmount >= 100000 ? 'qp-amount-shrink' : ''} ${numAmount >= 1000000 ? 'qp-amount-shrink-more' : ''}`}>
+              {numAmount.toLocaleString('th-TH', { minimumFractionDigits: numAmount % 1 !== 0 ? 2 : 0 })}
+            </strong>
+            <span className="qp-amount-currency">บาท</span>
+          </div>
+        </div>
+
+        <img
+          src="/mascot/nabtang_thinking.png"
+          alt="นับตังค์"
+          style={{
+            position: 'absolute',
+            right: '12px',
+            top: '4px',
+            height: '64px',
+            width: 'auto',
+            objectFit: 'contain',
+            filter: 'drop-shadow(0 4px 10px rgba(0,0,0,0.08))',
+            pointerEvents: 'none'
+          }}
+        />
+
+        {/* Quick Presets */}
+        <div className="qp-preset-row">
+          {[20, 50, 100, 200, 500, 1000].map((preset) => (
+            <button key={preset} onClick={() => handleAddPreset(preset)} type="button">
+              {preset}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* 3. Payment Channels Container (Locked when not KYC) */}
+      <div className={`qp-channel-card ${!isKycVerified ? 'is-locked' : 'is-unlocked'}`}>
+        {!isKycVerified && (
+          <div className="qp-lock-overlay-badge">
+            <Lock size={14} /> <span>ช่องทางชำระเงินถูกล็อก (รอ KYC)</span>
+          </div>
+        )}
+
+        <div className="qp-channel-header">
+          <span>ช่องทางรับชำระเงิน</span>
+          <div className="qp-channel-tags">
+            <span className="qp-tag-badge">🇹🇭 ไทย</span>
+            <span className="qp-tag-badge">🌐 ต่างชาติ</span>
+          </div>
+        </div>
+
+        <div className="qp-channel-grid">
+          {/* 1. PromptPay */}
+          <button
+            className={`qp-method-btn ${selectedMethod === 'promptpay' ? 'active' : ''}`}
+            onClick={() => handleChannelClick('promptpay')}
+            type="button"
+          >
+            {selectedMethod === 'promptpay' && <span className="qp-check-badge">✓</span>}
+            <div className="qp-logo-box pp-logo">
+              <img src="/payments/promptpay_front.png" alt="PromptPay" style={{ height: '48px', width: 'auto', maxWidth: '85%', objectFit: 'contain' }} />
+            </div>
+          </button>
+
+          {/* 2. TrueMoney Wallet */}
+          <button
+            className={`qp-method-btn ${selectedMethod === 'truemoney' ? 'active' : ''}`}
+            onClick={() => handleChannelClick('truemoney')}
+            type="button"
+          >
+            {selectedMethod === 'truemoney' && <span className="qp-check-badge">✓</span>}
+            <div className="qp-logo-box tm-logo">
+              <img src="/payments/truemoney_front.png" alt="TrueMoney" style={{ height: '48px', width: 'auto', maxWidth: '85%', objectFit: 'contain' }} />
+            </div>
+          </button>
+
+          {/* 3. VISA ไทย */}
+          <button
+            className={`qp-method-btn ${selectedMethod === 'visa_th' ? 'active' : ''}`}
+            onClick={() => handleChannelClick('visa_th')}
+            type="button"
+          >
+            {selectedMethod === 'visa_th' && <span className="qp-check-badge">✓</span>}
+            <div className="qp-logo-box visa-logo">
+              <img src="/payments/mastercard_visa_combined.png" alt="VISA / MC" style={{ height: '44px', width: 'auto', maxWidth: '85%', objectFit: 'contain' }} />
+            </div>
+          </button>
+
+          {/* 4. VISA ต่างชาติ */}
+          <button
+            className={`qp-method-btn ${selectedMethod === 'visa_int' ? 'active' : ''}`}
+            onClick={() => handleChannelClick('visa_int')}
+            type="button"
+          >
+            {selectedMethod === 'visa_int' && <span className="qp-check-badge">✓</span>}
+            <div className="qp-logo-box visa-logo">
+              <img src="/payments/mastercard_visa_combined.png" alt="VISA Inter" style={{ height: '44px', width: 'auto', maxWidth: '85%', objectFit: 'contain' }} />
+            </div>
+          </button>
+
+          {/* 5. WeChat Pay */}
+          <button
+            className={`qp-method-btn ${selectedMethod === 'wechat' ? 'active' : ''}`}
+            onClick={() => handleChannelClick('wechat')}
+            type="button"
+          >
+            {selectedMethod === 'wechat' && <span className="qp-check-badge">✓</span>}
+            <div className="qp-logo-box wechat-logo">
+              <img src="/payments/wechatpay_front.png" alt="WeChat Pay" style={{ height: '48px', width: 'auto', maxWidth: '85%', objectFit: 'contain' }} />
+            </div>
+          </button>
+
+          {/* 6. LINE Pay */}
+          <button
+            className={`qp-method-btn ${selectedMethod === 'linepay' ? 'active' : ''}`}
+            onClick={() => handleChannelClick('linepay')}
+            type="button"
+          >
+            {selectedMethod === 'linepay' && <span className="qp-check-badge">✓</span>}
+            <div className="qp-logo-box line-logo">
+              <img src="/payments/linepay_front.png" alt="LINE Pay" style={{ height: '48px', width: 'auto', maxWidth: '85%', objectFit: 'contain' }} />
+            </div>
+          </button>
+
+          {/* 7. Alipay */}
+          <button
+            className={`qp-method-btn ${selectedMethod === 'alipay' ? 'active' : ''}`}
+            onClick={() => handleChannelClick('alipay')}
+            type="button"
+          >
+            {selectedMethod === 'alipay' && <span className="qp-check-badge">✓</span>}
+            <div className="qp-logo-box alipay-logo">
+              <img src="/payments/alipay_front.png" alt="Alipay" style={{ height: '48px', width: 'auto', maxWidth: '85%', objectFit: 'contain' }} />
+            </div>
+          </button>
+
+          {/* 8. ShopeePay */}
+          <button
+            className={`qp-method-btn ${selectedMethod === 'shopeepay' ? 'active' : ''}`}
+            onClick={() => handleChannelClick('shopeepay')}
+            type="button"
+          >
+            {selectedMethod === 'shopeepay' && <span className="qp-check-badge">✓</span>}
+            <div className="qp-logo-box shopee-logo">
+              <img src="/payments/shopeepay_front.png" alt="ShopeePay" style={{ height: '48px', width: 'auto', maxWidth: '85%', objectFit: 'contain' }} />
+            </div>
+          </button>
+        </div>
+      </div>
+
+      {/* 4. Calculator Numpad (5x4 Grid) */}
+      <div className="qp-calc-grid">
+        {/* Row 1 */}
+        <button onClick={() => handleKeyClick('7')} type="button">7</button>
+        <button onClick={() => handleKeyClick('8')} type="button">8</button>
+        <button onClick={() => handleKeyClick('9')} type="button">9</button>
+        <button className="qp-op-btn" onClick={() => handleKeyClick('/')} type="button">/</button>
+        <button className="qp-clear-btn" onClick={() => handleKeyClick('ล้าง')} type="button">
+          <Trash2 size={16} /> <span>ล้าง</span>
+        </button>
+
+        {/* Row 2 */}
+        <button onClick={() => handleKeyClick('4')} type="button">4</button>
+        <button onClick={() => handleKeyClick('5')} type="button">5</button>
+        <button onClick={() => handleKeyClick('6')} type="button">6</button>
+        <button className="qp-op-btn" onClick={() => handleKeyClick('*')} type="button">*</button>
+        <button className="qp-backspace-btn" onClick={() => handleKeyClick('ลบ')} type="button">
+          <Delete size={16} /> <span>ลบ</span>
+        </button>
+
+        {/* Row 3 */}
+        <button onClick={() => handleKeyClick('1')} type="button">1</button>
+        <button onClick={() => handleKeyClick('2')} type="button">2</button>
+        <button onClick={() => handleKeyClick('3')} type="button">3</button>
+        <button className="qp-op-btn" onClick={() => handleKeyClick('-')} type="button">-</button>
+        <button className="qp-op-btn" onClick={() => handleKeyClick('=')} type="button">=</button>
+
+        {/* Row 4 */}
+        <button onClick={() => handleKeyClick('0')} type="button">0</button>
+        <button onClick={() => handleKeyClick('00')} type="button">00</button>
+        <button onClick={() => handleKeyClick('.')} type="button">.</button>
+        <button className="qp-op-btn" onClick={() => handleKeyClick('+')} type="button">+</button>
+        
+        {!isKycVerified ? (
+          <button className="qp-lock-btn" onClick={() => setIsKycModalOpen(true)} type="button">
+            <Lock size={16} />
+            <span>ล็อกคิดเงิน (KYC)</span>
+          </button>
+        ) : (
+          <button className="qp-pay-active-btn" onClick={() => alert(`สร้าง QR รับเงินยอด ${numAmount.toLocaleString()} บาทสำเร็จ!`)} type="button">
+            <QrCode size={16} />
+            <span>สร้าง QR รับเงิน</span>
+          </button>
+        )}
+      </div>
+
+      {/* KYC Modal */}
+      {isKycModalOpen && (
+        <div className="qs-modal-overlay">
+          <div className="qs-modal-card">
+            <div className="qs-modal-header">
+              <h3>ยืนยันตัวตนร้านค้า (KYC)</h3>
+              <button className="qs-modal-close" onClick={() => setIsKycModalOpen(false)} type="button">
+                <X size={20} />
+              </button>
+            </div>
+            <div className="qp-kyc-modal-body">
+              <div className="qp-kyc-modal-icon">
+                <ShieldAlert size={48} color="#f59e0b" />
+              </div>
+              <h4>ต้องทำการยืนยันตัวตนก่อนรับชำระเงิน</h4>
+              <p>กรุณาอัปโหลดเอกสารบัตรประชาชนและข้อมูลร้านค้าเพื่อเริ่มรับชำระเงินผ่าน PromptPay และช่องทางต่างๆ</p>
+              <button
+                className="merchant-primary"
+                style={{ width: '100%', justifyContent: 'center', marginTop: '16px' }}
+                onClick={() => {
+                  setIsKycVerified(true)
+                  setIsKycModalOpen(false)
+                }}
+                type="button"
+              >
+                ยืนยันตัวตนสำเร็จ (ทดสอบปลดล็อก)
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+/* ==========================================================================
+   3. REPORTS VIEW (รายงานการเงิน & วิเคราะห์ยอดขาย)
+   ========================================================================== */
+function ReportsView() {
+  return (
+    <div className="reports-view">
+      <section className="merchant-metrics">
+        <div className="merchant-metric">
+          <p>ยอดขายวันนี้</p>
+          <strong>฿ 18,450.00</strong>
+          <span className="merchant-green-text">↑ +14.2% จากเมื่อวาน</span>
+          <div className="merchant-metric-icon green">
+            <TrendingUp size={20} />
+          </div>
+        </div>
+        <div className="merchant-metric">
+          <p>จำนวนออเดอร์</p>
+          <strong>42 รายการ</strong>
+          <span>เฉลี่ย ฿439.28 / ออเดอร์</span>
+          <div className="merchant-metric-icon blue">
+            <ShoppingBag size={20} />
+          </div>
+        </div>
+        <div className="merchant-metric">
+          <p>ช่องทางยอดขายสูงสุด</p>
+          <strong>POS หน้าร้าน</strong>
+          <span>คิดเป็น 68% ของยอดขาย</span>
+          <div className="merchant-metric-icon violet">
+            <BarChart3 size={20} />
+          </div>
+        </div>
+        <div className="merchant-metric">
+          <p>กำไรสุทธิประเมิน</p>
+          <strong>฿ 11,200.00</strong>
+          <span className="merchant-green-text">Margin 60.7%</span>
+          <div className="merchant-metric-icon amber">
+            <Receipt size={20} />
+          </div>
+        </div>
+      </section>
+
+      <section className="merchant-grid">
+        <div className="merchant-panel">
+          <div className="merchant-panel-heading">
+            <div>
+              <h3>สรุปยอดขายสัปดาห์นี้</h3>
+              <p>เปรียบเทียบยอดขายรายวัน (บาท)</p>
+            </div>
+            <button className="merchant-link" type="button">ดาวน์โหลดรายงาน Excel</button>
+          </div>
+          <div className="sales-chart">
+            <div className="chart-y">
+              <span>20k</span>
+              <span>15k</span>
+              <span>10k</span>
+              <span>5k</span>
+              <span>0</span>
+            </div>
+            <div className="chart-bars">
+              <div className="chart-bar-column">
+                <div className="chart-bar" style={{ height: '55%' }} />
+                <span>จ.</span>
+              </div>
+              <div className="chart-bar-column">
+                <div className="chart-bar" style={{ height: '70%' }} />
+                <span>อ.</span>
+              </div>
+              <div className="chart-bar-column">
+                <div className="chart-bar" style={{ height: '60%' }} />
+                <span>พ.</span>
+              </div>
+              <div className="chart-bar-column">
+                <div className="chart-bar" style={{ height: '85%' }} />
+                <span>พฤ.</span>
+              </div>
+              <div className="chart-bar-column">
+                <div className="chart-bar" style={{ height: '95%' }} />
+                <span>ศ.</span>
+              </div>
+              <div className="chart-bar-column">
+                <div className="chart-bar" style={{ height: '80%' }} />
+                <span>ส.</span>
+              </div>
+              <div className="chart-bar-column">
+                <div className="chart-bar" style={{ height: '65%' }} />
+                <span>อา.</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="merchant-panel">
+          <div className="merchant-panel-heading">
+            <div>
+              <h3>สินค้าขายดี 5 อันดับแรก</h3>
+              <p>สถิติยอดขายตามจำนวนชิ้น</p>
+            </div>
+          </div>
+          <div className="product-list">
+            <div className="product-row">
+              <span className="product-rank">#1</span>
+              <div>
+                <strong>Iced Americano</strong>
+                <span>124 ชิ้น · เครื่องดื่ม</span>
+              </div>
+              <b>฿ 8,060</b>
+            </div>
+            <div className="product-row">
+              <span className="product-rank">#2</span>
+              <div>
+                <strong>Croissant เนยสดแท้</strong>
+                <span>86 ชิ้น · เบเกอรี่</span>
+              </div>
+              <b>฿ 5,590</b>
+            </div>
+            <div className="product-row">
+              <span className="product-rank">#3</span>
+              <div>
+                <strong>Iced Matcha Latte</strong>
+                <span>65 ชิ้น · เครื่องดื่ม</span>
+              </div>
+              <b>฿ 4,875</b>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+  )
+}
+
+/* ==========================================================================
+   4. WALLET VIEW (กระเป๋าเงิน & ถอนเงิน)
+   ========================================================================== */
+function WalletView() {
+  const [showBalance, setShowBalance] = useState(true)
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false)
+  const [dateRange, setDateRange] = useState('7 วันที่ผ่านมา')
+
+  // Auto Payout State
+  const [isAutoPayoutEnabled, setIsAutoPayoutEnabled] = useState(() => {
+    return localStorage.getItem('merchant_auto_payout_enabled') !== 'false'
+  })
+  const [autoPayoutTime, setAutoPayoutTime] = useState(() => {
+    return localStorage.getItem('merchant_auto_payout_time') || '23:59'
+  })
+
+  return (
+    <div className="wallet-page-container">
+      {/* 0. Top KYC Warning Banner */}
+      <div className="wv-sticky-kyc-bar">
+        <div className="wv-kyc-bar-left">
+          <ShieldAlert size={20} color="#ffffff" />
+          <span>ร้านนี้ยังไม่ได้ยืนยันตัวตน (KYC)</span>
+        </div>
+        <button className="wv-kyc-action-btn" onClick={() => alert('เริ่มขั้นตอนยืนยันตัวตน (KYC)')} type="button">
+          ยืนยันตัวตน <ChevronRight size={14} />
+        </button>
+      </div>
+
+      {/* 1. Wallet Balance Hero Card */}
+      <section className="wv-balance-hero-card">
+        <div className="wv-balance-left">
+          <div className="wv-balance-title-row">
+            <span>ยอดเงินในวอลเล็ต</span>
+            <button
+              aria-label="ซ่อน/แสดงยอดเงิน"
+              className="wv-eye-btn"
+              onClick={() => setShowBalance(!showBalance)}
+              type="button"
+            >
+              {showBalance ? <Eye size={17} /> : <EyeOff size={17} />}
+            </button>
+          </div>
+          <h1
+            className="wv-balance-amount wv-balance-amount-tappable"
+            onClick={() => { if (showBalance) speakBalance('0.00') }}
+            role="button"
+            tabIndex={0}
+            title="กดเพื่อฟังยอดเงิน"
+          >
+            {showBalance ? '฿0.00' : '฿ ••••••'}
+            {showBalance && <span className="wv-speak-hint">🔊</span>}
+          </h1>
+          <span className="wv-update-time">อัปเดตล่าสุด 20 พ.ค. 2567 09:41 น.</span>
+        </div>
+
+        <div className="wv-balance-right-graphic">
+          <div className="wv-card-icon-box">
+            <CreditCard size={32} color="#ffffff" />
+            <div className="wv-check-badge">
+              <Check size={12} color="#ffffff" strokeWidth={3} />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* 2. Summary Section */}
+      <section className="wv-summary-section">
+        <div className="wv-summary-header">
+          <div>
+            <h2>สรุปยอด</h2>
+            <p>ภาพรวมเงินเข้า - ออก</p>
+          </div>
+
+          <div className="wv-date-dropdown">
+            <Calendar size={14} color="#64748b" />
+            <select
+              value={dateRange}
+              onChange={(e) => setDateRange(e.target.value)}
+              className="wv-date-select"
+            >
+              <option value="7 วันที่ผ่านมา">7 วันที่ผ่านมา</option>
+              <option value="30 วันที่ผ่านมา">30 วันที่ผ่านมา</option>
+              <option value="เดือนนี้">เดือนนี้</option>
+            </select>
+            <ChevronDown size={14} color="#64748b" />
+          </div>
+        </div>
+
+        <div className="wv-summary-grid">
+          {/* Card 1: เงินเข้า */}
+          <div className="wv-summary-card wv-summary-green">
+            <div className="wv-summary-icon icon-green">
+              <ArrowDown size={16} />
+            </div>
+            <span>เงินเข้า</span>
+            <strong className="green-txt">฿25,420.00</strong>
+          </div>
+
+          {/* Card 2: เงินออก */}
+          <div className="wv-summary-card wv-summary-red">
+            <div className="wv-summary-icon icon-red">
+              <ArrowUp size={16} />
+            </div>
+            <span>เงินออก</span>
+            <strong className="red-txt">฿6,670.00</strong>
+          </div>
+
+          {/* Card 3: คงเหลือ */}
+          <div className="wv-summary-card wv-summary-blue">
+            <div className="wv-summary-icon icon-blue">
+              <CreditCard size={16} />
+            </div>
+            <span>คงเหลือ</span>
+            <strong className="blue-txt">฿18,750.00</strong>
+          </div>
+        </div>
+      </section>
+
+      {/* 2.5 Auto Daily Payout Schedule Card */}
+      <section className="wv-auto-payout-card">
+        <div className="wv-auto-payout-left">
+          <div className="wv-auto-payout-title">
+            <Clock size={18} color="#059669" />
+            <strong>⏱️ ตั้งเวลาโอนเงินเข้าบัญชีอัตโนมัติประจำวัน</strong>
+          </div>
+          <p>ระบบจะทำการสรุปยอดและโอนเงินเข้าบัญชีธนาคารร้านค้าอัตโนมัติทุกวัน</p>
+        </div>
+        <div className="wv-auto-payout-right">
+          <select
+            value={autoPayoutTime}
+            onChange={(e) => {
+              setAutoPayoutTime(e.target.value)
+              localStorage.setItem('merchant_auto_payout_time', e.target.value)
+              playTapSound('pop')
+            }}
+            className="wv-payout-time-select"
+          >
+            <option value="18:00">ทุกวัน เวลา 18:00 น.</option>
+            <option value="21:00">ทุกวัน เวลา 21:00 น.</option>
+            <option value="23:59">ทุกวัน เวลา 23:59 น. (ปิดกะ)</option>
+          </select>
+          <button
+            type="button"
+            className={`wv-payout-toggle-btn ${isAutoPayoutEnabled ? 'active' : ''}`}
+            onClick={() => {
+              const next = !isAutoPayoutEnabled
+              setIsAutoPayoutEnabled(next)
+              localStorage.setItem('merchant_auto_payout_enabled', String(next))
+              playTapSound('success')
+            }}
+          >
+            {isAutoPayoutEnabled ? '🟢 เปิดใช้งาน' : '⚪ ปิดใช้งาน'}
+          </button>
+        </div>
+      </section>
+
+      {/* 3. Three Transfer Action Cards */}
+      <section className="wv-action-cards-list">
+        {/* Card 1: โอนเข้าบัญชีหลัก */}
+        <div className="wv-action-card" onClick={() => alert('ต้องยืนยันตัวตน (KYC) ก่อนทำรายการ')} role="button" tabIndex={0}>
+          <div className="wv-ac-icon-box">
+            <Lock size={20} color="#64748b" />
+          </div>
+          <div className="wv-ac-text">
+            <div className="wv-ac-title-row">
+              <h3>โอนเข้าบัญชีหลัก</h3>
+              <span className="wv-kyc-pill">
+                🔒 ต้องยืนยันตัวตน (KYC)
+              </span>
+            </div>
+            <p>ยืนยันตัวตนร้านค้าก่อนทำรายการถอนเงิน</p>
+          </div>
+          <ChevronRight className="wv-ac-arrow" size={20} />
+        </div>
+
+        {/* Card 2: โอนไปยังซัพพลายเออร์ */}
+        <div className="wv-action-card" onClick={() => alert('ต้องยืนยันตัวตน (KYC) ก่อนทำรายการ')} role="button" tabIndex={0}>
+          <div className="wv-ac-icon-box">
+            <Lock size={20} color="#64748b" />
+          </div>
+          <div className="wv-ac-text">
+            <div className="wv-ac-title-row">
+              <h3>โอนไปยังซัพพลายเออร์</h3>
+              <span className="wv-kyc-pill">
+                🔒 ต้องยืนยันตัวตน (KYC)
+              </span>
+            </div>
+            <p>เลือกโอนคนเดียว หรือแบ่งจ่ายหลายคนพร้อมกัน</p>
+          </div>
+          <ChevronRight className="wv-ac-arrow" size={20} />
+        </div>
+
+        {/* Card 3: โอนระหว่างร้าน */}
+        <div className="wv-action-card" onClick={() => alert('ต้องยืนยันตัวตน (KYC) ก่อนทำรายการ')} role="button" tabIndex={0}>
+          <div className="wv-ac-icon-box">
+            <Lock size={20} color="#64748b" />
+          </div>
+          <div className="wv-ac-text">
+            <div className="wv-ac-title-row">
+              <h3>โอนระหว่างร้าน</h3>
+              <span className="wv-kyc-pill">
+                🔒 ต้องยืนยันตัวตน (KYC)
+              </span>
+            </div>
+            <p>โยกย้ายเงินหมุนเวียนหรือต้นทุนระหว่างสาขา</p>
+          </div>
+          <ChevronRight className="wv-ac-arrow" size={20} />
+        </div>
+      </section>
+
+      {/* 4. Main Bank Account Card */}
+      <section className="wv-bank-account-card">
+        <div className="wv-bank-header">
+          <h3>บัญชีธนาคารหลัก</h3>
+          <button className="wv-bank-edit-link" onClick={() => alert('แก้ไขบัญชีหลัก')} type="button">
+            เพิ่ม/แก้ไขบัญชีหลัก <Settings size={14} />
+          </button>
+        </div>
+
+        <div className="wv-bank-inner-box">
+          <div className="wv-bank-logo scb">
+            <span>SCB</span>
+          </div>
+
+          <div className="wv-bank-details">
+            <h4>ธนาคารไทยพาณิชย์</h4>
+            <p>ออมทรัพย์ 123-4-56789-0 · ชื่อบัญชี สมชาย ใจดี</p>
+          </div>
+
+          <div className="wv-bank-right">
+            <span className="wv-ready-badge">พร้อมใช้งาน</span>
+            <button className="wv-bank-pencil-btn" onClick={() => alert('แก้ไขบัญชี')} type="button">
+              <Pencil size={15} color="#64748b" />
+            </button>
+          </div>
+        </div>
+      </section>
+
+      {/* 5. Bank Change Request History Accordion */}
+      <section className="wv-accordion-card">
+        <div
+          className="wv-accordion-header"
+          onClick={() => setIsHistoryOpen(!isHistoryOpen)}
+          role="button"
+          tabIndex={0}
+        >
+          <div className="wv-accordion-left">
+            <span>📜 ประวัติการขอเปลี่ยนบัญชีหลัก</span>
+            <span className="wv-count-tag">1 รายการ</span>
+          </div>
+          <span className="wv-accordion-sub">คลิกเพื่อขยายดูประวัติบันทึกย้อนหลัง</span>
+          <ChevronDown className={`wv-accordion-chevron ${isHistoryOpen ? 'open' : ''}`} size={18} />
+        </div>
+
+        {isHistoryOpen && (
+          <div className="wv-accordion-body">
+            <div className="wv-history-log-item">
+              <div>
+                <strong>คำขอเปลี่ยนเป็น ธนาคารไทยพาณิชย์ (123-4-56789-0)</strong>
+                <span>อนุมัติแล้ว · 15 พ.ค. 2567 14:20 น.</span>
+              </div>
+              <span className="wv-log-status approved">อนุมัติแล้ว</span>
+            </div>
+          </div>
+        )}
+      </section>
+
+      {/* 6. Recent Transactions List */}
+      <section className="wv-recent-transactions-card">
+        <div className="wv-tx-header">
+          <h3>ประวัติรายการล่าสุด</h3>
+          <button className="wv-see-all-link" onClick={() => alert('ดูประวัติทั้งหมด')} type="button">
+            ดูทั้งหมด <ChevronRight size={14} />
+          </button>
+        </div>
+
+        <div className="wv-tx-list">
+          {/* Tx 1 */}
+          <div className="wv-tx-item">
+            <div className="wv-tx-icon green">
+              <ArrowDown size={18} />
+            </div>
+            <div className="wv-tx-info">
+              <strong>รับชำระเงินจาก QR พร้อมเพย์</strong>
+              <span>20 พ.ค. 2567 09:41</span>
+            </div>
+            <div className="wv-tx-amount">
+              <strong className="green-txt">+฿650.00</strong>
+              <small>คงเหลือ ฿18,750.00</small>
+            </div>
+            <ChevronRight size={16} color="#cbd5e1" />
+          </div>
+
+          {/* Tx 2 */}
+          <div className="wv-tx-item">
+            <div className="wv-tx-icon green">
+              <ArrowDown size={18} />
+            </div>
+            <div className="wv-tx-info">
+              <strong>รับชำระเงินจากบัตรเครดิต</strong>
+              <span>20 พ.ค. 2567 08:22</span>
+            </div>
+            <div className="wv-tx-amount">
+              <strong className="green-txt">+฿1250.00</strong>
+              <small>คงเหลือ ฿18,100.00</small>
+            </div>
+            <ChevronRight size={16} color="#cbd5e1" />
+          </div>
+
+          {/* Tx 3 */}
+          <div className="wv-tx-item">
+            <div className="wv-tx-icon blue">
+              <CreditCard size={18} />
+            </div>
+            <div className="wv-tx-info">
+              <strong>โอนเข้าบัญชีหลัก (SCB)</strong>
+              <span>19 พ.ค. 2567 14:35</span>
+            </div>
+            <div className="wv-tx-amount">
+              <strong className="red-txt">-฿5000.00</strong>
+              <small>คงเหลือ ฿16,850.00</small>
+            </div>
+            <ChevronRight size={16} color="#cbd5e1" />
+          </div>
+
+          {/* Tx 4 */}
+          <div className="wv-tx-item">
+            <div className="wv-tx-icon green">
+              <ArrowDown size={18} />
+            </div>
+            <div className="wv-tx-info">
+              <strong>รับชำระเงินจาก e-Wallet</strong>
+              <span>19 พ.ค. 2567 11:08</span>
+            </div>
+            <div className="wv-tx-amount">
+              <strong className="green-txt">+฿850.00</strong>
+              <small>คงเหลือ ฿21,850.00</small>
+            </div>
+            <ChevronRight size={16} color="#cbd5e1" />
+          </div>
+        </div>
+      </section>
+    </div>
+  )
+}
+
+/* ==========================================================================
+   5. SETTINGS VIEW (ตั้งค่าร้านค้า & ฮาร์ดแวร์)
+   ========================================================================== */
+function SettingsView() {
+  const [audioEnabled, setAudioEnabled] = useState(true)
+  const [speechSpeed, setSpeechSpeed] = useState('1.0x')
+  const [voiceGender, setVoiceGender] = useState('female' as VoiceGender)
+  const [volumeLevel, setVolumeLevel] = useState(10)
+  const [qrPayMode, setQrPayMode] = useState('pay_first' as QrPayMode)
+
+  const speedPresets = ['0.5x', '1.0x', '1.5x', '2.0x', '2.5x', '3.0x']
+
+  const playTestVoice = () => {
+    alert(
+      `🔊 เล่นเสียงทดสอบ (${voiceGender === 'female' ? 'ผู้หญิง' : 'ผู้ชาย'}, ความเร็ว ${speechSpeed}, ความดังระดับ ${volumeLevel}): "พร้อมเพย์ 100 บาท"`
+    )
+  }
+
+  return (
+    <div className="settings-container">
+      {/* Card 1: บัญชีและความปลอดภัย */}
+      <div className="st-card">
+        <div className="st-card-header-row" onClick={() => alert('เปิดหน้าบัญชีและความปลอดภัย')} role="button" tabIndex={0}>
+          <div className="st-card-icon-wrap green">
+            <User size={20} />
+          </div>
+          <div className="st-card-title-area">
+            <h3>บัญชีและความปลอดภัย</h3>
+            <p>จัดการบัญชีของคุณและความปลอดภัย</p>
+          </div>
+          <ChevronRight size={18} color="#94a3b8" />
+        </div>
+
+        <div className="st-quick-actions-grid">
+          <button className="st-qa-item" onClick={() => alert('ข้อมูลบัญชี')} type="button">
+            <div className="st-qa-icon"><User size={18} /></div>
+            <span>ข้อมูลบัญชี</span>
+          </button>
+          <button className="st-qa-item" onClick={() => alert('ความปลอดภัย')} type="button">
+            <div className="st-qa-icon"><ShieldCheck size={18} /></div>
+            <span>ความปลอดภัย</span>
+          </button>
+          <button className="st-qa-item" onClick={() => alert('รหัสผ่าน')} type="button">
+            <div className="st-qa-icon"><Key size={18} /></div>
+            <span>รหัสผ่าน</span>
+          </button>
+          <button className="st-qa-item" onClick={() => alert('สแกนลายนิ้วมือ')} type="button">
+            <div className="st-qa-icon"><Fingerprint size={18} /></div>
+            <span>สแกนลายนิ้วมือ</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Card 2: รายการตั้งค่าทั่วไป */}
+      <div className="st-card st-menu-list-card">
+        {/* 1. ภาษา */}
+        <div className="st-menu-row" onClick={() => alert('เลือกภาษา')} role="button" tabIndex={0}>
+          <div className="st-menu-icon green"><Globe size={18} /></div>
+          <div className="st-menu-label">
+            <strong>ภาษา</strong>
+          </div>
+          <div className="st-menu-value">
+            <span>ไทย</span>
+            <ChevronRight size={16} color="#94a3b8" />
+          </div>
+        </div>
+
+        <div className="st-row-divider" />
+
+        {/* 2. การแจ้งเตือน */}
+        <div className="st-menu-row" onClick={() => alert('จัดการการแจ้งเตือน')} role="button" tabIndex={0}>
+          <div className="st-menu-icon green"><Bell size={18} /></div>
+          <div className="st-menu-label">
+            <strong>การแจ้งเตือน</strong>
+            <small>จัดการการแจ้งเตือนและการเตือนต่างๆ</small>
+          </div>
+          <div className="st-menu-value">
+            <ChevronRight size={16} color="#94a3b8" />
+          </div>
+        </div>
+
+        <div className="st-row-divider" />
+
+        {/* 3. เสียงแจ้งเตือนเงินเข้า */}
+        <div className="st-audio-section">
+          <div className="st-menu-row no-hover">
+            <div className="st-menu-icon green"><Volume2 size={18} /></div>
+            <div className="st-menu-label">
+              <strong>เสียงแจ้งเตือนเงินเข้า</strong>
+              <small>อ่านช่องทางและยอดเงินเมื่อมีเงินเข้า</small>
+            </div>
+            <div className="st-menu-value">
+              <button
+                className={`st-ios-switch ${audioEnabled ? 'active' : ''}`}
+                onClick={() => setAudioEnabled(!audioEnabled)}
+                type="button"
+                aria-label="เปิด/ปิดเสียงเตือน"
+              >
+                <span className="st-switch-thumb" />
+              </button>
+            </div>
+          </div>
+
+          {audioEnabled && (
+            <div className="st-audio-subpanel">
+              {/* ความเร็วเสียงพูด */}
+              <div className="st-subpanel-group">
+                <div className="st-subpanel-label-row">
+                  <span>ความเร็วเสียงพูด</span>
+                  <span className="st-tag-green">{speechSpeed}</span>
+                </div>
+                <input
+                  type="range"
+                  min="0.5"
+                  max="3.0"
+                  step="0.5"
+                  value={parseFloat(speechSpeed)}
+                  onChange={(e) => setSpeechSpeed(`${parseFloat(e.target.value).toFixed(1)}x`)}
+                  className="st-slider"
+                />
+                <div className="st-speed-presets">
+                  {speedPresets.map((speed) => (
+                    <button
+                      key={speed}
+                      className={`st-speed-btn ${speechSpeed === speed ? 'active' : ''}`}
+                      onClick={() => setSpeechSpeed(speed)}
+                      type="button"
+                    >
+                      {speed}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* เสียงพูด (เพศ / โทนเสียง) */}
+              <div className="st-subpanel-group">
+                <span className="st-subpanel-title">เสียงพูด (เพศ / โทนเสียง)</span>
+                <div className="st-gender-segmented">
+                  <button
+                    className={`st-gender-btn ${voiceGender === 'female' ? 'active' : ''}`}
+                    onClick={() => setVoiceGender('female')}
+                    type="button"
+                  >
+                    <span>♀️ เสียงผู้หญิง</span>
+                  </button>
+                  <button
+                    className={`st-gender-btn ${voiceGender === 'male' ? 'active' : ''}`}
+                    onClick={() => setVoiceGender('male')}
+                    type="button"
+                  >
+                    <span>♂️ เสียงผู้ชาย</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* ระดับความดังเสียง */}
+              <div className="st-subpanel-group">
+                <div className="st-subpanel-label-row">
+                  <span>ระดับความดังเสียง (0 - 10)</span>
+                  <span className="st-tag-green">ระดับ {volumeLevel} {volumeLevel === 10 ? '(ดังที่สุด)' : ''}</span>
+                </div>
+                <input
+                  type="range"
+                  min="0"
+                  max="10"
+                  value={volumeLevel}
+                  onChange={(e) => setVolumeLevel(parseInt(e.target.value))}
+                  className="st-slider"
+                />
+              </div>
+
+              {/* ปุ่มทดสอบฟังเสียงเตือน */}
+              <button className="st-test-voice-btn" onClick={playTestVoice} type="button">
+                <Volume2 size={18} />
+                <span>ทดสอบฟังเสียงเตือน ("พร้อมเพย์ 100 บาท")</span>
+              </button>
+            </div>
+          )}
+        </div>
+
+        <div className="st-row-divider" />
+
+        {/* 4. ธีมและสี */}
+        <div className="st-menu-row" onClick={() => alert('เลือกธีม')} role="button" tabIndex={0}>
+          <div className="st-menu-icon green"><Palette size={18} /></div>
+          <div className="st-menu-label">
+            <strong>ธีมและสี</strong>
+            <small>ปรับแต่งธีมและสีของแอป</small>
+          </div>
+          <div className="st-menu-value">
+            <span className="st-theme-pill">เขียว 🟢</span>
+            <ChevronRight size={16} color="#94a3b8" />
+          </div>
+        </div>
+
+        <div className="st-row-divider" />
+
+        {/* 5. เครื่องพิมพ์ */}
+        <div className="st-menu-row" onClick={() => alert('ตั้งค่าเครื่องพิมพ์')} role="button" tabIndex={0}>
+          <div className="st-menu-icon green"><Printer size={18} /></div>
+          <div className="st-menu-label">
+            <strong>เครื่องพิมพ์</strong>
+            <small>ตั้งค่าเครื่องพิมพ์ใบเสร็จ</small>
+          </div>
+          <div className="st-menu-value">
+            <ChevronRight size={16} color="#94a3b8" />
+          </div>
+        </div>
+
+        <div className="st-row-divider" />
+
+        {/* 6. การรับชำระเงิน */}
+        <div className="st-menu-row" onClick={() => alert('จัดการการรับชำระเงิน')} role="button" tabIndex={0}>
+          <div className="st-menu-icon green"><CreditCard size={18} /></div>
+          <div className="st-menu-label">
+            <strong>การรับชำระเงิน</strong>
+            <small>จัดการช่องทางและวิธีการรับชำระเงิน</small>
+          </div>
+          <div className="st-menu-value">
+            <ChevronRight size={16} color="#94a3b8" />
+          </div>
+        </div>
+
+        <div className="st-row-divider" />
+
+        {/* 7. สำรองข้อมูล */}
+        <div className="st-menu-row" onClick={() => alert('สำรองข้อมูล')} role="button" tabIndex={0}>
+          <div className="st-menu-icon green"><Database size={18} /></div>
+          <div className="st-menu-label">
+            <strong>สำรองข้อมูล</strong>
+            <small>สำรองและฟื้นฟูข้อมูล</small>
+          </div>
+          <div className="st-menu-value">
+            <ChevronRight size={16} color="#94a3b8" />
+          </div>
+        </div>
+
+        <div className="st-row-divider" />
+
+        {/* 8. นักพัฒนา (API) */}
+        <div className="st-menu-row" onClick={() => alert('จัดการ API')} role="button" tabIndex={0}>
+          <div className="st-menu-icon green"><Code size={18} /></div>
+          <div className="st-menu-label">
+            <strong>นักพัฒนา (API)</strong>
+            <small>จัดการ API และ Webhook</small>
+          </div>
+          <div className="st-menu-value">
+            <ChevronRight size={16} color="#94a3b8" />
+          </div>
+        </div>
+
+        <div className="st-row-divider" />
+
+        {/* 9. เกี่ยวกับแอป */}
+        <div className="st-menu-row" onClick={() => alert('เกี่ยวกับ ChatPOS v2.3.1')} role="button" tabIndex={0}>
+          <div className="st-menu-icon green"><HelpCircle size={18} /></div>
+          <div className="st-menu-label">
+            <strong>เกี่ยวกับแอป</strong>
+            <small>เวอร์ชัน 2.3.1</small>
+          </div>
+          <div className="st-menu-value">
+            <ChevronRight size={16} color="#94a3b8" />
+          </div>
+        </div>
+      </div>
+
+      {/* Card 3: รูปแบบการชำระเงินของลูกค้าผ่าน QR */}
+      <div className="st-card">
+        <div className="st-qr-header">
+          <div className="st-menu-icon green"><CreditCard size={18} /></div>
+          <div>
+            <h3>รูปแบบการชำระเงินของลูกค้าผ่าน QR</h3>
+            <p>เลือกรูปแบบการจ่ายเงินเมื่อลูกค้าสแกนสั่งอาหารที่โต๊ะ</p>
+          </div>
+        </div>
+
+        <div className="st-qr-options">
+          {/* Option 1: จ่ายเงินทันที */}
+          <div
+            className={`st-radio-card ${qrPayMode === 'pay_first' ? 'active' : ''}`}
+            onClick={() => setQrPayMode('pay_first')}
+            role="button"
+            tabIndex={0}
+          >
+            <div className="st-radio-icon">
+              <div className={`st-radio-dot ${qrPayMode === 'pay_first' ? 'checked' : ''}`} />
+            </div>
+            <div className="st-radio-body">
+              <strong>จ่ายเงินทันที (Always Pay First)</strong>
+              <p>ลูกค้าต้องชำระเงินทันทีก่อนส่งออเดอร์เข้าครัว เหมาะสำหรับร้านด่วนบุฟเฟต์ฟาสต์ฟู้ด</p>
+            </div>
+          </div>
+
+          {/* Option 2: กินก่อนจ่ายทีหลัง */}
+          <div
+            className={`st-radio-card ${qrPayMode === 'pay_later' ? 'active' : ''}`}
+            onClick={() => setQrPayMode('pay_later')}
+            role="button"
+            tabIndex={0}
+          >
+            <div className="st-radio-icon">
+              <div className={`st-radio-dot ${qrPayMode === 'pay_later' ? 'checked' : ''}`} />
+            </div>
+            <div className="st-radio-body">
+              <strong>กินก่อนจ่ายทีหลัง (Always Pay Later)</strong>
+              <p>สั่งอาหารเข้าครัวได้เรื่อยๆ แล้วสรุปยอดคิดเงินชำระบิลเดียวตอนเช็คบิล เหมาะสำหรับร้านอาหารทั่วไป</p>
+            </div>
+          </div>
+
+          {/* Option 3: ควบคุมทีละโต๊ะ */}
+          <div
+            className={`st-radio-card ${qrPayMode === 'table_controlled' ? 'active' : ''}`}
+            onClick={() => setQrPayMode('table_controlled')}
+            role="button"
+            tabIndex={0}
+          >
+            <div className="st-radio-icon">
+              <div className={`st-radio-dot ${qrPayMode === 'table_controlled' ? 'checked' : ''}`} />
+            </div>
+            <div className="st-radio-body">
+              <strong>ควบคุมทีละโต๊ะ (Adjustable per Table)</strong>
+              <p>ร้านเปิดเซสชันให้โต๊ะไหน โต๊ะนั้นจึงจะกินก่อนจ่ายทีหลังได้ หากไม่เปิดจะบังคับจ่ายทันที</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+
