@@ -1,7 +1,9 @@
 import { useState } from 'react'
-import { ArrowUpRight, CheckCircle2, ClipboardCheck, Clock3, Download, Filter, Search, ShieldAlert, Store, UsersRound, WalletCards } from 'lucide-react'
+import { ArrowUpRight, CheckCircle2, ClipboardCheck, Clock3, Download, Filter, Megaphone, Search, ShieldAlert, Store, Trophy, UsersRound, WalletCards, Zap } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
-import { mockAuditEvents, mockCases, mockRiskFlags, mockWithdrawals } from './mockData'
+import { mockAuditEvents, mockCases, mockLeaderboard, mockRiskFlags, mockSystemLiveStats, mockWithdrawals } from './mockData'
+import type { MockCase, MockWithdrawal } from './mockData'
+import { BatchKycModal, BroadcastModal, KycInspectorModal, WithdrawalModal } from './AdminModals'
 
 type PageViewsProps = { activePage: string }
 
@@ -16,15 +18,74 @@ const pageMeta: Record<string, { eyebrow: string; title: string; description: st
   'Audit log': { eyebrow: 'AUDIT ACTIVITY', title: 'Audit Activity', description: 'ตรวจสอบประวัติการเปลี่ยนแปลงในระบบ' },
 }
 
-const rows = mockCases
-
 export function PageViews({ activePage }: PageViewsProps) {
   const [query, setQuery] = useState('')
-  const meta = pageMeta[activePage] ?? pageMeta['งาน KYC']
-  const visibleRows = rows.filter((row) => `${row.name} ${row.detail}`.toLowerCase().includes(query.toLowerCase()))
+  const [casesList, setCasesList] = useState<MockCase[]>(mockCases)
+  const [withdrawalsList, setWithdrawalsList] = useState<MockWithdrawal[]>(mockWithdrawals)
   
+  // Modals state
+  const [selectedCase, setSelectedCase] = useState<MockCase | null>(null)
+  const [selectedWithdrawal, setSelectedWithdrawal] = useState<MockWithdrawal | null>(null)
+  const [broadcastOpen, setBroadcastOpen] = useState(false)
+  const [batchKycOpen, setBatchKycOpen] = useState(false)
+
+  const meta = pageMeta[activePage] ?? pageMeta['งาน KYC']
+  const visibleRows = casesList.filter((row) => `${row.name} ${row.detail} ${row.person}`.toLowerCase().includes(query.toLowerCase()))
+
+  const handleUpdateStatus = (caseId: string, status: string, tone: 'approved' | 'review' | 'risk' | 'pending') => {
+    setCasesList((prev) =>
+      prev.map((c) => (c.id === caseId ? { ...c, status, tone } : c))
+    )
+  }
+
+  const handleConfirmBatch = () => {
+    setCasesList((prev) =>
+      prev.map((c) => (c.tone === 'pending' || c.tone === 'review' ? { ...c, status: 'อนุมัติแล้ว', tone: 'approved' } : c))
+    )
+  }
+
+  const handleApproveWithdrawal = (id: string) => {
+    setWithdrawalsList((prev) =>
+      prev.map((w) => (w.id === id ? { ...w, status: 'approved' } : w))
+    )
+  }
+
   return (
     <div className="page-view">
+      {/* Real-time System Command Bar */}
+      <section className="admin-command-bar">
+        <div className="command-left">
+          <div className="pulse-tag">
+            <span className="pulse-dot" /> LIVE ENGINE
+          </div>
+          <div className="stat-chip">
+            <small>TPS</small>
+            <strong>{mockSystemLiveStats.tps}</strong>
+          </div>
+          <div className="stat-chip">
+            <small>LATENCY</small>
+            <strong>{mockSystemLiveStats.dbLatency}</strong>
+          </div>
+          <div className="stat-chip">
+            <small>ACTIVE POS</small>
+            <strong>{mockSystemLiveStats.activeTerminals}</strong>
+          </div>
+          <div className="stat-chip">
+            <small>ONLINE MERCHANTS</small>
+            <strong>{mockSystemLiveStats.onlineMerchants}</strong>
+          </div>
+        </div>
+
+        <div className="command-right">
+          <button type="button" className="cmd-btn btn-broadcast" onClick={() => setBroadcastOpen(true)}>
+            <Megaphone size={15} /> ประกาศ POS
+          </button>
+          <button type="button" className="cmd-btn btn-batch" onClick={() => setBatchKycOpen(true)}>
+            <Zap size={15} /> Batch อนุมัติ KYC
+          </button>
+        </div>
+      </section>
+
       <section className="page-heading">
         <div>
           <p className="eyebrow">{meta.eyebrow}</p>
@@ -37,20 +98,63 @@ export function PageViews({ activePage }: PageViewsProps) {
       </section>
       
       {activePage === 'การเงิน' ? (
-        <FinanceView />
+        <FinanceView
+          withdrawals={withdrawalsList}
+          onSelectWithdrawal={(w) => setSelectedWithdrawal(w)}
+        />
       ) : activePage === 'Risk Control' ? (
         <RiskView />
       ) : activePage === 'Audit log' ? (
         <AuditView />
       ) : (
-        <OperationalView activePage={activePage} query={query} setQuery={setQuery} rows={visibleRows} />
+        <OperationalView
+          activePage={activePage}
+          query={query}
+          setQuery={setQuery}
+          rows={visibleRows}
+          onInspectCase={(item) => setSelectedCase(item)}
+        />
       )}
+
+      {/* Modals */}
+      <KycInspectorModal
+        selectedCase={selectedCase}
+        onClose={() => setSelectedCase(null)}
+        onUpdateStatus={handleUpdateStatus}
+      />
+      <BroadcastModal
+        isOpen={broadcastOpen}
+        onClose={() => setBroadcastOpen(false)}
+      />
+      <BatchKycModal
+        isOpen={batchKycOpen}
+        onClose={() => setBatchKycOpen(false)}
+        onConfirmBatch={handleConfirmBatch}
+      />
+      <WithdrawalModal
+        selectedWithdrawal={selectedWithdrawal}
+        onClose={() => setSelectedWithdrawal(null)}
+        onApprove={handleApproveWithdrawal}
+      />
     </div>
   )
 }
 
-function OperationalView({ activePage, query, setQuery, rows: visibleRows }: { activePage: string; query: string; setQuery: (value: string) => void; rows: typeof rows }) {
+function OperationalView({
+  activePage,
+  query,
+  setQuery,
+  rows: visibleRows,
+  onInspectCase
+}: {
+  activePage: string
+  query: string
+  setQuery: (value: string) => void
+  rows: MockCase[]
+  onInspectCase: (item: MockCase) => void
+}) {
   const isKyc = activePage === 'งาน KYC'
+  const isAgentView = activePage === 'ตัวแทน' || activePage === 'PD และพื้นที่'
   const metrics: [string, string, string, LucideIcon][] = isKyc
     ? [['KYC ทั้งหมด', '286', 'blue', ClipboardCheck], ['รอตรวจ', '47', 'amber', Clock3], ['อนุมัติแล้ว', '198', 'green', CheckCircle2], ['ปฏิเสธ', '41', 'red', ShieldAlert]]
     : [['รายการทั้งหมด', '1,486', 'blue', UsersRound], ['กำลังใช้งาน', '1,302', 'green', ClipboardCheck], ['รอดำเนินการ', '84', 'amber', Clock3], ['อัปเดตวันนี้', '126', 'violet', ArrowUpRight]]
@@ -60,7 +164,7 @@ function OperationalView({ activePage, query, setQuery, rows: visibleRows }: { a
       <div className="admin-mascot-banner">
         <div className="admin-mascot-banner-left">
           <h3>{isKyc ? '📋 ระบบตรวจสอบ KYC & Audit' : '🏢 การจัดการเครือข่ายร้านค้าและผู้ดูแล'}</h3>
-          <p>{isKyc ? 'อนุมัติเอกสารและตรวจสอบความถูกต้องแบบเรียลไทม์' : 'ติดตามสถานะการทำงานและคำขอเชื่อมต่อในระบบ ChatPOS'}</p>
+          <p>{isKyc ? 'อนุมัติเอกสารและตรวจสอบความถูกต้องแบบเรียลไทม์ (คลิกที่แถวเพื่อตรวจเอกสาร)' : 'ติดตามสถานะการทำงานและคำขอเชื่อมต่อในระบบ ChatPOS'}</p>
         </div>
         <img src={isKyc ? '/mascot/kyc_3_checking_documents.png' : '/mascot/nabtang_presenting.png'} alt="Admin Mascot" className="admin-mascot-banner-img" />
       </div>
@@ -79,16 +183,54 @@ function OperationalView({ activePage, query, setQuery, rows: visibleRows }: { a
         ))}
       </section>
 
+      {/* Leaderboard for Agent & PD pages */}
+      {isAgentView && (
+        <section className="panel leaderboard-panel">
+          <div className="panel-heading">
+            <div>
+              <h2>🏆 Top Agent & PD Leaderboard ประจำเดือน</h2>
+              <p>อันดับผลงานการดูแลร้านค้าและยอดขายรวมในสายงาน</p>
+            </div>
+            <Trophy size={20} className="amber-text" />
+          </div>
+          <div className="leaderboard-grid">
+            {mockLeaderboard.map((item) => (
+              <div className="leaderboard-card" key={item.code}>
+                <div className="rank-badge" style={{ background: item.avatarBg }}>
+                  {item.rank}
+                </div>
+                <div className="agent-lead-info">
+                  <span className="lead-tag">{item.badge}</span>
+                  <strong>{item.code} · {item.name}</strong>
+                  <p>{item.region}</p>
+                </div>
+                <div className="lead-metrics">
+                  <div>
+                    <small>ร้านในดูแล</small>
+                    <strong>{item.merchantCount} ร้าน</strong>
+                  </div>
+                  <div>
+                    <small>ยอดขายรวม</small>
+                    <strong className="green-text">{item.volume}</strong>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
       <section className="panel work-panel">
         <div className="work-toolbar">
           <div>
             <h2>{isKyc ? 'รายการ KYC ทั้งหมด' : 'รายการที่ต้องดำเนินการ'}</h2>
-            <p>ค้นหา กรอง และตรวจสอบรายละเอียดตามสิทธิ์ของคุณ</p>
+            <p>คลิกที่แถวเพื่อเปิด Inspector Modal ตรวจเอกสารและอนุมัติแบบละเอียด</p>
           </div>
           <button className="filter-button" type="button">
             <Filter size={15} /> ตัวกรอง
           </button>
         </div>
+
         <div className="search-row">
           <div className="search-box">
             <Search size={16} />
@@ -101,23 +243,29 @@ function OperationalView({ activePage, query, setQuery, rows: visibleRows }: { a
             <option>อนุมัติแล้ว</option>
           </select>
         </div>
+
         <div className="table-scroll">
-          <table>
+          <table className="interactive-table">
             <thead>
               <tr>
-                <th>ชื่อ / รายละเอียด</th>
+                <th>รหัส / กิจการ</th>
+                <th>ผู้รับผิดชอบ</th>
                 <th>ประเภท</th>
                 <th>สถานะ</th>
                 <th>อัปเดตล่าสุด</th>
-                <th />
+                <th>ตรวจเอกสาร</th>
               </tr>
             </thead>
             <tbody>
               {visibleRows.map((row) => (
-                <tr key={row.name}>
+                <tr key={row.name} className="clickable-row" onClick={() => onInspectCase(row)}>
                   <td>
+                    <span className="row-id-pill">{row.id}</span>
                     <strong>{row.name}</strong>
-                    <span>{row.detail}</span>
+                  </td>
+                  <td>
+                    <strong>{row.person}</strong>
+                    <span className="sub-text">{row.detail}</span>
                   </td>
                   <td>{row.type}</td>
                   <td>
@@ -128,8 +276,16 @@ function OperationalView({ activePage, query, setQuery, rows: visibleRows }: { a
                   </td>
                   <td className="muted">{row.time}</td>
                   <td className="action-cell">
-                    <button aria-label={`เปิด ${row.name}`} type="button">
-                      <ArrowUpRight size={16} />
+                    <button
+                      aria-label={`ตรวจเอกสาร ${row.name}`}
+                      type="button"
+                      className="btn-inspect-table"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        onInspectCase(row)
+                      }}
+                    >
+                      Inspect <ArrowUpRight size={14} />
                     </button>
                   </td>
                 </tr>
@@ -149,7 +305,13 @@ function OperationalView({ activePage, query, setQuery, rows: visibleRows }: { a
   )
 }
 
-function FinanceView() {
+function FinanceView({
+  withdrawals,
+  onSelectWithdrawal
+}: {
+  withdrawals: MockWithdrawal[]
+  onSelectWithdrawal: (w: MockWithdrawal) => void
+}) {
   const financeMetrics: [string, string, string, LucideIcon][] = [
     ['Commission รวม', '฿1,284,600', 'blue', WalletCards],
     ['Direct Agent', '฿842,300', 'green', UsersRound],
@@ -162,7 +324,7 @@ function FinanceView() {
       <div className="admin-mascot-banner">
         <div className="admin-mascot-banner-left">
           <h3>💰 ศูนย์การเงิน & ค่าคอมมิชชัน (Finance Control)</h3>
-          <p>สรุปยอด Commission, PD Benefit และคิวคำขอถอนเงินล่าสุด</p>
+          <p>สรุปยอด Commission, PD Benefit และคิวคำขอถอนเงินล่าสุด (คลิกคิวเพื่ออนุมัติ)</p>
         </div>
         <img src="/mascot/pay_4_money_bag.png" alt="Finance Mascot" className="admin-mascot-banner-img" />
       </div>
@@ -200,13 +362,30 @@ function FinanceView() {
           <div className="panel-heading">
             <div>
               <h2>Withdrawal Queue</h2>
-              <p>รายการรออนุมัติ</p>
+              <p>รายการรออนุมัติโอนเงิน (คลิกเพื่อดำเนินการ)</p>
             </div>
             <Clock3 className="panel-icon amber-text" size={20} />
           </div>
           <div className="queue-list">
-            {mockWithdrawals.slice(0, 3).map((item) => (
-              <QueueItem key={item.name} name={item.name} amount={item.amount} />
+            {withdrawals.map((item) => (
+              <div
+                key={item.id}
+                className="queue-row clickable-queue"
+                onClick={() => onSelectWithdrawal(item)}
+              >
+                <div>
+                  <strong>{item.name}</strong>
+                  <p className="sub-text">{item.bank} · {item.accountNo}</p>
+                </div>
+                <div className="queue-right">
+                  <strong className={item.status === 'approved' ? 'green-text' : 'amber-text'}>
+                    {item.amount}
+                  </strong>
+                  <span className={`status-pill-small ${item.status}`}>
+                    {item.status === 'approved' ? 'อนุมัติแล้ว' : 'รออนุมัติ'}
+                  </span>
+                </div>
+              </div>
             ))}
           </div>
         </article>
@@ -230,7 +409,7 @@ function FinanceView() {
               </tr>
             </thead>
             <tbody>
-              {rows.map((row, index) => (
+              {mockCases.map((row, index) => (
                 <tr key={row.name}>
                   <td>
                     <strong>{row.detail}</strong>
@@ -370,12 +549,4 @@ function Bar({ label, value, width, tone }: { label: string; value: string; widt
   )
 }
 
-function QueueItem({ name, amount }: { name: string; amount: string }) {
-  return (
-    <div className="queue-row">
-      <span>{name}</span>
-      <strong className="amber-text">{amount}</strong>
-    </div>
-  )
-}
 

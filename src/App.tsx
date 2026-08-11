@@ -5,6 +5,7 @@ import { LoginView } from './AuthViews'
 import { mockCases } from './mockData'
 import { MerchantView } from './MerchantView'
 import { CustomerView } from './CustomerView'
+import { ChatPosAiWidget } from './AdminModals'
 import './App.css'
 
 type Icon = typeof LayoutDashboard
@@ -32,8 +33,65 @@ function App() {
   const role = pathname === '/pd' ? 'pd' : pathname === '/agent' ? 'agent' : 'admin'
   const selectPage = (label: string) => { setActivePage(label); setMobileOpen(false) }
   const sidebar = <Sidebar activePage={activePage} onSelect={selectPage} />
-  return <div className="app-shell"><aside className="desktop-sidebar">{sidebar}</aside>{mobileOpen && <div className="mobile-menu"><button aria-label="ปิดเมนู" className="menu-backdrop" onClick={() => setMobileOpen(false)} type="button" /><aside>{sidebar}<button aria-label="ปิดเมนู" className="close-menu" onClick={() => setMobileOpen(false)} type="button"><X size={20} /></button></aside></div>}<div className="main-column"><header className="topbar"><button aria-label="เปิดเมนู" className="icon-button mobile-trigger" onClick={() => setMobileOpen(true)} type="button"><Menu size={20} /></button><div className="breadcrumb"><span>{role === 'admin' ? 'Admin Control Center' : role === 'pd' ? 'PD Operations' : 'Agent Portal'}</span><ChevronRight size={14} /><strong>{activePage}</strong></div><div className="topbar-actions"><span className="date-chip">ข้อมูลล่าสุดวันนี้ <b>06 ส.ค. 2026</b></span><div className="notification-wrap"><button aria-label="การแจ้งเตือน" className="icon-button" onClick={() => setNotificationsOpen((open) => !open)} type="button"><Bell size={18} /><span className="notification-count">8</span></button>{notificationsOpen && <div className="notification-panel"><strong>การแจ้งเตือน</strong><p>มี KYC ใหม่ 4 รายการรอตรวจสอบ</p><p>คำขอถอนเงิน 3 รายการรออนุมัติ</p></div>}</div><div className="top-avatar">{role === 'pd' ? 'PD' : role === 'agent' ? 'AG' : 'AD'}</div></div></header>{activePage === 'ภาพรวมระบบ' ? <Dashboard onSelect={selectPage} role={role} /> : <main className="content"><PageViews activePage={activePage} /></main>}</div></div>
+  
+  return (
+    <div className="app-shell">
+      <aside className="desktop-sidebar">{sidebar}</aside>
+      {mobileOpen && (
+        <div className="mobile-menu">
+          <button aria-label="ปิดเมนู" className="menu-backdrop" onClick={() => setMobileOpen(false)} type="button" />
+          <aside>
+            {sidebar}
+            <button aria-label="ปิดเมนู" className="close-menu" onClick={() => setMobileOpen(false)} type="button">
+              <X size={20} />
+            </button>
+          </aside>
+        </div>
+      )}
+      <div className="main-column">
+        <header className="topbar">
+          <button aria-label="เปิดเมนู" className="icon-button mobile-trigger" onClick={() => setMobileOpen(true)} type="button">
+            <Menu size={20} />
+          </button>
+          <div className="breadcrumb">
+            <span>{role === 'admin' ? 'Admin Control Center' : role === 'pd' ? 'PD Operations' : 'Agent Portal'}</span>
+            <ChevronRight size={14} />
+            <strong>{activePage}</strong>
+          </div>
+          <div className="topbar-actions">
+            <span className="date-chip">ข้อมูลล่าสุดวันนี้ <b>06 ส.ค. 2026</b></span>
+            <div className="notification-wrap">
+              <button aria-label="การแจ้งเตือน" className="icon-button" onClick={() => setNotificationsOpen((open) => !open)} type="button">
+                <Bell size={18} />
+                <span className="notification-count">8</span>
+              </button>
+              {notificationsOpen && (
+                <div className="notification-panel">
+                  <strong>การแจ้งเตือน</strong>
+                  <p>มี KYC ใหม่ 4 รายการรอตรวจสอบ</p>
+                  <p>คำขอถอนเงิน 3 รายการรออนุมัติ</p>
+                </div>
+              )}
+            </div>
+            <div className="top-avatar">{role === 'pd' ? 'PD' : role === 'agent' ? 'AG' : 'AD'}</div>
+          </div>
+        </header>
+
+        {activePage === 'ภาพรวมระบบ' ? (
+          <Dashboard onSelect={selectPage} role={role} />
+        ) : (
+          <main className="content">
+            <PageViews activePage={activePage} />
+          </main>
+        )}
+      </div>
+
+      {/* ChatPOS AI Floating Assistant */}
+      <ChatPosAiWidget />
+    </div>
+  )
 }
+
 
 function Sidebar({ activePage, onSelect }: { activePage: string; onSelect: (label: string) => void }) { return <div className="sidebar-inner"><div className="brand"><img src="/logo.png" alt="Logo" style={{ width: '36px', height: '36px', objectFit: 'contain' }} /><div><strong>ChatPOS</strong><span>CONTROL CENTER</span></div></div><nav aria-label="เมนูหลัก"><p className="nav-label">เมนูหลัก</p>{navigation.map(({ label, icon: NavIcon }) => <button className={`nav-item ${activePage === label ? 'active' : ''}`} key={label} onClick={() => onSelect(label)} type="button"><NavIcon aria-hidden="true" size={17} /><span>{label}</span>{activePage === label && <ChevronRight aria-hidden="true" className="nav-arrow" size={15} />}</button>)}</nav><div className="sidebar-footer"><div className="system-status"><span className="status-dot" /><div><strong>ระบบพร้อมใช้งาน</strong><span>Database และ Auth เชื่อมต่อแล้ว</span></div></div><div className="profile"><div className="avatar">AD</div><div><strong>Admin Demo</strong><span>Super Admin</span></div><ChevronRight size={15} /></div></div></div> }
 
