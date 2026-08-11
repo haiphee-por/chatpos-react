@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { ProfileSettingsModal } from './ProfileSettingsModal'
 import {
   Bell,
   Calendar,
@@ -297,6 +298,7 @@ export function MerchantView() {
   const [active, setActive] = useState(getInitialTab)
   const [mobileOpen, setMobileOpen] = useState(false)
   const [notificationsOpen, setNotificationsOpen] = useState(false)
+  const [profileModalOpen, setProfileModalOpen] = useState(false)
 
   useEffect(() => {
     localStorage.setItem('merchant_active_tab', active)
@@ -333,11 +335,11 @@ export function MerchantView() {
           <span>MERCHANT PORTAL</span>
         </div>
       </div>
-      <div className="merchant-store">
+      <div className="merchant-store" onClick={() => setProfileModalOpen(true)} style={{ cursor: 'pointer' }} title="คลิกเพื่อตั้งค่าโปรไฟล์ร้านค้า">
         <Store size={16} />
         <div>
           <span>สาขาปัจจุบัน</span>
-          <strong>ร้านกาแฟบ้านสวน</strong>
+          <strong>ร้านกาแฟบ้านสวน ⚙️</strong>
           <small>สาขาหลัก · M-001</small>
         </div>
         <ChevronRight size={15} />
@@ -416,7 +418,7 @@ export function MerchantView() {
           ) : active === 'wallet' ? (
             <WalletView />
           ) : active === 'settings' ? (
-            <SettingsView />
+            <SettingsView onOpenProfile={() => setProfileModalOpen(true)} />
           ) : (
             <MerchantSection active={active} label={current.label} />
           )}
@@ -623,6 +625,13 @@ export function MerchantView() {
           </div>
         </div>
       )}
+
+      {/* Merchant Profile Settings Modal */}
+      <ProfileSettingsModal
+        isOpen={profileModalOpen}
+        role="merchant"
+        onClose={() => setProfileModalOpen(false)}
+      />
     </div>
   )
 }
@@ -6283,7 +6292,7 @@ function WalletView() {
 /* ==========================================================================
    5. SETTINGS VIEW (ตั้งค่าร้านค้า & ฮาร์ดแวร์)
    ========================================================================== */
-function SettingsView() {
+function SettingsView({ onOpenProfile }: { onOpenProfile?: () => void }) {
   const [audioEnabled, setAudioEnabled] = useState(true)
   const [speechSpeed, setSpeechSpeed] = useState('1.0x')
   const [voiceGender, setVoiceGender] = useState('female' as VoiceGender)
@@ -6302,31 +6311,31 @@ function SettingsView() {
     <div className="settings-container">
       {/* Card 1: บัญชีและความปลอดภัย */}
       <div className="st-card">
-        <div className="st-card-header-row" onClick={() => alert('เปิดหน้าบัญชีและความปลอดภัย')} role="button" tabIndex={0}>
+        <div className="st-card-header-row" onClick={onOpenProfile} role="button" tabIndex={0}>
           <div className="st-card-icon-wrap green">
             <User size={20} />
           </div>
           <div className="st-card-title-area">
-            <h3>บัญชีและความปลอดภัย</h3>
-            <p>จัดการบัญชีของคุณและความปลอดภัย</p>
+            <h3>บัญชีและความปลอดภัย ⚙️</h3>
+            <p>จัดการบัญชี ภาพโปรไฟล์ รหัสผ่าน ข้อมูลร้านค้า และการแจ้งเตือน</p>
           </div>
           <ChevronRight size={18} color="#94a3b8" />
         </div>
 
         <div className="st-quick-actions-grid">
-          <button className="st-qa-item" onClick={() => alert('ข้อมูลบัญชี')} type="button">
+          <button className="st-qa-item" onClick={onOpenProfile} type="button">
             <div className="st-qa-icon"><User size={18} /></div>
             <span>ข้อมูลบัญชี</span>
           </button>
-          <button className="st-qa-item" onClick={() => alert('ความปลอดภัย')} type="button">
+          <button className="st-qa-item" onClick={onOpenProfile} type="button">
             <div className="st-qa-icon"><ShieldCheck size={18} /></div>
             <span>ความปลอดภัย</span>
           </button>
-          <button className="st-qa-item" onClick={() => alert('รหัสผ่าน')} type="button">
+          <button className="st-qa-item" onClick={onOpenProfile} type="button">
             <div className="st-qa-icon"><Key size={18} /></div>
             <span>รหัสผ่าน</span>
           </button>
-          <button className="st-qa-item" onClick={() => alert('สแกนลายนิ้วมือ')} type="button">
+          <button className="st-qa-item" onClick={onOpenProfile} type="button">
             <div className="st-qa-icon"><Fingerprint size={18} /></div>
             <span>สแกนลายนิ้วมือ</span>
           </button>

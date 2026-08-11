@@ -6,6 +6,7 @@ import { mockCases } from './mockData'
 import { MerchantView } from './MerchantView'
 import { CustomerView } from './CustomerView'
 import { ChatPosAiWidget } from './AdminModals'
+import { ProfileSettingsModal } from './ProfileSettingsModal'
 import './App.css'
 
 type Icon = typeof LayoutDashboard
@@ -20,6 +21,7 @@ function App() {
   const [mobileOpen, setMobileOpen] = useState(false)
   const [activePage, setActivePage] = useState('ภาพรวมระบบ')
   const [notificationsOpen, setNotificationsOpen] = useState(false)
+  const [profileModalOpen, setProfileModalOpen] = useState(false)
 
   if (pathname === '/customer' || pathname.startsWith('/c/') || pathname.startsWith('/t') || pathname.startsWith('/order')) {
     return <CustomerView />
@@ -32,7 +34,7 @@ function App() {
   if (pathname === '/merchant') return <MerchantView />
   const role = pathname === '/pd' ? 'pd' : pathname === '/agent' ? 'agent' : 'admin'
   const selectPage = (label: string) => { setActivePage(label); setMobileOpen(false) }
-  const sidebar = <Sidebar activePage={activePage} onSelect={selectPage} />
+  const sidebar = <Sidebar activePage={activePage} onSelect={selectPage} onOpenProfile={() => setProfileModalOpen(true)} role={role} />
   
   return (
     <div className="app-shell">
@@ -73,7 +75,9 @@ function App() {
                 </div>
               )}
             </div>
-            <div className="top-avatar">{role === 'pd' ? 'PD' : role === 'agent' ? 'AG' : 'AD'}</div>
+            <div className="top-avatar" onClick={() => setProfileModalOpen(true)} style={{ cursor: 'pointer' }} title="ตั้งค่าโปรไฟล์">
+              {role === 'pd' ? 'PD' : role === 'agent' ? 'AG' : 'AD'}
+            </div>
           </div>
         </header>
 
@@ -88,12 +92,59 @@ function App() {
 
       {/* ChatPOS AI Floating Assistant */}
       <ChatPosAiWidget />
+
+      {/* Profile Settings Modal */}
+      <ProfileSettingsModal
+        isOpen={profileModalOpen}
+        role={role}
+        onClose={() => setProfileModalOpen(false)}
+      />
     </div>
   )
 }
 
 
-function Sidebar({ activePage, onSelect }: { activePage: string; onSelect: (label: string) => void }) { return <div className="sidebar-inner"><div className="brand"><img src="/logo.png" alt="Logo" style={{ width: '36px', height: '36px', objectFit: 'contain' }} /><div><strong>ChatPOS</strong><span>CONTROL CENTER</span></div></div><nav aria-label="เมนูหลัก"><p className="nav-label">เมนูหลัก</p>{navigation.map(({ label, icon: NavIcon }) => <button className={`nav-item ${activePage === label ? 'active' : ''}`} key={label} onClick={() => onSelect(label)} type="button"><NavIcon aria-hidden="true" size={17} /><span>{label}</span>{activePage === label && <ChevronRight aria-hidden="true" className="nav-arrow" size={15} />}</button>)}</nav><div className="sidebar-footer"><div className="system-status"><span className="status-dot" /><div><strong>ระบบพร้อมใช้งาน</strong><span>Database และ Auth เชื่อมต่อแล้ว</span></div></div><div className="profile"><div className="avatar">AD</div><div><strong>Admin Demo</strong><span>Super Admin</span></div><ChevronRight size={15} /></div></div></div> }
+function Sidebar({ activePage, onSelect, onOpenProfile, role }: { activePage: string; onSelect: (label: string) => void; onOpenProfile: () => void; role: string }) { 
+  return (
+    <div className="sidebar-inner">
+      <div className="brand">
+        <img src="/logo.png" alt="Logo" style={{ width: '36px', height: '36px', objectFit: 'contain' }} />
+        <div>
+          <strong>ChatPOS</strong>
+          <span>CONTROL CENTER</span>
+        </div>
+      </div>
+      <nav aria-label="เมนูหลัก">
+        <p className="nav-label">เมนูหลัก</p>
+        {navigation.map(({ label, icon: NavIcon }) => (
+          <button className={`nav-item ${activePage === label ? 'active' : ''}`} key={label} onClick={() => onSelect(label)} type="button">
+            <NavIcon aria-hidden="true" size={17} />
+            <span>{label}</span>
+            {activePage === label && <ChevronRight aria-hidden="true" className="nav-arrow" size={15} />}
+          </button>
+        ))}
+      </nav>
+      <div className="sidebar-footer">
+        <div className="system-status">
+          <span className="status-dot" />
+          <div>
+            <strong>ระบบพร้อมใช้งาน</strong>
+            <span>Database และ Auth เชื่อมต่อแล้ว</span>
+          </div>
+        </div>
+        <div className="profile" onClick={onOpenProfile} style={{ cursor: 'pointer' }} title="คลิกเพื่อตั้งค่าโปรไฟล์">
+          <div className="avatar">{role === 'pd' ? 'PD' : role === 'agent' ? 'AG' : 'AD'}</div>
+          <div>
+            <strong>{role === 'pd' ? 'PD Operations' : role === 'agent' ? 'Senior Agent' : 'Admin Demo'}</strong>
+            <span>ตั้งค่าโปรไฟล์ ⚙️</span>
+          </div>
+          <ChevronRight size={15} />
+        </div>
+      </div>
+    </div>
+  )
+}
+
 
 function Dashboard({ onSelect, role }: { onSelect: (label: string) => void; role: 'admin' | 'pd' | 'agent' }) { 
   const isPd = role === 'pd'; 
