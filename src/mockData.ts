@@ -192,3 +192,90 @@ export const mockSystemLiveStats = {
   lastSettlement: 'วันนี้ 02:00 น.'
 }
 
+// Dedicated Data for PD (Provincial Director)
+export type MockPdAgentItem = {
+  id: string
+  code: string
+  name: string
+  zone: string
+  phone: string
+  activeMerchants: number
+  monthlyVolume: string
+  kycPendingCount: number
+  status: 'active' | 'busy' | 'offline'
+  performanceGrade: 'A+' | 'A' | 'B+' | 'B'
+  avatarColor: string
+}
+
+export const mockPdAgents: MockPdAgentItem[] = [
+  { id: 'AG-101', code: 'AG-204', name: 'พิมพ์ชนก ศรีสุข', zone: 'เชียงใหม่ (โซนเมือง)', phone: '089-456-1122', activeMerchants: 48, monthlyVolume: '฿1,250,000', kycPendingCount: 2, status: 'active', performanceGrade: 'A+', avatarColor: '#3b82f6' },
+  { id: 'AG-102', code: 'AG-087', name: 'ธนกร เกียรติไพบูลย์', zone: 'นนทบุรี / ปากเกร็ด', phone: '086-312-9988', activeMerchants: 36, monthlyVolume: '฿980,000', kycPendingCount: 4, status: 'active', performanceGrade: 'A', avatarColor: '#10b981' },
+  { id: 'AG-103', code: 'AG-118', name: 'ศุภชัย รุ่งเรือง', zone: 'ชลบุรี / บางแสน', phone: '083-112-9900', activeMerchants: 42, monthlyVolume: '฿1,120,000', kycPendingCount: 1, status: 'busy', performanceGrade: 'A+', avatarColor: '#f59e0b' },
+  { id: 'AG-104', code: 'AG-302', name: 'กมลชนก สายใจ', zone: 'ภูเก็ต (ป่าตอง)', phone: '084-992-1133', activeMerchants: 29, monthlyVolume: '฿760,000', kycPendingCount: 3, status: 'active', performanceGrade: 'B+', avatarColor: '#ec4899' },
+  { id: 'AG-105', code: 'AG-409', name: 'อนันต์ สุขประเสริฐ', zone: 'กรุงเทพฯ (สุขุมวิท)', phone: '081-334-8899', activeMerchants: 54, monthlyVolume: '฿1,680,000', kycPendingCount: 0, status: 'active', performanceGrade: 'A+', avatarColor: '#8b5cf6' },
+]
+
+export type MockPdTerritory = {
+  id: string
+  zoneName: string
+  province: string
+  leadPd: string
+  agentCount: number
+  totalMerchants: number
+  monthlyVolume: string
+  growthRate: string
+  status: 'optimal' | 'expanding' | 'needs_agent'
+}
+
+export const mockPdTerritories: MockPdTerritory[] = [
+  { id: 'TR-01', zoneName: 'กรุงเทพฯ & ปริมณฑล', province: 'กรุงเทพมหานคร', leadPd: 'PD-001 (ณัฐพล)', agentCount: 18, totalMerchants: 318, monthlyVolume: '฿4,820,000', growthRate: '+14.2%', status: 'optimal' },
+  { id: 'TR-02', zoneName: 'ภาคเหนือตอนบน', province: 'เชียงใหม่ / เชียงราย', leadPd: 'PD-005 (วิชัย)', agentCount: 9, totalMerchants: 182, monthlyVolume: '฿2,190,000', growthRate: '+9.8%', status: 'expanding' },
+  { id: 'TR-03', zoneName: 'ภาคตะวันออกเฉียงเหนือ', province: 'ขอนแก่น / อุดรธานี', leadPd: 'PD-018 (สมชาย)', agentCount: 12, totalMerchants: 245, monthlyVolume: '฿3,450,000', growthRate: '+18.5%', status: 'optimal' },
+  { id: 'TR-04', zoneName: 'ภาคใต้ชายฝั่ง', province: 'ภูเก็ต / สุราษฎร์ฯ', leadPd: 'PD-022 (ธีรเดช)', agentCount: 6, totalMerchants: 115, monthlyVolume: '฿1,480,000', growthRate: '+5.4%', status: 'needs_agent' },
+]
+
+// Dedicated Data for Agent Portal
+export type MockAgentMerchant = {
+  id: string
+  name: string
+  owner: string
+  category: string
+  phone: string
+  address: string
+  posTerminals: number
+  todayVolume: string
+  monthlyVolume: string
+  onlineStatus: 'online' | 'offline'
+  kycStatus: 'อนุมัติแล้ว' | 'รอตรวจ' | 'เอกสารไม่ครบ'
+  kycTone: MockStatusTone
+  registeredDate: string
+}
+
+export const mockAgentMerchants: MockAgentMerchant[] = [
+  { id: 'MER-701', name: 'ร้านกาแฟบ้านสวน Cafe & Bistro', owner: 'พิมพ์ชนก ศรีสุข', category: 'คาเฟ่ & เบเกอรี่', phone: '089-456-1122', address: '142 หมู่ 3 ต.สุเทพ อ.เมือง จ.เชียงใหม่', posTerminals: 3, todayVolume: '฿14,250', monthlyVolume: '฿284,000', onlineStatus: 'online', kycStatus: 'อนุมัติแล้ว', kycTone: 'approved', registeredDate: '12 มิ.ย. 2026' },
+  { id: 'MER-702', name: 'ชาบูนางใน สาขาชิดลม', owner: 'ชัยยศ รัตนพร', category: 'ร้านอาหาร & บุฟเฟต์', phone: '081-998-2233', address: 'ชั้น 2 เซ็นทรัลชิดลม กรุงเทพฯ', posTerminals: 5, todayVolume: '฿42,800', monthlyVolume: '฿890,000', onlineStatus: 'online', kycStatus: 'อนุมัติแล้ว', kycTone: 'approved', registeredDate: '01 พ.ค. 2026' },
+  { id: 'MER-703', name: 'Mellow Home Studio', owner: 'วรัญญา จันทร์ดี', category: 'สตูดิโอ & แฟชั่น', phone: '092-881-3344', address: '19/44 ถนนแจ้งวัฒนะ นนทบุรี', posTerminals: 1, todayVolume: '฿0', monthlyVolume: '฿45,000', onlineStatus: 'offline', kycStatus: 'เอกสารไม่ครบ', kycTone: 'risk', registeredDate: '02 ส.ค. 2026' },
+  { id: 'MER-704', name: 'ซูชิมาสเตอร์ Japanese Resto', owner: 'เกริกฤทธิ์ เกษมศักดิ์', category: 'อาหารญี่ปุ่น', phone: '086-771-4455', address: '88/9 สุขุมวิท 39 กรุงเทพฯ', posTerminals: 4, todayVolume: '฿28,400', monthlyVolume: '฿620,000', onlineStatus: 'online', kycStatus: 'อนุมัติแล้ว', kycTone: 'approved', registeredDate: '18 ก.ค. 2026' },
+  { id: 'MER-705', name: 'บ้านต้นไม้โฮมเมด Bakery', owner: 'กมลชนก สายใจ', category: 'เบเกอรี่สด', phone: '084-992-1133', address: '24/1 ถนนถลาง จ.ภูเก็ต', posTerminals: 2, todayVolume: '฿6,800', monthlyVolume: '฿120,000', onlineStatus: 'online', kycStatus: 'รอตรวจ', kycTone: 'pending', registeredDate: '05 ส.ค. 2026' },
+  { id: 'MER-706', name: 'มินิมาร์ทชุมชน อารีย์', owner: 'สมเกียรติ สันติสุข', category: 'ร้านสะดวกซื้อ', phone: '082-554-1188', address: '55 ซอยพหลโยธิน 7 กรุงเทพฯ', posTerminals: 2, todayVolume: '฿18,900', monthlyVolume: '฿340,000', onlineStatus: 'online', kycStatus: 'อนุมัติแล้ว', kycTone: 'approved', registeredDate: '10 มิ.ย. 2026' },
+]
+
+export type MockAgentCommissionStream = {
+  id: string
+  storeName: string
+  txnCount: number
+  grossVolume: string
+  commissionRate: string
+  agentEarning: string
+  pdRoyalty: string
+  date: string
+}
+
+export const mockAgentCommissions: MockAgentCommissionStream[] = [
+  { id: 'COMM-801', storeName: 'ชาบูนางใน สาขาชิดลม', txnCount: 142, grossVolume: '฿42,800', commissionRate: '0.8%', agentEarning: '฿342.40', pdRoyalty: '฿85.60', date: 'วันนี้' },
+  { id: 'COMM-802', storeName: 'ซูชิมาสเตอร์ Japanese Resto', txnCount: 98, grossVolume: '฿28,400', commissionRate: '0.8%', agentEarning: '฿227.20', pdRoyalty: '฿56.80', date: 'วันนี้' },
+  { id: 'COMM-803', storeName: 'มินิมาร์ทชุมชน อารีย์', txnCount: 215, grossVolume: '฿18,900', commissionRate: '0.6%', agentEarning: '฿113.40', pdRoyalty: '฿28.35', date: 'วันนี้' },
+  { id: 'COMM-804', storeName: 'ร้านกาแฟบ้านสวน Cafe', txnCount: 74, grossVolume: '฿14,250', commissionRate: '0.8%', agentEarning: '฿114.00', pdRoyalty: '฿28.50', date: 'เมื่อวาน' },
+]
+
+

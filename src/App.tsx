@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Activity, Bell, Building2, CheckCircle2, ChevronRight, ClipboardCheck, Clock3, Database, LayoutDashboard, Link2, Menu, ScrollText, ShieldAlert, Store, UsersRound, WalletCards, X } from 'lucide-react'
+import { Activity, Bell, Building2, CheckCircle2, ChevronRight, ClipboardCheck, Clock3, Database, LayoutDashboard, Link2, Menu, ScrollText, ShieldAlert, Store, UsersRound, WalletCards, X, UserCheck, Shield } from 'lucide-react'
 import { PageViews } from './PageViews'
 import { LoginView } from './AuthViews'
 import { mockCases } from './mockData'
@@ -7,7 +7,10 @@ import { MerchantView } from './MerchantView'
 import { CustomerView } from './CustomerView'
 import { ChatPosAiWidget } from './AdminModals'
 import { ProfileSettingsModal } from './ProfileSettingsModal'
+import { PdPortalView } from './PdPortalView'
+import { AgentPortalView } from './AgentPortalView'
 import './App.css'
+import './PdAgentViews.css'
 
 type Icon = typeof LayoutDashboard
 const navigation: { label: string; icon: Icon }[] = [
@@ -23,18 +26,22 @@ function App() {
   const [notificationsOpen, setNotificationsOpen] = useState(false)
   const [profileModalOpen, setProfileModalOpen] = useState(false)
 
+  // Role state allowing seamless switching between Admin, PD, Agent
+  const initialRole: 'admin' | 'pd' | 'agent' = pathname === '/pd' ? 'pd' : pathname === '/agent' ? 'agent' : 'admin'
+  const [role, setRole] = useState<'admin' | 'pd' | 'agent'>(initialRole)
+
   if (pathname === '/customer' || pathname.startsWith('/c/') || pathname.startsWith('/t') || pathname.startsWith('/order')) {
     return <CustomerView />
   }
 
   if (pathname === '/' || pathname === '/login' || pathname === '/pd/login' || pathname === '/agent/login' || pathname === '/merchant/login') {
-    const role = pathname === '/pd/login' ? 'pd' : pathname === '/agent/login' ? 'agent' : pathname === '/merchant/login' ? 'merchant' : 'admin'
-    return <LoginView role={role} />
+    const loginRole = pathname === '/pd/login' ? 'pd' : pathname === '/agent/login' ? 'agent' : pathname === '/merchant/login' ? 'merchant' : 'admin'
+    return <LoginView role={loginRole} />
   }
   if (pathname === '/merchant') return <MerchantView />
-  const role = pathname === '/pd' ? 'pd' : pathname === '/agent' ? 'agent' : 'admin'
+
   const selectPage = (label: string) => { setActivePage(label); setMobileOpen(false) }
-  const sidebar = <Sidebar activePage={activePage} onSelect={selectPage} onOpenProfile={() => setProfileModalOpen(true)} role={role} />
+  const sidebar = <Sidebar activePage={activePage} onSelect={selectPage} onOpenProfile={() => setProfileModalOpen(true)} role={role} onRoleChange={(r) => setRole(r)} />
   
   return (
     <div className="app-shell">
@@ -60,6 +67,35 @@ function App() {
             <ChevronRight size={14} />
             <strong>{activePage}</strong>
           </div>
+
+          {/* Interactive Role Switcher in Topbar */}
+          <div className="role-switcher-bar">
+            <button
+              type="button"
+              className={`role-switcher-btn ${role === 'admin' ? 'active admin' : ''}`}
+              onClick={() => setRole('admin')}
+              title="สลับมุมมองเป็น Admin"
+            >
+              <Shield size={14} /> Admin
+            </button>
+            <button
+              type="button"
+              className={`role-switcher-btn ${role === 'pd' ? 'active pd' : ''}`}
+              onClick={() => setRole('pd')}
+              title="สลับมุมมองเป็น PD Operations"
+            >
+              <Building2 size={14} /> PD Operations
+            </button>
+            <button
+              type="button"
+              className={`role-switcher-btn ${role === 'agent' ? 'active agent' : ''}`}
+              onClick={() => setRole('agent')}
+              title="สลับมุมมองเป็น Agent Portal"
+            >
+              <UserCheck size={14} /> Agent Portal
+            </button>
+          </div>
+
           <div className="topbar-actions">
             <span className="date-chip">ข้อมูลล่าสุดวันนี้ <b>06 ส.ค. 2026</b></span>
             <div className="notification-wrap">
@@ -82,7 +118,25 @@ function App() {
         </header>
 
         {activePage === 'ภาพรวมระบบ' ? (
-          <Dashboard onSelect={selectPage} role={role} />
+          role === 'pd' ? (
+            <main className="content">
+              <PdPortalView />
+            </main>
+          ) : role === 'agent' ? (
+            <main className="content">
+              <AgentPortalView />
+            </main>
+          ) : (
+            <Dashboard onSelect={selectPage} role={role} />
+          )
+        ) : activePage === 'PD และพื้นที่' && role === 'pd' ? (
+          <main className="content">
+            <PdPortalView />
+          </main>
+        ) : activePage === 'ตัวแทน' && role === 'agent' ? (
+          <main className="content">
+            <AgentPortalView />
+          </main>
         ) : (
           <main className="content">
             <PageViews activePage={activePage} />
@@ -104,7 +158,8 @@ function App() {
 }
 
 
-function Sidebar({ activePage, onSelect, onOpenProfile, role }: { activePage: string; onSelect: (label: string) => void; onOpenProfile: () => void; role: string }) { 
+
+function Sidebar({ activePage, onSelect, onOpenProfile, role, onRoleChange }: { activePage: string; onSelect: (label: string) => void; onOpenProfile: () => void; role: string; onRoleChange?: (r: 'admin' | 'pd' | 'agent') => void }) { 
   return (
     <div className="sidebar-inner">
       <div className="brand">
@@ -124,6 +179,36 @@ function Sidebar({ activePage, onSelect, onOpenProfile, role }: { activePage: st
           </button>
         ))}
       </nav>
+
+      {onRoleChange && (
+        <div style={{ padding: '0 1rem', marginBottom: '0.5rem' }}>
+          <p className="nav-label" style={{ marginBottom: '4px' }}>บทบาทที่ใช้งาน (Role)</p>
+          <div className="role-switcher-bar" style={{ width: '100%', justifyContent: 'space-between' }}>
+            <button
+              type="button"
+              className={`role-switcher-btn ${role === 'admin' ? 'active admin' : ''}`}
+              onClick={() => onRoleChange('admin')}
+            >
+              Admin
+            </button>
+            <button
+              type="button"
+              className={`role-switcher-btn ${role === 'pd' ? 'active pd' : ''}`}
+              onClick={() => onRoleChange('pd')}
+            >
+              PD
+            </button>
+            <button
+              type="button"
+              className={`role-switcher-btn ${role === 'agent' ? 'active agent' : ''}`}
+              onClick={() => onRoleChange('agent')}
+            >
+              Agent
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="sidebar-footer">
         <div className="system-status">
           <span className="status-dot" />
