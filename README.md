@@ -30,3 +30,18 @@ If you are developing a production application, we recommend enabling type-aware
 ```
 
 See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+
+## Deploy on Easypanel
+
+This project includes a production `Dockerfile` and Nginx configuration for the Vite SPA.
+
+In Easypanel, configure the service as follows:
+
+- Source: **Github**
+- Repository: `haiphee-por/chatpos-react`
+- Branch: `ikkyu`
+- Build Path: `/`
+- Build method: **Dockerfile**
+- Port: `80`
+
+The Nginx configuration includes SPA fallback, so routes such as `/merchant`, `/customer`, and `/pd` continue to work after a page refresh.
