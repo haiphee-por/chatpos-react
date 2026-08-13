@@ -833,11 +833,6 @@ const agent = {
    Hook — returns a `t(key)` function for the active lang
    ========================================================================== */
 
-type SharedKeys = keyof typeof shared.TH
-type MerchantKeys = keyof typeof merchant.TH
-type PdKeys = keyof typeof pd.TH
-type AgentKeys = keyof typeof agent.TH
-
 export function useMerchantT(lang: Lang) {
   const s = shared[lang]
   const m = merchant[lang]

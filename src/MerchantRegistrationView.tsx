@@ -2,13 +2,9 @@ import { useState } from 'react'
 import {
   ArrowLeft,
   ArrowRight,
-  Building2,
   Calendar,
   Check,
-  ChevronDown,
-  CreditCard,
   FileText,
-  Globe,
   Landmark,
   LogOut,
   Package,
@@ -18,7 +14,6 @@ import {
   ShieldCheck,
   Store,
   Trash2,
-  Truck,
   AlertTriangle,
   Users,
 } from 'lucide-react'
