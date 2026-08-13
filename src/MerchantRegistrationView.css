@@ -1,0 +1,987 @@
+/* ==========================================================================
+   MERCHANT REGISTRATION VIEW — ChatPOS Branded Multi-Step Wizard
+   ========================================================================== */
+
+/* ── Design Tokens (ChatPOS Emerald Palette) ────────────────────────── */
+.reg-shell {
+  --reg-primary: #059669;
+  --reg-primary-dark: #047857;
+  --reg-primary-light: #10b981;
+  --reg-primary-bg: #ecfdf5;
+  --reg-primary-ring: rgba(5, 150, 105, 0.18);
+  --reg-accent: #1769e8;
+  --reg-error: #dc2626;
+  --reg-warn: #f59e0b;
+  --reg-warn-bg: #fffbeb;
+  --reg-warn-border: #fde68a;
+  --reg-ink: #0f172a;
+  --reg-muted: #64748b;
+  --reg-line: #e2e8f0;
+  --reg-surface: #ffffff;
+  --reg-bg: #f1f5f9;
+  --reg-sidebar-bg: linear-gradient(180deg, #052b1d, #031b13);
+  --reg-radius: 10px;
+  --reg-radius-sm: 6px;
+  --reg-shadow: 0 4px 24px rgba(0, 0, 0, 0.06);
+  --reg-shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.08);
+  min-height: 100vh;
+  background: var(--reg-bg);
+  color: var(--reg-ink);
+  font-family: 'Inter', 'Sarabun', -apple-system, BlinkMacSystemFont, sans-serif;
+  line-height: 1.6;
+}
+
+/* ── Top Navigation Bar ─────────────────────────────────────────────── */
+.reg-header {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  background: linear-gradient(135deg, #052b1d 0%, #064e3b 100%);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.15);
+}
+
+.reg-header-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 24px;
+  height: 64px;
+}
+
+.reg-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.reg-brand img {
+  width: 36px;
+  height: 36px;
+  object-fit: contain;
+}
+
+.reg-brand-text strong {
+  display: block;
+  color: #fff;
+  font-size: 17px;
+  font-weight: 900;
+  line-height: 1.2;
+}
+
+.reg-brand-text span {
+  display: block;
+  margin-top: 2px;
+  color: #6ee7b7;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.reg-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.reg-lang-switch {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.reg-lang-switch button {
+  border: 0;
+  padding: 4px 14px;
+  border-radius: 16px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.reg-lang-switch button.active {
+  background: #fff;
+  color: #052b1d;
+}
+
+.reg-lang-switch button:not(.active) {
+  background: transparent;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.reg-logout-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border: 0;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 6px 12px;
+  border-radius: 6px;
+  transition: all 0.2s;
+}
+
+.reg-logout-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+
+/* ── Main Container ─────────────────────────────────────────────────── */
+.reg-main {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 40px 24px;
+}
+
+.reg-card {
+  background: var(--reg-surface);
+  border: 1px solid var(--reg-line);
+  border-radius: 16px;
+  box-shadow: var(--reg-shadow-lg);
+  padding: 40px;
+  animation: regFadeIn 0.4s ease;
+}
+
+@keyframes regFadeIn {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Progress Stepper ───────────────────────────────────────────────── */
+.reg-title {
+  text-align: center;
+  font-size: clamp(24px, 3.5vw, 32px);
+  font-weight: 800;
+  color: var(--reg-ink);
+  margin: 0 0 32px;
+}
+
+.reg-stepper {
+  position: relative;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  max-width: 800px;
+  margin: 0 auto 40px;
+}
+
+.reg-stepper-line {
+  position: absolute;
+  top: 20px;
+  left: 32px;
+  right: 32px;
+  height: 3px;
+  background: var(--reg-line);
+  z-index: 0;
+}
+
+.reg-stepper-fill {
+  height: 100%;
+  background: var(--reg-primary);
+  border-radius: 2px;
+  transition: width 0.5s ease;
+}
+
+.reg-step {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.reg-step-circle {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 15px;
+  transition: all 0.3s;
+  border: 3px solid var(--reg-line);
+  background: var(--reg-surface);
+  color: var(--reg-muted);
+}
+
+.reg-step.active .reg-step-circle {
+  border-color: var(--reg-primary);
+  color: var(--reg-primary);
+  box-shadow: 0 0 0 4px var(--reg-primary-ring);
+}
+
+.reg-step.completed .reg-step-circle {
+  border-color: var(--reg-primary);
+  background: var(--reg-primary);
+  color: #fff;
+}
+
+.reg-step-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--reg-muted);
+  text-align: center;
+  max-width: 100px;
+  line-height: 1.4;
+}
+
+.reg-step.active .reg-step-label,
+.reg-step.completed .reg-step-label {
+  color: var(--reg-primary-dark);
+  font-weight: 700;
+}
+
+/* ── Progress Bar ───────────────────────────────────────────────────── */
+.reg-progress {
+  max-width: 420px;
+  margin: 0 auto 48px;
+}
+
+.reg-progress-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.reg-progress-step {
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--reg-primary);
+}
+
+.reg-progress-pct {
+  font-size: 12px;
+  color: var(--reg-muted);
+  font-weight: 600;
+}
+
+.reg-progress-track {
+  width: 100%;
+  height: 8px;
+  background: #e2e8f0;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.reg-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--reg-primary), var(--reg-primary-light));
+  border-radius: 8px;
+  transition: width 0.5s ease;
+}
+
+/* ── Notice Section ─────────────────────────────────────────────────── */
+.reg-notice {
+  display: flex;
+  gap: 16px;
+  padding: 20px 24px;
+  margin-bottom: 40px;
+  border-radius: var(--reg-radius);
+  background: var(--reg-warn-bg);
+  border: 1px solid var(--reg-warn-border);
+}
+
+.reg-notice-icon {
+  flex-shrink: 0;
+  color: #f59e0b;
+  font-size: 22px;
+}
+
+.reg-notice h3 {
+  margin: 0 0 12px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--reg-ink);
+}
+
+.reg-notice ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.reg-notice li {
+  font-size: 13px;
+  color: var(--reg-muted);
+  padding: 3px 0;
+  line-height: 1.6;
+}
+
+/* ── Section Headings ───────────────────────────────────────────────── */
+.reg-section {
+  margin-bottom: 40px;
+}
+
+.reg-section-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--reg-ink);
+  margin: 0 0 6px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.reg-section-title::before {
+  content: '';
+  display: inline-block;
+  width: 4px;
+  height: 22px;
+  border-radius: 2px;
+  background: var(--reg-primary);
+}
+
+.reg-section-desc {
+  font-size: 13px;
+  color: var(--reg-muted);
+  margin: 0 0 24px;
+}
+
+/* ── Form Grid ──────────────────────────────────────────────────────── */
+.reg-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+}
+
+.reg-grid-2 {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 20px;
+}
+
+.reg-col-span-2 {
+  grid-column: span 2;
+}
+
+.reg-col-span-3 {
+  grid-column: span 3;
+}
+
+/* ── Form Fields ────────────────────────────────────────────────────── */
+.reg-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.reg-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--reg-ink);
+}
+
+.reg-required {
+  color: var(--reg-error);
+  margin-left: 2px;
+}
+
+.reg-input,
+.reg-select,
+.reg-textarea {
+  width: 100%;
+  height: 44px;
+  padding: 0 14px;
+  border: 1.5px solid var(--reg-line);
+  border-radius: var(--reg-radius-sm);
+  background: var(--reg-surface);
+  color: var(--reg-ink);
+  font-size: 14px;
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.reg-input::placeholder {
+  color: #94a3b8;
+}
+
+.reg-input:focus,
+.reg-select:focus,
+.reg-textarea:focus {
+  border-color: var(--reg-primary);
+  box-shadow: 0 0 0 3px var(--reg-primary-ring);
+}
+
+.reg-select {
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  padding-right: 36px;
+}
+
+.reg-textarea {
+  height: 120px;
+  padding: 12px 14px;
+  resize: vertical;
+  line-height: 1.6;
+}
+
+/* ── Radio Groups ───────────────────────────────────────────────────── */
+.reg-radio-group {
+  display: flex;
+  gap: 20px;
+  align-items: center;
+  height: 44px;
+}
+
+.reg-radio-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  color: var(--reg-ink);
+}
+
+.reg-radio-label input[type="radio"] {
+  accent-color: var(--reg-primary);
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+}
+
+/* ── Selectable Cards ───────────────────────────────────────────────── */
+.reg-selectable-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+
+.reg-selectable-card {
+  position: relative;
+  cursor: pointer;
+}
+
+.reg-selectable-card input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.reg-selectable-inner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border: 1.5px solid var(--reg-line);
+  border-radius: var(--reg-radius-sm);
+  background: var(--reg-surface);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--reg-ink);
+  transition: all 0.2s;
+  min-height: 52px;
+}
+
+.reg-selectable-inner:hover {
+  border-color: var(--reg-primary);
+  background: #f0fdf4;
+}
+
+.reg-selectable-card input:checked + .reg-selectable-inner {
+  border-color: var(--reg-primary);
+  background: var(--reg-primary-bg);
+  color: var(--reg-primary-dark);
+}
+
+.reg-check-icon {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  border-radius: 4px;
+  border: 2px solid var(--reg-line);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: transparent;
+  transition: all 0.2s;
+}
+
+.reg-selectable-card input:checked + .reg-selectable-inner .reg-check-icon {
+  background: var(--reg-primary);
+  border-color: var(--reg-primary);
+  color: #fff;
+}
+
+.reg-circle-icon {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 2px solid var(--reg-line);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: transparent;
+  transition: all 0.2s;
+}
+
+.reg-selectable-card input:checked + .reg-selectable-inner .reg-circle-icon {
+  border-color: var(--reg-primary);
+  background: var(--reg-primary);
+  color: #fff;
+}
+
+/* ── Restricted Items Checklist ─────────────────────────────────────── */
+.reg-checklist-section {
+  background: #f8fafc;
+  padding: 28px;
+  border: 1px solid var(--reg-line);
+  border-radius: 12px;
+}
+
+.reg-checklist-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.reg-checklist-header h3 {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--reg-ink);
+  margin: 0;
+}
+
+.reg-checklist-badge {
+  padding: 4px 14px;
+  border-radius: 20px;
+  background: var(--reg-primary-bg);
+  color: var(--reg-primary-dark);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.reg-checklist-desc {
+  font-size: 12px;
+  color: var(--reg-muted);
+  margin: 0 0 20px;
+}
+
+/* ── Consent Checkboxes ─────────────────────────────────────────────── */
+.reg-consent {
+  padding: 24px;
+  border-radius: var(--reg-radius);
+  background: #f8fafc;
+  border: 1px solid var(--reg-line);
+}
+
+.reg-consent-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 8px 0;
+}
+
+.reg-consent-item input[type="checkbox"] {
+  margin-top: 3px;
+  accent-color: var(--reg-primary);
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+
+.reg-consent-item label {
+  font-size: 13px;
+  color: var(--reg-muted);
+  line-height: 1.7;
+}
+
+.reg-consent-item a {
+  color: var(--reg-primary);
+  text-decoration: underline;
+  font-weight: 600;
+}
+
+/* ── Transaction Estimate Box ───────────────────────────────────────── */
+.reg-estimate-box {
+  padding: 24px;
+  border: 1px solid var(--reg-line);
+  border-radius: var(--reg-radius);
+  background: #f8fafc;
+}
+
+.reg-estimate-box .reg-grid-2 {
+  gap: 16px;
+}
+
+/* ── Contact Address Checkbox ───────────────────────────────────────── */
+.reg-address-check {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border: 1.5px solid var(--reg-line);
+  border-radius: var(--reg-radius-sm);
+  background: var(--reg-surface);
+  cursor: pointer;
+  height: 44px;
+}
+
+.reg-address-check input[type="checkbox"] {
+  accent-color: var(--reg-primary);
+  width: 18px;
+  height: 18px;
+}
+
+.reg-address-check span {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--reg-ink);
+}
+
+/* ── Navigation Buttons ─────────────────────────────────────────────── */
+.reg-nav-buttons {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 32px;
+  margin-top: 40px;
+  border-top: 1px solid var(--reg-line);
+}
+
+.reg-btn-back {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 12px 28px;
+  border: 2px solid var(--reg-primary);
+  border-radius: var(--reg-radius-sm);
+  background: transparent;
+  color: var(--reg-primary);
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.reg-btn-back:hover {
+  background: var(--reg-primary-bg);
+}
+
+.reg-btn-back:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.reg-btn-next {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 36px;
+  border: 0;
+  border-radius: var(--reg-radius-sm);
+  background: var(--reg-primary);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 6px 20px rgba(5, 150, 105, 0.25);
+  transition: all 0.2s;
+}
+
+.reg-btn-next:hover {
+  background: var(--reg-primary-dark);
+  box-shadow: 0 8px 24px rgba(5, 150, 105, 0.3);
+  transform: translateY(-1px);
+}
+
+.reg-btn-next:active {
+  transform: scale(0.97);
+}
+
+.reg-btn-draft {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 12px 28px;
+  border: 0;
+  border-radius: var(--reg-radius-sm);
+  background: #94a3b8;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.reg-btn-draft:hover {
+  background: #78909c;
+}
+
+/* ── Footer ─────────────────────────────────────────────────────────── */
+.reg-footer {
+  background: #f1f5f9;
+  margin-top: 60px;
+}
+
+.reg-footer-inner {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 24px;
+  font-size: 12px;
+  color: var(--reg-muted);
+}
+
+.reg-footer-links {
+  display: flex;
+  gap: 24px;
+}
+
+.reg-footer-links a {
+  color: var(--reg-muted);
+  text-decoration: none;
+  transition: color 0.2s;
+}
+
+.reg-footer-links a:hover {
+  color: var(--reg-primary);
+  text-decoration: underline;
+}
+
+/* ── Supplier Table ─────────────────────────────────────────────────── */
+.reg-supplier-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--reg-line);
+  border-radius: var(--reg-radius);
+}
+
+.reg-supplier-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.reg-supplier-table thead {
+  background: #f1f5f9;
+}
+
+.reg-supplier-table th {
+  padding: 12px 16px;
+  text-align: left;
+  font-weight: 700;
+  color: var(--reg-ink);
+  border-bottom: 1px solid var(--reg-line);
+  white-space: nowrap;
+}
+
+.reg-supplier-table td {
+  padding: 12px 16px;
+  border-bottom: 1px solid #f1f5f9;
+  color: var(--reg-ink);
+}
+
+.reg-supplier-table tbody tr:hover {
+  background: #f0fdf4;
+}
+
+.reg-supplier-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.reg-supplier-btn {
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 4px;
+  color: var(--reg-muted);
+  transition: all 0.2s;
+}
+
+.reg-supplier-btn:hover {
+  background: var(--reg-primary-bg);
+  color: var(--reg-primary);
+}
+
+.reg-supplier-btn.delete:hover {
+  background: #fef2f2;
+  color: var(--reg-error);
+}
+
+.reg-add-supplier-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  border: 2px dashed var(--reg-primary);
+  border-radius: var(--reg-radius-sm);
+  background: var(--reg-primary-bg);
+  color: var(--reg-primary);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+  margin-top: 16px;
+}
+
+.reg-add-supplier-btn:hover {
+  background: #d1fae5;
+}
+
+/* ── Step Content Animation ─────────────────────────────────────────── */
+.reg-step-content {
+  animation: regSlideIn 0.35s ease;
+}
+
+@keyframes regSlideIn {
+  from { opacity: 0; transform: translateX(20px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+/* ── Date Input ─────────────────────────────────────────────────────── */
+.reg-date-wrap {
+  position: relative;
+}
+
+.reg-date-wrap .reg-input {
+  padding-right: 40px;
+}
+
+.reg-date-icon {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #94a3b8;
+  pointer-events: none;
+}
+
+/* ── Placeholder Step ───────────────────────────────────────────────── */
+.reg-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 80px 20px;
+  text-align: center;
+  color: var(--reg-muted);
+}
+
+.reg-placeholder-icon {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: var(--reg-primary-bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 16px;
+  color: var(--reg-primary);
+}
+
+.reg-placeholder h3 {
+  margin: 0 0 8px;
+  font-size: 18px;
+  color: var(--reg-ink);
+}
+
+.reg-placeholder p {
+  font-size: 13px;
+  max-width: 400px;
+}
+
+/* ── Section Divider ────────────────────────────────────────────────── */
+.reg-divider {
+  border: 0;
+  border-top: 1px solid var(--reg-line);
+  margin: 32px 0;
+}
+
+/* ── Responsive ─────────────────────────────────────────────────────── */
+@media (max-width: 960px) {
+  .reg-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .reg-col-span-3 {
+    grid-column: span 2;
+  }
+  .reg-selectable-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .reg-card {
+    padding: 28px;
+  }
+}
+
+@media (max-width: 640px) {
+  .reg-grid,
+  .reg-grid-2 {
+    grid-template-columns: 1fr;
+  }
+  .reg-col-span-2,
+  .reg-col-span-3 {
+    grid-column: span 1;
+  }
+  .reg-selectable-grid {
+    grid-template-columns: 1fr;
+  }
+  .reg-card {
+    padding: 20px 16px;
+  }
+  .reg-stepper {
+    gap: 4px;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+  .reg-stepper-line {
+    display: none;
+  }
+  .reg-step-label {
+    font-size: 10px;
+    max-width: 60px;
+  }
+  .reg-step-circle {
+    width: 34px;
+    height: 34px;
+    font-size: 13px;
+  }
+  .reg-nav-buttons {
+    flex-direction: column-reverse;
+    gap: 12px;
+  }
+  .reg-nav-buttons button {
+    width: 100%;
+    justify-content: center;
+  }
+  .reg-header-inner {
+    padding: 0 16px;
+  }
+  .reg-main {
+    padding: 20px 12px;
+  }
+  .reg-notice {
+    flex-direction: column;
+    gap: 12px;
+  }
+  .reg-footer-inner {
+    flex-direction: column;
+    gap: 12px;
+    text-align: center;
+  }
+  .reg-checklist-header {
+    flex-direction: column;
+    gap: 8px;
+    align-items: flex-start;
+  }
+}

@@ -4446,6 +4446,26 @@ function PosView({ onNavigate }: { onNavigate?: (tab: string) => void }) {
   const [showReceiptModal, setShowReceiptModal] = useState(false)
   const [lastPaidMethod, setLastPaidMethod] = useState('')
 
+  // POS Toast Notification State
+  const [posToast, setPosToast] = useState<{
+    visible: boolean
+    message: string
+    count: number
+    total: number
+    lastProduct?: string
+  } | null>(null)
+
+  // Mobile Cart Drawer Modal State
+  const [showMobileCartModal, setShowMobileCartModal] = useState(false)
+
+  // Sync posToast with cart: stays visible (sticky) while items are selected
+  useEffect(() => {
+    if (cart.length === 0) {
+      setPosToast(null)
+      setShowMobileCartModal(false)
+    }
+  }, [cart])
+
   // Hold Order State
   const [heldOrders, setHeldOrders] = useState(() => {
     const saved = localStorage.getItem('pos_held_orders')
@@ -4501,26 +4521,58 @@ function PosView({ onNavigate }: { onNavigate?: (tab: string) => void }) {
 
   const handleAddToCart = (product: PosItem) => {
     playTapSound('pop')
+    let nextCart = []
     const existing = cart.find((item) => item.product.id === product.id)
     if (existing) {
-      setCart(cart.map((item) => (item.product.id === product.id ? { ...item, qty: item.qty + 1 } : item)))
+      nextCart = cart.map((item) => (item.product.id === product.id ? { ...item, qty: item.qty + 1 } : item))
     } else {
-      setCart([...cart, { product, qty: 1 }])
+      nextCart = [...cart, { product, qty: 1 }]
     }
+    setCart(nextCart)
+
+    const count = nextCart.reduce((sum, item) => sum + item.qty, 0)
+    const sub = nextCart.reduce((sum, item) => sum + item.product.price * item.qty, 0)
+    const tot = sub * 1.07
+    const shortName = product.name.split(' (')[0]
+
+    setPosToast({
+      visible: true,
+      message: `เพิ่ม "${shortName}" แล้ว`,
+      count,
+      total: tot,
+      lastProduct: shortName,
+    })
   }
 
   const handleUpdateQty = (id: string, delta: number) => {
     playTapSound('click')
-    setCart(
-      cart
-        .map((item) => (item.product.id === id ? { ...item, qty: item.qty + delta } : item))
-        .filter((item) => item.qty > 0)
-    )
+    const nextCart = cart
+      .map((item) => (item.product.id === id ? { ...item, qty: item.qty + delta } : item))
+      .filter((item) => item.qty > 0)
+    setCart(nextCart)
+
+    if (nextCart.length > 0) {
+      const count = nextCart.reduce((sum, item) => sum + item.qty, 0)
+      const sub = nextCart.reduce((sum, item) => sum + item.product.price * item.qty, 0)
+      const tot = sub * 1.07
+      const targetItem = cart.find(i => i.product.id === id)
+      const shortName = (targetItem?.product.name || '').split(' (')[0]
+
+      setPosToast({
+        visible: true,
+        message: delta > 0 ? `เพิ่ม "${shortName}"` : `ลด "${shortName}"`,
+        count,
+        total: tot,
+      })
+    } else {
+      setPosToast(null)
+    }
   }
 
   const handleClearCart = () => {
     playTapSound('pop')
     setCart([])
+    setPosToast(null)
   }
 
   const subtotal = cart.reduce((sum, item) => sum + item.product.price * item.qty, 0)
@@ -4595,59 +4647,6 @@ function PosView({ onNavigate }: { onNavigate?: (tab: string) => void }) {
 
   return (
     <div className="pos-view-container">
-      {/* 1. Hero Action Cards (Style หน้าบริการ / Quick Services) */}
-      <section className="ov-hero-action-cards" style={{ marginBottom: '18px' }}>
-        <div
-          className="qs-card qs-card-green"
-          onClick={() => alert('เปิดระบบขายหน้าร้าน POS')}
-          role="button"
-          tabIndex={0}
-        >
-          <div className="qs-card-icon-wrap qs-plus-icon">
-            <Store size={22} />
-          </div>
-          <div className="qs-card-text">
-            <h3>ระบบขายหน้าร้าน (POS)</h3>
-            <p style={{ margin: '4px 0 0', fontSize: '11px', opacity: 0.85 }}>สแกนบาร์โค้ด และสั่งอาหาร QR</p>
-          </div>
-          <img src="/mascot/pos_1_scanning_barcode.png" className="qs-card-mascot-img" alt="POS" />
-        </div>
-
-        <div
-          className="qs-card qs-card-blue"
-          onClick={() => { playTapSound('pop'); alert('ซิงก์ออเดอร์ QR กับลูกค้าเรียลไทม์') }}
-          role="button"
-          tabIndex={0}
-        >
-          <div className="qs-card-icon-wrap">
-            <QrCode size={22} />
-          </div>
-          <div className="qs-card-text">
-            <h3>คิวอาร์สั่งอาหาร (QR Order)</h3>
-            <p style={{ margin: '4px 0 0', fontSize: '11px', opacity: 0.85 }}>
-              {liveCustomerOrders.length > 0 ? `🔔 มีออเดอร์ใหม่ (${liveCustomerOrders.length})` : 'สแกนสั่งอาหารประจำโต๊ะ'}
-            </p>
-          </div>
-          <img src="/mascot/pay_2_scanning_qr.png" className="qs-card-mascot-img" alt="QR Order" />
-        </div>
-
-        <div
-          className="qs-card qs-card-orange"
-          onClick={() => { playTapSound('pop'); setShowHeldOrdersModal(true) }}
-          role="button"
-          tabIndex={0}
-        >
-          <div className="qs-card-icon-wrap">
-            <Clock size={22} />
-          </div>
-          <div className="qs-card-text">
-            <h3>ออเดอร์ที่พักไว้ ({heldOrders.length})</h3>
-            <p style={{ margin: '4px 0 0', fontSize: '11px', opacity: 0.85 }}>รอดึงกลับมาคิดเงิน หรือหารจ่าย</p>
-          </div>
-          <img src="/mascot/nabtang_holding_phone.png" className="qs-card-mascot-img" alt="Held Orders" />
-        </div>
-      </section>
-
       {/* 2. Metric Status Cards (Style หน้าบริการ) */}
       <section className="ov-status-grid" style={{ marginBottom: '18px' }}>
         <div className="ov-metric-card ov-card-all">
@@ -4695,78 +4694,82 @@ function PosView({ onNavigate }: { onNavigate?: (tab: string) => void }) {
         </div>
       </section>
 
-      {/* Top Table Selection Map Bar (100x Easiest & Fastest to Use) */}
+      {/* Top Table Selection Map Bar (Clean 2-Row Structured Layout) */}
       <div className="pos-table-map-bar">
-        <div className="pos-table-map-left">
-          <div className="pos-table-map-label">
-            <Utensils size={16} /> <strong>ผังโต๊ะอาหาร ({tables.length})</strong>
-          </div>
+        <div className="pos-table-map-top-row">
+          <div className="pos-table-map-left">
+            <div className="pos-table-map-label">
+              <Utensils size={16} /> <strong>ผังโต๊ะอาหาร ({tables.length})</strong>
+            </div>
 
-          {/* Quick Filter Pills */}
-          <div className="pos-table-filter-pills">
-            <button
-              type="button"
-              className={`pos-tf-pill ${tableFilter === 'all' ? 'active' : ''}`}
-              onClick={() => setTableFilter('all')}
-            >
-              ทั้งหมด ({tables.length})
-            </button>
-            <button
-              type="button"
-              className={`pos-tf-pill occupied ${tableFilter === 'occupied' ? 'active' : ''}`}
-              onClick={() => setTableFilter('occupied')}
-            >
-              🔴 ไม่ว่าง ({tables.filter(t => t.status === 'occupied').length})
-            </button>
-            <button
-              type="button"
-              className={`pos-tf-pill vacant ${tableFilter === 'vacant' ? 'active' : ''}`}
-              onClick={() => setTableFilter('vacant')}
-            >
-              🟢 โต๊ะว่าง ({tables.filter(t => t.status === 'vacant').length})
-            </button>
-          </div>
-        </div>
-
-        {/* Table Selector Pills Grid */}
-        <div className="pos-table-pills">
-          {tables
-            .filter(t => tableFilter === 'all' || t.status === tableFilter)
-            .map((t) => (
+            {/* Quick Filter Pills */}
+            <div className="pos-table-filter-pills">
               <button
-                key={t.id}
                 type="button"
-                className={`pos-table-pill ${activeTableId === t.id ? 'active' : ''} ${t.status}`}
-                onClick={() => { playTapSound('pop'); setActiveTableId(t.id) }}
+                className={`pos-tf-pill ${tableFilter === 'all' ? 'active' : ''}`}
+                onClick={() => setTableFilter('all')}
               >
-                <span className={`pos-table-dot ${t.status}`} />
-                <div className="pos-table-pill-text">
-                  <strong>{t.name}</strong>
-                  {t.status === 'occupied' ? (
-                    <span className="pos-table-badge occupied">฿{t.total}</span>
-                  ) : (
-                    <span className="pos-table-badge vacant">ว่าง</span>
-                  )}
-                </div>
+                ทั้งหมด ({tables.length})
               </button>
-            ))}
+              <button
+                type="button"
+                className={`pos-tf-pill occupied ${tableFilter === 'occupied' ? 'active' : ''}`}
+                onClick={() => setTableFilter('occupied')}
+              >
+                🔴 ไม่ว่าง ({tables.filter(t => t.status === 'occupied').length})
+              </button>
+              <button
+                type="button"
+                className={`pos-tf-pill vacant ${tableFilter === 'vacant' ? 'active' : ''}`}
+                onClick={() => setTableFilter('vacant')}
+              >
+                🟢 โต๊ะว่าง ({tables.filter(t => t.status === 'vacant').length})
+              </button>
+            </div>
+          </div>
+
+          <div className="pos-table-actions-right">
+            <button
+              type="button"
+              className="pos-action-btn-map"
+              onClick={() => { playTapSound('pop'); setShowFullMapModal(true) }}
+            >
+              🗺️ ผังโต๊ะใหญ่
+            </button>
+            <button
+              type="button"
+              className="pos-action-btn-add"
+              onClick={() => { playTapSound('pop'); setIsAddTableModalOpen(true) }}
+            >
+              <Plus size={14} /> เพิ่มโต๊ะ
+            </button>
+          </div>
         </div>
 
-        <div className="pos-table-actions-right">
-          <button
-            type="button"
-            className="pos-action-btn-map"
-            onClick={() => { playTapSound('pop'); setShowFullMapModal(true) }}
-          >
-            🗺️ ผังโต๊ะใหญ่
-          </button>
-          <button
-            type="button"
-            className="pos-action-btn-add"
-            onClick={() => { playTapSound('pop'); setIsAddTableModalOpen(true) }}
-          >
-            <Plus size={14} /> เพิ่มโต๊ะ
-          </button>
+        {/* Table Selector Pills Grid (Full width below header) */}
+        <div className="pos-table-pills-wrap">
+          <div className="pos-table-pills">
+            {tables
+              .filter(t => tableFilter === 'all' || t.status === tableFilter)
+              .map((t) => (
+                <button
+                  key={t.id}
+                  type="button"
+                  className={`pos-table-pill ${activeTableId === t.id ? 'active' : ''} ${t.status}`}
+                  onClick={() => { playTapSound('pop'); setActiveTableId(t.id) }}
+                >
+                  <span className={`pos-table-dot ${t.status}`} />
+                  <div className="pos-table-pill-text">
+                    <strong>{t.name}</strong>
+                    {t.status === 'occupied' ? (
+                      <span className="pos-table-badge occupied">฿{t.total}</span>
+                    ) : (
+                      <span className="pos-table-badge vacant">ว่าง</span>
+                    )}
+                  </div>
+                </button>
+              ))}
+          </div>
         </div>
       </div>
 
@@ -5033,6 +5036,234 @@ function PosView({ onNavigate }: { onNavigate?: (tab: string) => void }) {
           </div>
         </div>
       </div>
+
+      {/* Toast Notification Banner for POS selection */}
+      {posToast && posToast.visible && (
+        <div
+          className="pos-toast-floating-banner"
+          onClick={() => {
+            playTapSound('pop')
+            setShowMobileCartModal(true)
+          }}
+          style={{ cursor: 'pointer' }}
+          role="button"
+          tabIndex={0}
+        >
+          <div className="pos-toast-icon">
+            <ShoppingCart size={22} />
+          </div>
+          <div className="pos-toast-body">
+            <div className="pos-toast-title">
+              <strong>{posToast.count} รายการ</strong>
+              <span className="pos-toast-dot">•</span>
+              <strong className="pos-toast-total-price">฿{posToast.total.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
+            </div>
+            <span className="pos-toast-msg">{posToast.message}</span>
+          </div>
+          <div className="pos-toast-right">
+            <span className="pos-toast-view-pill">
+              ดูตะกร้า ›
+            </span>
+            <button
+              type="button"
+              className="pos-toast-close"
+              onClick={(e) => {
+                e.stopPropagation()
+                setPosToast(prev => prev ? { ...prev, visible: false } : null)
+              }}
+            >
+              <X size={16} />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Mobile Cart Drawer Bottom Sheet Modal */}
+      {showMobileCartModal && (
+        <div className="qs-modal-overlay" style={{ zIndex: 100060, alignItems: 'flex-end', padding: 0 }}>
+          <div
+            className="qs-modal"
+            style={{
+              maxWidth: 520,
+              width: '100%',
+              borderRadius: '24px 24px 0 0',
+              maxHeight: '85vh',
+              display: 'flex',
+              flexDirection: 'column',
+              animation: 'posModalSlideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
+            }}
+          >
+            <div className="qs-modal-header" style={{ padding: '16px 20px 12px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <ShoppingCart size={20} style={{ color: '#059669' }} />
+                <div>
+                  <h3 style={{ margin: 0, fontSize: 16, fontWeight: 800 }}>รายการในตะกร้า ({cart.reduce((s, i) => s + i.qty, 0)})</h3>
+                  <p style={{ margin: 0, fontSize: 11, color: '#64748b' }}>ตรวจสอบและชำระเงินสำหรับออเดอร์นี้</p>
+                </div>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                {cart.length > 0 && (
+                  <button
+                    className="pos-clear-btn"
+                    onClick={() => { handleClearCart(); setShowMobileCartModal(false); }}
+                    type="button"
+                    style={{ padding: '4px 8px', fontSize: 11 }}
+                  >
+                    <Trash2 size={13} /> ล้างรายการ
+                  </button>
+                )}
+                <button
+                  aria-label="ปิด"
+                  className="qs-modal-close"
+                  onClick={() => setShowMobileCartModal(false)}
+                  type="button"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+            </div>
+
+            <div className="qs-modal-body" style={{ flex: 1, overflowY: 'auto', padding: '12px 20px 20px' }}>
+              {/* Cart Items List */}
+              <div className="pos-cart-items" style={{ maxHeight: 'none' }}>
+                {cart.map((item) => (
+                  <div className="pos-cart-row" key={item.product.id}>
+                    <div className="pos-cart-item-name">
+                      <strong>{item.product.name}</strong>
+                      <small>฿{item.product.price} / ชิ้น</small>
+                    </div>
+                    <div className="pos-qty-controls">
+                      <button onClick={() => handleUpdateQty(item.product.id, -1)} type="button">
+                        <Minus size={12} />
+                      </button>
+                      <span>{item.qty}</span>
+                      <button onClick={() => handleUpdateQty(item.product.id, 1)} type="button">
+                        <Plus size={12} />
+                      </button>
+                    </div>
+                    <strong className="pos-cart-item-total">฿{item.product.price * item.qty}</strong>
+                  </div>
+                ))}
+
+                {cart.length === 0 && (
+                  <div className="pos-empty-cart">
+                    <ShoppingCart size={32} />
+                    <p>ยังไม่มีสินค้าในตะกร้า</p>
+                    <small>เลือกรายการสินค้าเพื่อคิดเงิน</small>
+                  </div>
+                )}
+              </div>
+
+              {/* Cart Summary & Pay Actions */}
+              {cart.length > 0 && (
+                <div className="pos-cart-summary" style={{ marginTop: 16 }}>
+                  <div className="pos-summary-row">
+                    <span>ยอดรวมสินค้า</span>
+                    <strong>฿{subtotal.toFixed(2)}</strong>
+                  </div>
+                  <div className="pos-summary-row">
+                    <span>ภาษี VAT (7%)</span>
+                    <strong>฿{vat.toFixed(2)}</strong>
+                  </div>
+                  <div className="pos-summary-total">
+                    <span>ยอดชำระสุทธิ</span>
+                    <strong>฿{total.toFixed(2)}</strong>
+                  </div>
+
+                  <div className="pos-cart-secondary-actions" style={{ marginTop: 12 }}>
+                    <button
+                      type="button"
+                      className="pos-secondary-btn hold"
+                      disabled={cart.length === 0}
+                      onClick={() => { handleHoldOrder(); setShowMobileCartModal(false); }}
+                    >
+                      ⏸️ พักออเดอร์
+                    </button>
+                    <button
+                      type="button"
+                      className="pos-secondary-btn split"
+                      disabled={cart.length === 0}
+                      onClick={() => { playTapSound('pop'); setShowMobileCartModal(false); setShowSplitModal(true); }}
+                    >
+                      ✂️ แยกบิล / หารชำระ
+                    </button>
+                  </div>
+
+                  <div className="pos-pay-actions" style={{ marginTop: 12 }}>
+                    <button
+                      className="pos-pay-btn btn-summary-next"
+                      disabled={cart.length === 0}
+                      onClick={() => { setShowMobileCartModal(false); handleProceedToQuickPay('promptpay'); }}
+                      type="button"
+                      style={{
+                        background: 'linear-gradient(135deg, #059669 0%, #10b981 100%)',
+                        color: '#ffffff',
+                        fontSize: '15px',
+                        fontWeight: 900,
+                        padding: '14px 18px',
+                        borderRadius: '14px',
+                        width: '100%',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '8px',
+                        boxShadow: '0 6px 18px rgba(16, 185, 129, 0.3)',
+                        border: 'none',
+                        cursor: cart.length === 0 ? 'not-allowed' : 'pointer',
+                        opacity: cart.length === 0 ? 0.5 : 1
+                      }}
+                    >
+                      <ReceiptText size={18} /> {"⚡ ไปหน้าคิดเงินด่วน (฿" + total.toFixed(2) + ") ›"}
+                    </button>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '6px', width: '100%' }}>
+                      <button
+                        className="pos-pay-btn btn-promptpay"
+                        disabled={cart.length === 0}
+                        onClick={() => { setShowMobileCartModal(false); handleProceedToQuickPay('promptpay'); }}
+                        type="button"
+                      >
+                        <img
+                          src="/payments/promptpay_front.png"
+                          alt="PromptPay"
+                          style={{ height: '20px', width: 'auto', objectFit: 'contain', borderRadius: '3px', filter: 'brightness(0) invert(1)' }}
+                        />
+                        PromptPay
+                      </button>
+                      <button
+                        className="pos-pay-btn btn-cash"
+                        disabled={cart.length === 0}
+                        onClick={() => { setShowMobileCartModal(false); handleProceedToQuickPay('cash'); }}
+                        type="button"
+                      >
+                        <img
+                          src="/mascot/pay_7_holding_banknotes.png"
+                          alt="Cash"
+                          style={{ height: '22px', width: 'auto', objectFit: 'contain' }}
+                        />
+                        เงินสด
+                      </button>
+                      <button
+                        className="pos-pay-btn btn-card"
+                        disabled={cart.length === 0}
+                        onClick={() => { setShowMobileCartModal(false); handleProceedToQuickPay('card'); }}
+                        type="button"
+                      >
+                        <img
+                          src="/payments/mastercard_visa_combined.png"
+                          alt="Credit Card"
+                          style={{ height: '18px', width: 'auto', objectFit: 'contain', borderRadius: '3px' }}
+                        />
+                        บัตรเครดิต
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Held Orders Modal */}
       {showHeldOrdersModal && (
@@ -5494,90 +5725,52 @@ function QuickPayView() {
 
   return (
     <div className="qp-full-container">
-      {/* 0. Pre-filled POS Order Banner */}
+      {/* 0. Pre-filled POS Order Banner (Redesigned & Premium) */}
       {pendingPosOrder && (
-        <div style={{
-          background: 'linear-gradient(135deg, #059669 0%, #047857 100%)',
-          color: '#ffffff',
-          borderRadius: 16,
-          padding: '14px 18px',
-          marginBottom: 16,
-          boxShadow: '0 6px 20px rgba(5, 150, 105, 0.25)',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          flexWrap: 'wrap',
-          gap: 12
-        }}>
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 15, fontWeight: 900, marginBottom: 4 }}>
-              <ReceiptText size={18} />
-              <span>ออเดอร์ส่งตรงจาก POS: {pendingPosOrder.tableName || 'ขายหน้าร้าน'}</span>
-              <span style={{ background: '#ffffff', color: '#047857', fontSize: 11, fontWeight: 900, padding: '2px 8px', borderRadius: 8 }}>
-                {pendingPosOrder.items ? pendingPosOrder.items.length : 0} รายการ
-              </span>
-            </div>
-            <div style={{ fontSize: 12, opacity: 0.9 }}>
-              รายการ: {pendingPosOrder.items ? pendingPosOrder.items.map((i: any) => `${i.name} x${i.qty}`).join(', ') : '-'}
-            </div>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <div style={{ textAlign: 'right' }}>
-              <span style={{ fontSize: 11, opacity: 0.8, display: 'block' }}>ยอดชำระสุทธิ (นำเข้าอัตโนมัติ)</span>
-              <strong style={{ fontSize: 20, fontWeight: 900 }}>฿{pendingPosOrder.total ? pendingPosOrder.total.toFixed(2) : '0.00'}</strong>
+        <div className="qp-pos-imported-card">
+          <div className="qp-pos-ic-header">
+            <div className="qp-pos-ic-badge-title">
+              <div className="qp-pos-ic-icon">
+                <ReceiptText size={20} />
+              </div>
+              <div>
+                <strong className="qp-pos-ic-tableName">
+                  ออเดอร์ส่งตรงจาก POS · {pendingPosOrder.tableName || 'ขายหน้าร้าน'}
+                </strong>
+                <span className="qp-pos-ic-item-count">
+                  {pendingPosOrder.items ? pendingPosOrder.items.length : 0} รายการสินค้า
+                </span>
+              </div>
             </div>
             <button
               type="button"
+              className="qp-pos-ic-cancel-btn"
               onClick={handleClearPendingPosOrder}
-              style={{
-                background: 'rgba(255,255,255,0.2)',
-                color: '#ffffff',
-                border: 'none',
-                padding: '6px 12px',
-                borderRadius: 10,
-                fontSize: 11,
-                fontWeight: 800,
-                cursor: 'pointer'
-              }}
             >
               <X size={14} /> ยกเลิกรายการนี้
             </button>
           </div>
+
+          {/* Items Summary Pills */}
+          <div className="qp-pos-ic-items-row">
+            {pendingPosOrder.items && pendingPosOrder.items.map((i: any, idx: number) => (
+              <span key={idx} className="qp-pos-ic-item-pill">
+                {i.name.split(' (')[0]} <strong className="qp-pos-ic-item-qty">x{i.qty}</strong>
+              </span>
+            ))}
+          </div>
+
+          {/* Total Price Row */}
+          <div className="qp-pos-ic-footer">
+            <span className="qp-pos-ic-total-label">ยอดชำระสุทธิ (นำเข้าจาก POS)</span>
+            <strong className="qp-pos-ic-total-amount">
+              ฿{pendingPosOrder.total ? pendingPosOrder.total.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0.00'}
+            </strong>
+          </div>
         </div>
       )}
 
-      {/* 1. KYC Alert Banner Card */}
-      {!isKycVerified ? (
-        <div className="qp-kyc-banner">
-          <div className="qp-kyc-info">
-            <div className="qp-kyc-icon-wrap">
-              <ShieldAlert size={22} />
-            </div>
-            <div>
-              <strong>จำเป็นต้องยืนยันตัวตน (KYC)</strong>
-              <span>ยืนยันก่อนเพื่อเปิดใช้งานคิดเงินและรับชำระ</span>
-            </div>
-          </div>
-          <button className="qp-kyc-action-btn" onClick={() => setIsKycModalOpen(true)} type="button">
-            ยืนยันตัวตน ›
-          </button>
-        </div>
-      ) : (
-        <div className="qp-kyc-banner verified">
-          <div className="qp-kyc-info">
-            <div className="qp-kyc-icon-wrap green">
-              <CheckCircle2 size={22} />
-            </div>
-            <div>
-              <strong>ยืนยันตัวตน (KYC) สำเร็จแล้ว</strong>
-              <span>เปิดใช้งานช่องทางรับชำระเงินทุกระบบเรียบร้อย</span>
-            </div>
-          </div>
-          <button className="qp-kyc-action-btn verified" onClick={() => setIsKycVerified(false)} type="button">
-            จำลองล็อก KYC
-          </button>
-        </div>
-      )}
+
 
       {/* 2. Amount Display Section */}
       <div className="qp-amount-section" style={{ position: 'relative', overflow: 'hidden' }}>

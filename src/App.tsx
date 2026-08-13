@@ -4,6 +4,9 @@ import { PageViews } from './PageViews'
 import { LoginView } from './AuthViews'
 import { mockCases } from './mockData'
 import { MerchantView } from './MerchantView'
+import { MerchantRegistrationView } from './MerchantRegistrationView'
+import { PdRegistrationView } from './PdRegistrationView'
+import { AgentRegistrationView } from './AgentRegistrationView'
 import { CustomerView } from './CustomerView'
 import { ChatPosAiWidget } from './AdminModals'
 import { ProfileSettingsModal } from './ProfileSettingsModal'
@@ -39,6 +42,9 @@ function App() {
     return <LoginView role={loginRole} />
   }
   if (pathname === '/merchant') return <MerchantView />
+  if (pathname === '/merchant/register') return <MerchantRegistrationView />
+  if (pathname === '/pd/register') return <PdRegistrationView />
+  if (pathname === '/agent/register') return <AgentRegistrationView />
 
   const selectPage = (label: string) => { setActivePage(label); setMobileOpen(false) }
   const sidebar = <Sidebar activePage={activePage} onSelect={selectPage} onOpenProfile={() => setProfileModalOpen(true)} role={role} onRoleChange={(r) => setRole(r)} />
