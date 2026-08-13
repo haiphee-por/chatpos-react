@@ -393,6 +393,13 @@ nav {
   margin-bottom: 24px;
 }
 
+.page-heading-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
 .eyebrow {
   margin: 0 0 5px;
   color: #059669;
@@ -806,6 +813,28 @@ td span {
   transform: translateY(-1px);
 }
 
+.pd-registration-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 16px;
+  border: 1px solid #a7f3d0;
+  border-radius: 12px;
+  background: #f0fdf4;
+  color: #047857;
+  font-size: 12px;
+  font-weight: 800;
+  text-decoration: none;
+  transition: all 0.15s ease;
+}
+
+.pd-registration-link:hover {
+  border-color: #34d399;
+  background: #dcfce7;
+  transform: translateY(-1px);
+}
+
 .work-panel {
   overflow: hidden;
   border-radius: 20px;
@@ -1172,6 +1201,13 @@ td span {
     align-items: flex-start;
     flex-direction: column;
     margin-bottom: 20px;
+  }
+  .page-heading-actions {
+    width: 100%;
+  }
+  .page-heading-actions > * {
+    flex: 1;
+    justify-content: center;
   }
   .connected {
     font-size: 11px;

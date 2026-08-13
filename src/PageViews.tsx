@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ArrowUpRight, CheckCircle2, ClipboardCheck, Clock3, Download, Filter, Megaphone, Search, ShieldAlert, Store, Trophy, UsersRound, WalletCards, Zap } from 'lucide-react'
+import { ArrowUpRight, CheckCircle2, ClipboardCheck, Clock3, Download, ExternalLink, Filter, Megaphone, Search, ShieldAlert, Store, Trophy, UsersRound, WalletCards, Zap } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { mockAuditEvents, mockCases, mockLeaderboard, mockRiskFlags, mockSystemLiveStats, mockWithdrawals } from './mockData'
 import type { MockCase, MockWithdrawal } from './mockData'
@@ -92,9 +92,21 @@ export function PageViews({ activePage }: PageViewsProps) {
           <h1>{meta.title}</h1>
           <p>{meta.description}</p>
         </div>
-        <button className="primary-button" type="button">
-          <Download size={15} /> ส่งออก CSV
-        </button>
+        <div className="page-heading-actions">
+          {activePage === 'PD และพื้นที่' && (
+            <a
+              className="pd-registration-link"
+              href="https://backend-chatpos-ui.6ayknd.easypanel.host/pd/register"
+              target="_blank"
+              rel="noreferrer"
+            >
+              <ExternalLink size={15} /> ลิงก์ใบสมัคร PD
+            </a>
+          )}
+          <button className="primary-button" type="button">
+            <Download size={15} /> ส่งออก CSV
+          </button>
+        </div>
       </section>
       
       {activePage === 'การเงิน' ? (
