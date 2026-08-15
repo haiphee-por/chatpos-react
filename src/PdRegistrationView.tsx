@@ -13,13 +13,28 @@ import {
   Upload,
   Users,
   AlertTriangle,
+  Sparkles,
 } from 'lucide-react'
 import './MerchantRegistrationView.css'
 import { usePdT, type Lang } from './registrationI18n'
+import { registerPd } from './dbApi'
 
 type TFn = (key: string) => string
 
 export function PdRegistrationView() {
+  const [stage, setStage] = useState<'quick' | 'wizard'>('quick')
+  const [showDecisionModal, setShowDecisionModal] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [quickError, setQuickError] = useState('')
+
+  const [quickData, setQuickData] = useState({
+    name: '',
+    territory: '',
+    phone: '',
+    email: '',
+    password: '',
+  })
+
   const [currentStep, setCurrentStep] = useState(0)
   const [lang, setLang] = useState<Lang>('TH')
   const t = usePdT(lang)
@@ -38,12 +53,58 @@ export function PdRegistrationView() {
     setter(n)
   }
 
+  const handleQuickSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setQuickError('')
+
+    if (!quickData.name.trim()) {
+      setQuickError('กรุณาระบุชื่อ-นามสกุล')
+      return
+    }
+    if (!quickData.phone.trim()) {
+      setQuickError('กรุณาระบุเบอร์โทรศัพท์')
+      return
+    }
+    if (!quickData.email.trim()) {
+      setQuickError('กรุณาระบุอีเมล')
+      return
+    }
+    if (!quickData.password || quickData.password.length < 6) {
+      setQuickError('กรุณากำหนดรหัสผ่านอย่างน้อย 6 ตัวอักษร')
+      return
+    }
+
+    setIsSubmitting(true)
+    try {
+      const res = await registerPd({
+        name: quickData.name.trim(),
+        email: quickData.email.trim(),
+        password: quickData.password,
+        phone: quickData.phone.trim(),
+        displayName: quickData.name.trim(),
+        investmentAmount: 25000,
+      })
+
+      if (res.success) {
+        setShowDecisionModal(true)
+      } else {
+        setQuickError(res.error || 'ไม่สามารถลงทะเบียนได้ กรุณาลองใหม่อีกครั้ง')
+      }
+    } catch (err: any) {
+      setQuickError(err.message || 'เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์')
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
   return (
     <div className="reg-shell">
       <header className="reg-header">
         <div className="reg-header-inner">
-          <div className="reg-brand">
-            <img src="/logo.png" alt="ChatPOS Logo" />
+          <div className="reg-brand" onClick={() => (window.location.href = '/')}>
+            <div className="reg-logo-mark">
+              <Sparkles size={18} className="reg-logo-sparkle" />
+            </div>
             <div className="reg-brand-text"><strong>ChatPOS</strong><span>{t('headerSub')}</span></div>
           </div>
           <div className="reg-header-actions">
@@ -59,44 +120,220 @@ export function PdRegistrationView() {
       </header>
 
       <main className="reg-main">
-        <div className="reg-card">
-          <h1 className="reg-title">{t('pageTitle')}</h1>
-          <div className="reg-stepper">
-            <div className="reg-stepper-line"><div className="reg-stepper-fill" style={{ width: `${stepperFill}%` }} /></div>
-            {pdSteps.map((label, i) => (
-              <div key={i} className={`reg-step ${i === currentStep ? 'active' : ''} ${i < currentStep ? 'completed' : ''}`}
-                onClick={() => i < currentStep && setCurrentStep(i)} style={{ cursor: i < currentStep ? 'pointer' : 'default' }}>
-                <div className="reg-step-circle">{i < currentStep ? <Check size={16} /> : i + 1}</div>
-                <span className="reg-step-label">{label}</span>
+        {/* PHASE 1: Quick PD Sign-up */}
+        {stage === 'quick' ? (
+          <div className="reg-quick-card">
+            <div className="reg-quick-hero">
+              <div className="reg-stage-badge">
+                <Briefcase size={15} /> สเต็ปที่ 1: สมัครเป็น Partner Director (1 นาที)
               </div>
-            ))}
-          </div>
-          <div className="reg-progress">
-            <div className="reg-progress-header">
-              <span className="reg-progress-step">{t('step')} {currentStep + 1}/{pdSteps.length}</span>
-              <span className="reg-progress-pct">{pct}%</span>
+              <h1>ร่วมเป็น Partner Director (PD)</h1>
+              <p>กรอกข้อมูลเบื้องต้นเพื่อสร้างบัญชีผู้ดูแลพื้นที่และเข้าสู่แดชบอร์ดบริหาร</p>
             </div>
-            <div className="reg-progress-track"><div className="reg-progress-fill" style={{ width: `${pct}%` }} /></div>
-          </div>
 
-          <div className="reg-step-content" key={`${currentStep}-${lang}`}>
-            {currentStep === 0 && <PdStep1Personal t={t} />}
-            {currentStep === 1 && <PdStep2Business t={t} experiences={experiences} toggleExp={(i: number) => toggleSet(experiences, i, setExperiences)} />}
-            {currentStep === 2 && <PdStep3Territory t={t} regions={regions} toggleRegion={(i: number) => toggleSet(regions, i, setRegions)} />}
-            {currentStep === 3 && <PdStep4Bank t={t} />}
-            {currentStep === 4 && <PdStep5Confirm t={t} />}
-          </div>
-
-          <div className="reg-nav-buttons">
-            <button className="reg-btn-back" onClick={goBack} disabled={currentStep === 0} type="button"><ArrowLeft size={16} /> {t('back')}</button>
-            {currentStep < pdSteps.length - 1 ? (
-              <button className="reg-btn-next" onClick={goNext} type="button">{t('next')} <ArrowRight size={16} /></button>
-            ) : (
-              <button className="reg-btn-next" onClick={() => alert(t('submitAlert'))} type="button"><ShieldCheck size={16} /> {t('submitBtn')}</button>
+            {quickError && (
+              <div className="reg-notice" style={{ background: '#fef2f2', borderColor: '#fca5a5', marginBottom: '20px' }}>
+                <AlertTriangle className="reg-notice-icon" style={{ color: '#dc2626' }} size={20} />
+                <div style={{ color: '#b91c1c', fontWeight: 600, fontSize: '13px' }}>
+                  {quickError}
+                  {quickError.includes('อีเมลนี้ถูกใช้งานแล้ว') && (
+                    <span style={{ marginLeft: '6px' }}>
+                      👉 <a href="/pd/login" style={{ color: '#b91c1c', textDecoration: 'underline', fontWeight: 700 }}>คลิกที่นี่เพื่อเข้าสู่ระบบ</a>
+                    </span>
+                  )}
+                </div>
+              </div>
             )}
+
+            <form onSubmit={handleQuickSubmit} className="reg-quick-form">
+              <div className="reg-grid reg-grid-2">
+                <div className="reg-field reg-col-span-2">
+                  <span className="reg-label">ชื่อ-นามสกุล <span className="reg-required">*</span></span>
+                  <input
+                    className="reg-input"
+                    type="text"
+                    placeholder="เช่น นายนพดล บริหารกิจ"
+                    value={quickData.name}
+                    onChange={(e) => setQuickData({ ...quickData, name: e.target.value })}
+                    required
+                  />
+                </div>
+
+                <div className="reg-field reg-col-span-2">
+                  <span className="reg-label">พื้นที่จังหวัดหรือเขตที่ต้องการบริหาร <span className="reg-required">*</span></span>
+                  <input
+                    className="reg-input"
+                    type="text"
+                    placeholder="เช่น กรุงเทพฯ เขตจตุจักร / นนทบุรี / ชลบุรี"
+                    value={quickData.territory}
+                    onChange={(e) => setQuickData({ ...quickData, territory: e.target.value })}
+                    required
+                  />
+                </div>
+
+                <div className="reg-field">
+                  <span className="reg-label">เบอร์โทรศัพท์มือถือ <span className="reg-required">*</span></span>
+                  <input
+                    className="reg-input"
+                    type="tel"
+                    placeholder="08X-XXX-XXXX"
+                    value={quickData.phone}
+                    onChange={(e) => setQuickData({ ...quickData, phone: e.target.value })}
+                    required
+                  />
+                </div>
+
+                <div className="reg-field">
+                  <span className="reg-label">อีเมลสำหรับเข้าสู่ระบบ <span className="reg-required">*</span></span>
+                  <input
+                    className="reg-input"
+                    type="email"
+                    placeholder="pd@yourcompany.com"
+                    value={quickData.email}
+                    onChange={(e) => setQuickData({ ...quickData, email: e.target.value })}
+                    required
+                  />
+                </div>
+
+                <div className="reg-field reg-col-span-2">
+                  <span className="reg-label">กำหนดรหัสผ่าน (อย่างน้อย 6 ตัวอักษร) <span className="reg-required">*</span></span>
+                  <input
+                    className="reg-input"
+                    type="password"
+                    placeholder="••••••••"
+                    value={quickData.password}
+                    onChange={(e) => setQuickData({ ...quickData, password: e.target.value })}
+                    required
+                  />
+                </div>
+              </div>
+
+              <button type="submit" className="reg-quick-submit-btn" disabled={isSubmitting}>
+                {isSubmitting ? (
+                  <span>กำลังสร้างบัญชี PD...</span>
+                ) : (
+                  <>
+                    <ShieldCheck size={18} />
+                    <span>สมัครเป็น Partner Director ทันที 🚀</span>
+                  </>
+                )}
+              </button>
+
+              <div className="reg-quick-footer-link">
+                มีบัญชี PD อยู่แล้ว? <a href="/pd/login">เข้าสู่ระบบที่นี่</a>
+              </div>
+            </form>
+          </div>
+        ) : (
+          /* PHASE 2: Detailed PD Business & KYC Wizard */
+          <div className="reg-card">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <div className="reg-stage-badge">
+                <FileText size={14} /> สเต็ปที่ 2: กรอกข้อมูลสัญญา & บัญชีรับผลประโยชน์ PD (KYC)
+              </div>
+              <button
+                type="button"
+                onClick={() => (window.location.href = '/pd')}
+                style={{ background: 'transparent', border: '0', color: 'var(--reg-primary)', fontWeight: 600, fontSize: '13px', cursor: 'pointer' }}
+              >
+                ข้ามไปหน้าแดชบอร์ดก่อน ➔
+              </button>
+            </div>
+
+            <h1 className="reg-title">{t('pageTitle')}</h1>
+            <div className="reg-stepper">
+              <div className="reg-stepper-line"><div className="reg-stepper-fill" style={{ width: `${stepperFill}%` }} /></div>
+              {pdSteps.map((label, i) => (
+                <div key={i} className={`reg-step ${i === currentStep ? 'active' : ''} ${i < currentStep ? 'completed' : ''}`}
+                  onClick={() => i < currentStep && setCurrentStep(i)} style={{ cursor: i < currentStep ? 'pointer' : 'default' }}>
+                  <div className="reg-step-circle">{i < currentStep ? <Check size={16} /> : i + 1}</div>
+                  <span className="reg-step-label">{label}</span>
+                </div>
+              ))}
+            </div>
+            <div className="reg-progress">
+              <div className="reg-progress-header">
+                <span className="reg-progress-step">{t('step')} {currentStep + 1}/{pdSteps.length}</span>
+                <span className="reg-progress-pct">{pct}%</span>
+              </div>
+              <div className="reg-progress-track"><div className="reg-progress-fill" style={{ width: `${pct}%` }} /></div>
+            </div>
+
+            <div className="reg-step-content" key={`${currentStep}-${lang}`}>
+              {currentStep === 0 && <PdStep1Personal t={t} />}
+              {currentStep === 1 && <PdStep2Business t={t} experiences={experiences} toggleExp={(i: number) => toggleSet(experiences, i, setExperiences)} />}
+              {currentStep === 2 && <PdStep3Territory t={t} regions={regions} toggleRegion={(i: number) => toggleSet(regions, i, setRegions)} />}
+              {currentStep === 3 && <PdStep4Bank t={t} />}
+              {currentStep === 4 && <PdStep5Confirm t={t} />}
+            </div>
+
+            <div className="reg-nav-buttons">
+              <button className="reg-btn-back" onClick={goBack} disabled={currentStep === 0} type="button"><ArrowLeft size={16} /> {t('back')}</button>
+              {currentStep < pdSteps.length - 1 ? (
+                <button className="reg-btn-next" onClick={goNext} type="button">{t('next')} <ArrowRight size={16} /></button>
+              ) : (
+                <button
+                  className="reg-btn-next"
+                  onClick={() => {
+                    alert('🎉 ส่งเอกสารสัญญา PD และยืนยันตัวตนเรียบร้อยแล้ว!\n\nเจ้าหน้าที่จะประสานงานเปิดเขตพื้นที่ให้ท่านภายใน 24 ชม.')
+                    window.location.href = '/pd'
+                  }}
+                  type="button"
+                >
+                  <ShieldCheck size={16} /> {t('submitBtn')}
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+      </main>
+
+      {/* Decision Modal after Quick PD Registration */}
+      {showDecisionModal && (
+        <div className="reg-modal-backdrop">
+          <div className="reg-decision-modal">
+            <img src="/mascot/nabtang_presenting.png" alt="PD Mascot" className="reg-decision-mascot" />
+            <h2 className="reg-decision-title">🎉 สมัครเป็น Partner Director สำเร็จ!</h2>
+            <p className="reg-decision-desc">
+              บัญชี PD สำหรับคุณ <strong>"{quickData.name}"</strong> ถูกสร้างในระบบแล้ว คุณสามารถเลือกดำเนินการต่อได้ดังนี้:
+            </p>
+
+            <div className="reg-decision-options">
+              <div
+                className="reg-decision-card-btn primary"
+                onClick={() => {
+                  setShowDecisionModal(false)
+                  setStage('wizard')
+                  window.scrollTo({ top: 0, behavior: 'smooth' })
+                }}
+                role="button"
+                tabIndex={0}
+              >
+                <div className="reg-card-btn-text">
+                  <strong>📄 กรอกสัญญาและบัญชีรับผลประโยชน์ PD (KYC)</strong>
+                  <span>ระบุพื้นที่ดูแลและผูกบัญชีรับค่าบริหารส่วนกลางทันที</span>
+                </div>
+                <ArrowRight size={20} style={{ color: 'var(--reg-primary)' }} />
+              </div>
+
+              <div
+                className="reg-decision-card-btn secondary"
+                onClick={() => {
+                  window.location.href = '/pd'
+                }}
+                role="button"
+                tabIndex={0}
+              >
+                <div className="reg-card-btn-text">
+                  <strong>🏢 เข้าสู่ระบบ PD Operations Center ทันที</strong>
+                  <span>เริ่มดูภาพรวมสายงานและเครื่องมือบริหาร (ส่งเอกสาร KYC ภายหลังได้)</span>
+                </div>
+                <ArrowRight size={20} style={{ color: 'var(--reg-muted)' }} />
+              </div>
+            </div>
           </div>
         </div>
-      </main>
+      )}
 
       <footer className="reg-footer">
         <div className="reg-footer-inner">

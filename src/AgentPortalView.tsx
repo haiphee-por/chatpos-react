@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   Store,
   QrCode,
@@ -12,11 +12,16 @@ import {
   Phone,
   TrendingUp,
   Activity,
-  UserCheck
+  UserCheck,
+  MapPin,
+  Building2,
+  ArrowUpRight,
+  Zap
 } from 'lucide-react'
 import { mockAgentMerchants, mockAgentCommissions } from './mockData'
 import type { MockAgentMerchant } from './mockData'
 import { WithdrawalModal } from './AdminModals'
+import { fetchDbStores, fetchDbCommissions, fetchDbStats, type DbStoreRow, type DbCommissionRow, type DbStats } from './dbApi'
 
 export function AgentPortalView() {
   const [selectedMerchant, setSelectedMerchant] = useState<MockAgentMerchant | null>(null)
@@ -24,6 +29,27 @@ export function AgentPortalView() {
   const [newStoreModalOpen, setNewStoreModalOpen] = useState(false)
   const [withdrawalOpen, setWithdrawalOpen] = useState(false)
   const [copiedLink, setCopiedLink] = useState(false)
+  const [liveStores, setLiveStores] = useState<DbStoreRow[]>([])
+  const [liveCommissions, setLiveCommissions] = useState<DbCommissionRow[]>([])
+  const [liveStats, setLiveStats] = useState<DbStats | null>(null)
+
+  useEffect(() => {
+    async function init() {
+      try {
+        const [stores, commissions, stats] = await Promise.all([
+          fetchDbStores(),
+          fetchDbCommissions(),
+          fetchDbStats(),
+        ])
+        if (stores.length > 0) setLiveStores(stores)
+        if (commissions.length > 0) setLiveCommissions(commissions)
+        if (stats) setLiveStats(stats)
+      } catch (e) {
+        console.error('Agent init error:', e)
+      }
+    }
+    init()
+  }, [])
 
   const referralUrl = 'https://chatpos.app/register?ref=AG-204'
 
@@ -35,28 +61,82 @@ export function AgentPortalView() {
 
   return (
     <div className="agent-portal-wrap">
-      {/* Agent Workspace Hero Banner */}
+      {/* Premium Agent Workspace Hero Banner */}
       <section className="agent-hero-banner">
-        <div className="agent-hero-content">
-          <div className="agent-badge">
-            <UserCheck size={16} /> SENIOR AGENT PORTAL · AG-204
+        <div className="agent-hero-decor-orb-1" />
+        <div className="agent-hero-decor-orb-2" />
+
+        <div className="agent-hero-main">
+          {/* Left Column: Identity & Primary Actions */}
+          <div className="agent-hero-content">
+            <div className="agent-pill-row">
+              <div className="agent-badge">
+                <span className="agent-status-dot" />
+                <UserCheck size={14} /> SENIOR AGENT · AG-204
+              </div>
+              <div className="agent-tag-glass">
+                <MapPin size={13} /> เชียงใหม่ (โซนเมือง)
+              </div>
+              <div className="agent-tag-glass">
+                <Building2 size={13} /> สายงาน: PD-001 (ณัฐพล)
+              </div>
+            </div>
+
+            <div className="agent-title-block">
+              <h1>สวัสดีครับคุณ พิมพ์ชนก ศรีสุข 👋</h1>
+              <p>ระบบจัดการเครือข่ายร้านค้าและติดตามคอมมิชชันแบบ Real-time</p>
+            </div>
+
+            {/* Balanced Action Button Group */}
+            <div className="agent-hero-actions">
+              <button type="button" className="agent-btn-primary" onClick={() => setNewStoreModalOpen(true)}>
+                <PlusCircle size={17} /> เชื่อมต่อร้านค้าใหม่
+              </button>
+              <button type="button" className="agent-btn-glass" onClick={() => setQrModalOpen(true)}>
+                <QrCode size={16} /> QR Code เชิญร้าน
+              </button>
+              <button type="button" className="agent-btn-glass" onClick={handleCopyLink}>
+                <Copy size={15} /> {copiedLink ? 'คัดลอกแล้ว! ✨' : 'คัดลอกลิงก์แนะนำ'}
+              </button>
+            </div>
           </div>
-          <h1>สวัสดีครับคุณ พิมพ์ชนก ศรีสุข 👋</h1>
-          <p>พื้นที่รับผิดชอบ: ภาคเหนือ (เชียงใหม่ - โซนเมือง) | สายงาน PD: PD-001 (ณัฐพล)</p>
-          <div className="agent-hero-actions">
-            <button type="button" className="agent-btn-primary" onClick={() => setNewStoreModalOpen(true)}>
-              <PlusCircle size={16} /> เชื่อมต่อร้านค้าใหม่
-            </button>
-            <button type="button" className="agent-btn-secondary" onClick={() => setQrModalOpen(true)}>
-              <QrCode size={16} /> QR Code เชิญร้านค้า
-            </button>
-            <button type="button" className="agent-btn-accent" onClick={() => setWithdrawalOpen(true)}>
-              <WalletCards size={16} /> ถอนค่าคอมมิชชัน (฿28,640)
-            </button>
+
+          {/* Right Column: Dedicated Glass Balance & Quick Payout Card + Mascot */}
+          <div className="agent-hero-right">
+            <div className="agent-wallet-card">
+              <div className="agent-wallet-head">
+                <div className="wallet-icon-badge">
+                  <WalletCards size={18} />
+                </div>
+                <div className="wallet-label-group">
+                  <span className="wallet-title">คอมมิชชันสะสมพร้อมถอน</span>
+                  <span className="wallet-subtitle">อัตราเฉลี่ย 0.8% จากยอดขาย</span>
+                </div>
+              </div>
+
+              <div className="agent-wallet-balance">
+                <span className="balance-currency">฿</span>
+                <strong className="balance-amount">28,640</strong>
+                <span className="balance-cents">.00</span>
+              </div>
+
+              <div className="agent-wallet-subinfo">
+                <div className="wallet-today-pill">
+                  <TrendingUp size={13} /> วันนี้ +฿801.00
+                </div>
+                <span className="wallet-status-ready">🟢 พร้อมถอนทันที</span>
+              </div>
+
+              <button type="button" className="agent-btn-withdraw-payout" onClick={() => setWithdrawalOpen(true)}>
+                <span><Zap size={14} style={{ marginRight: '6px', verticalAlign: 'middle' }} />ขอถอนเงินเข้าบัญชี (SCB)</span>
+                <ArrowUpRight size={15} />
+              </button>
+            </div>
+
+            <div className="agent-hero-illustration">
+              <img src="/mascot/nabtang_presenting.png" alt="Agent Mascot" className="agent-mascot-img" />
+            </div>
           </div>
-        </div>
-        <div className="agent-hero-illustration">
-          <img src="/mascot/nabtang_presenting.png" alt="Agent Mascot" className="agent-mascot-img" />
         </div>
       </section>
 
@@ -67,8 +147,8 @@ export function AgentPortalView() {
             <span>ร้านค้าในดูแล</span>
             <Store size={22} className="agent-icon-green" />
           </div>
-          <strong>26 ร้าน</strong>
-          <small>🟢 POS ออนไลน์ 24 ร้าน | 🔴 ออฟไลน์ 2 ร้าน</small>
+          <strong>{liveStores.length > 0 ? `${liveStores.length} ร้าน` : liveStats?.total_stores ? `${liveStats.total_stores} ร้าน` : '26 ร้าน'}</strong>
+          <small>🟢 ดึงข้อมูลจากตาราง Store</small>
         </article>
 
         <article className="agent-metric-card blue">
@@ -76,8 +156,8 @@ export function AgentPortalView() {
             <span>คำขอเชื่อมร้านใหม่</span>
             <Activity size={22} className="agent-icon-blue" />
           </div>
-          <strong>6 คำขอ</strong>
-          <small>⚡ ร้านค้าสแกน QR สมัครเข้ามาใหม่วันนี้</small>
+          <strong>{liveStats?.pending_kyc ? `${liveStats.pending_kyc} คำขอ` : '2 คำขอ'}</strong>
+          <small>⚡ ร้านค้าสแกน QR สมัครเข้ามาในระบบ</small>
         </article>
 
         <article className="agent-metric-card amber">
@@ -85,8 +165,8 @@ export function AgentPortalView() {
             <span>KYC ที่ต้องติดตาม</span>
             <Clock3 size={22} className="agent-icon-amber" />
           </div>
-          <strong>3 เคส</strong>
-          <small>⚠️ 1 เคสถูกส่งกลับให้แก้ไขรูปหน้าร้าน</small>
+          <strong>{liveStats?.pending_kyc ? `${liveStats.pending_kyc} เคส` : '2 เคส'}</strong>
+          <small>⚠️ เอกสารอยู่ระหว่างรอตรวจสอบ</small>
         </article>
 
         <article className="agent-metric-card violet">
@@ -94,8 +174,8 @@ export function AgentPortalView() {
             <span>ค่าคอมมิชชันสะสม</span>
             <WalletCards size={22} className="agent-icon-violet" />
           </div>
-          <strong>฿28,640</strong>
-          <small>💰 พร้อมถอนเข้าบัญชีธนาคารทันที</small>
+          <strong>฿{liveCommissions.length > 0 ? liveCommissions.reduce((s, c) => s + Number(c.amount || 0), 0).toFixed(2) : '28,640'}</strong>
+          <small>💰 ข้อมูลจากตาราง CommissionLedger</small>
         </article>
       </section>
 

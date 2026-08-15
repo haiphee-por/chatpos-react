@@ -7,19 +7,28 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "oxlint",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "server": "node server.cjs",
+    "test:db": "node test-db.cjs"
   },
   "dependencies": {
+    "bcryptjs": "^3.0.3",
     "lucide-react": "^1.28.0",
+    "qrcode": "^1.5.4",
     "react": "^19.2.8",
     "react-dom": "^19.2.8"
   },
   "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
     "@types/node": "^24.13.3",
+    "@types/pg": "^8.21.0",
+    "@types/qrcode": "^1.5.6",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.4",
+    "dotenv": "^17.4.2",
     "oxlint": "^1.75.0",
+    "pg": "^8.23.0",
     "typescript": "~6.0.2",
     "vite": "^8.2.0"
   }

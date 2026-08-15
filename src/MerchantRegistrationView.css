@@ -54,20 +54,36 @@
   display: flex;
   align-items: center;
   gap: 12px;
+  cursor: pointer;
 }
 
-.reg-brand img {
+.reg-logo-mark {
   width: 36px;
   height: 36px;
-  object-fit: contain;
+  border-radius: 11px;
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  display: grid;
+  place-items: center;
+  color: #ffffff;
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.35);
+  transition: transform 0.2s ease;
+}
+
+.reg-brand:hover .reg-logo-mark {
+  transform: scale(1.05) rotate(4deg);
+}
+
+.reg-logo-sparkle {
+  color: #ffffff;
 }
 
 .reg-brand-text strong {
   display: block;
   color: #fff;
-  font-size: 17px;
+  font-size: 18px;
   font-weight: 900;
   line-height: 1.2;
+  letter-spacing: -0.02em;
 }
 
 .reg-brand-text span {
@@ -984,4 +1000,204 @@
     gap: 8px;
     align-items: flex-start;
   }
+}
+
+/* ── Quick Registration Stage & Decision Modal ───────────────────────── */
+.reg-stage-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--reg-primary-bg);
+  color: var(--reg-primary-dark);
+  padding: 6px 14px;
+  border-radius: 9999px;
+  font-size: 13px;
+  font-weight: 700;
+  margin-bottom: 12px;
+  border: 1px solid rgba(5, 150, 105, 0.2);
+}
+
+.reg-quick-hero {
+  text-align: center;
+  margin-bottom: 28px;
+}
+
+.reg-quick-hero h1 {
+  font-size: 26px;
+  font-weight: 800;
+  color: var(--reg-ink);
+  margin: 0 0 8px;
+}
+
+.reg-quick-hero p {
+  color: var(--reg-muted);
+  font-size: 14px;
+  margin: 0;
+}
+
+.reg-quick-card {
+  max-width: 640px;
+  margin: 0 auto;
+  background: #ffffff;
+  border-radius: 16px;
+  padding: 36px;
+  box-shadow: var(--reg-shadow-lg);
+  border: 1px solid var(--reg-line);
+}
+
+.reg-quick-submit-btn {
+  width: 100%;
+  padding: 14px 24px;
+  background: linear-gradient(135deg, #059669 0%, #047857 100%);
+  color: #ffffff;
+  border: 0;
+  border-radius: 10px;
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  box-shadow: 0 4px 14px rgba(5, 150, 105, 0.35);
+  transition: all 0.2s ease;
+  margin-top: 24px;
+}
+
+.reg-quick-submit-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(5, 150, 105, 0.45);
+}
+
+.reg-quick-submit-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.reg-quick-footer-link {
+  text-align: center;
+  margin-top: 18px;
+  font-size: 14px;
+  color: var(--reg-muted);
+}
+
+.reg-quick-footer-link a {
+  color: var(--reg-primary);
+  font-weight: 700;
+  text-decoration: none;
+  margin-left: 6px;
+}
+
+.reg-quick-footer-link a:hover {
+  text-decoration: underline;
+}
+
+/* ── Modal Backdrop & Decision Card ─────────────────────────────────── */
+.reg-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 999;
+  background: rgba(15, 23, 42, 0.7);
+  backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  animation: regFadeIn 0.25s ease;
+}
+
+@keyframes regFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.reg-decision-modal {
+  background: #ffffff;
+  border-radius: 20px;
+  max-width: 580px;
+  width: 100%;
+  padding: 36px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.25);
+  text-align: center;
+  animation: regScaleUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes regScaleUp {
+  from { transform: scale(0.92); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+
+.reg-decision-mascot {
+  width: 90px;
+  height: 90px;
+  object-fit: contain;
+  margin: 0 auto 16px;
+  animation: regBounce 2s infinite ease-in-out;
+}
+
+@keyframes regBounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
+
+.reg-decision-title {
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--reg-ink);
+  margin: 0 0 8px;
+}
+
+.reg-decision-desc {
+  font-size: 14px;
+  color: var(--reg-muted);
+  margin: 0 0 24px;
+  line-height: 1.5;
+}
+
+.reg-decision-options {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.reg-decision-card-btn {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  text-align: left;
+  padding: 16px 20px;
+  border-radius: 12px;
+  border: 1.5px solid var(--reg-line);
+  background: #ffffff;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.reg-decision-card-btn.primary {
+  border-color: var(--reg-primary);
+  background: linear-gradient(135deg, #ecfdf5 0%, #ffffff 100%);
+}
+
+.reg-decision-card-btn.primary:hover {
+  background: #d1fae5;
+  box-shadow: 0 4px 12px rgba(5, 150, 105, 0.15);
+  transform: translateY(-1px);
+}
+
+.reg-decision-card-btn.secondary:hover {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+}
+
+.reg-card-btn-text strong {
+  display: block;
+  font-size: 15px;
+  color: var(--reg-ink);
+  margin-bottom: 2px;
+}
+
+.reg-card-btn-text span {
+  font-size: 12px;
+  color: var(--reg-muted);
 }

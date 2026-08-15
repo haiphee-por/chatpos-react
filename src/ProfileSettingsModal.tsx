@@ -1,5 +1,7 @@
-import React, { useState } from 'react'
-import { Bell, Camera, CheckCircle2, KeyRound, Shield, Store, User, X } from 'lucide-react'
+import React, { useState, useEffect } from 'react'
+import { Bell, Camera, CheckCircle2, KeyRound, Shield, Store, User, X, Key, RefreshCw, Server, AlertCircle, Code, Copy, Check } from 'lucide-react'
+import { getStoredApiKey, setStoredApiKey, fetchBalance, createPaymentQr, checkPaymentStatus, authenticateApi, createPayout } from './chatposApi'
+import { getStoredUser } from './dbApi'
 
 export type ProfileData = {
   role: 'admin' | 'pd' | 'agent' | 'merchant' | 'customer'
@@ -15,36 +17,37 @@ export type ProfileData = {
   lineNotify?: boolean
   emailNotify?: boolean
   twoFactor?: boolean
+  apiKey?: string
 }
 
 const defaultProfiles: Record<string, ProfileData> = {
   admin: {
     role: 'admin',
     name: 'Admin Demo (ผู้ดูแลระบบ)',
-    title: 'Super Administrator',
-    email: 'admin@chatpos.co',
-    phone: '081-999-8877',
-    avatarUrl: '/mascot/nabtang_presenting.png',
+    title: 'HQ System Administrator',
+    email: 'admin@chatpos.com',
+    phone: '081-234-5678',
+    avatarUrl: '/mascot/nabtang_holding_gold.png',
     lineNotify: true,
     emailNotify: true,
     twoFactor: true
   },
   pd: {
     role: 'pd',
-    name: 'ณัฐพล วัฒนกิจ (PD-001)',
-    title: 'President Director (กรุงเทพฯ & ปริมณฑล)',
-    email: 'nattapol.pd@chatpos.co',
-    phone: '081-923-4411',
-    avatarUrl: '/mascot/kyc_3_checking_documents.png',
+    name: 'คุณวิชัย เจริญกิจ',
+    title: 'Partner Director (PD เชียงใหม่)',
+    email: 'to@chatpos.com',
+    phone: '081-998-8776',
+    avatarUrl: '/mascot/nabtang_presenting.png',
     lineNotify: true,
     emailNotify: true,
-    twoFactor: true
+    twoFactor: false
   },
   agent: {
     role: 'agent',
-    name: 'พิมพ์ชนก ศรีสุข (AG-204)',
-    title: 'Senior Agent (เชียงใหม่)',
-    email: 'pimchanok.ag@chatpos.co',
+    name: 'คุณพงศกร ขยายทรัพย์',
+    title: 'ตัวแทนขยายร้านค้า (Agent AG-204)',
+    email: 'ag@chatpos.com',
     phone: '089-456-1122',
     avatarUrl: '/mascot/nabtang_analytics.png',
     lineNotify: true,
@@ -53,12 +56,12 @@ const defaultProfiles: Record<string, ProfileData> = {
   },
   merchant: {
     role: 'merchant',
-    name: 'คุณสมชาย ใจดี',
-    title: 'เจ้าของร้าน Cafe & Bistro',
-    email: 'somchai.cafe@gmail.com',
+    name: 'ไก่ย่าง',
+    title: 'เจ้าของร้าน (Merchant Owner)',
+    email: 'ikkyu307@gmail.com',
     phone: '082-345-6789',
     avatarUrl: '/mascot/pos_1_front.png',
-    storeName: 'ร้านกาแฟบ้านสวน Cafe & Bistro',
+    storeName: 'สาขาใหญ่',
     promptPayId: '082-345-6789',
     bankName: 'ธนาคารกสิกรไทย (KBANK)',
     bankAccount: '045-2-99812-4',
@@ -79,16 +82,46 @@ export function ProfileSettingsModal({
 }) {
   const initial = defaultProfiles[role] ?? defaultProfiles.admin
   const [profile, setProfile] = useState<ProfileData>(initial)
-  const [activeTab, setActiveTab] = useState<'profile' | 'security' | 'notifications' | 'business'>('profile')
+  const [activeTab, setActiveTab] = useState<'profile' | 'security' | 'notifications' | 'business' | 'api'>('profile')
 
   // Password fields
   const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
 
+  // API Key fields & Testing
+  const [apiKeyInput, setApiKeyInput] = useState('')
+  const [selectedEndpoint, setSelectedEndpoint] = useState<'balance' | 'create_qr' | 'check_payment' | 'auth' | 'create_payout'>('balance')
+  const [paramRef, setParamRef] = useState('PAY-REF-100293')
+  const [paramAmount, setParamAmount] = useState('100')
+  const [paramDescription, setParamDescription] = useState('ชำระค่าสินค้า POS')
+  const [apiLoading, setApiLoading] = useState(false)
+  const [apiResult, setApiResult] = useState<any>(null)
+  const [apiError, setApiError] = useState<string | null>(null)
+  const [codeCopied, setCodeCopied] = useState(false)
+
   // Status banners
   const [toastMessage, setToastMessage] = useState<string | null>(null)
   const [passwordError, setPasswordError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (isOpen) {
+      const savedKey = getStoredApiKey()
+      setApiKeyInput(savedKey)
+
+      const stored = getStoredUser()
+      if (stored) {
+        setProfile((prev) => ({
+          ...prev,
+          name: stored.name || prev.name,
+          email: stored.email || prev.email,
+          phone: stored.phone || prev.phone,
+          storeName: stored.store?.name || prev.storeName,
+          title: stored.role === 'owner' ? 'เจ้าของร้านค้า (Merchant Owner)' : (stored.role === 'pd' ? 'ผู้อำนวยการพื้นที่ (PD)' : (stored.role === 'agent' ? 'ตัวแทนขยายร้านค้า (Agent)' : prev.title)),
+        }))
+      }
+    }
+  }, [isOpen])
 
   if (!isOpen) return null
 
@@ -117,6 +150,141 @@ export function ProfileSettingsModal({
     setTimeout(() => setToastMessage(null), 2500)
   }
 
+  const handleSaveApiKey = (e: React.FormEvent) => {
+    e.preventDefault()
+    setStoredApiKey(apiKeyInput)
+    setToastMessage('บันทึก Bearer API Key เรียบร้อยแล้ว! 🔑')
+    setTimeout(() => setToastMessage(null), 2500)
+  }
+
+  const handleTestEndpoint = async () => {
+    setApiLoading(true)
+    setApiError(null)
+    setApiResult(null)
+
+    const keyToUse = apiKeyInput.trim()
+    if (keyToUse) {
+      setStoredApiKey(keyToUse)
+    }
+
+    try {
+      let data: any
+      if (selectedEndpoint === 'balance') {
+        data = await fetchBalance(keyToUse)
+      } else if (selectedEndpoint === 'create_qr') {
+        data = await createPaymentQr({
+          amount: Number(paramAmount) || 100,
+          description: paramDescription || 'Payment QR Test',
+          orderId: `ORD-${Date.now()}`
+        }, keyToUse)
+      } else if (selectedEndpoint === 'check_payment') {
+        data = await checkPaymentStatus(paramRef || 'PAY-REF-100293', keyToUse)
+      } else if (selectedEndpoint === 'auth') {
+        data = await authenticateApi({}, keyToUse)
+      } else if (selectedEndpoint === 'create_payout') {
+        data = await createPayout({
+          amount: Number(paramAmount) || 500,
+          remark: 'คำขอถอนเงิน / Payout Test'
+        }, keyToUse)
+      }
+
+      setApiResult(data)
+      setToastMessage(`เรียกใช้ API [${selectedEndpoint.toUpperCase()}] สำเร็จ! 🚀`)
+      setTimeout(() => setToastMessage(null), 3000)
+    } catch (err: any) {
+      setApiError(err?.message || 'ไม่สามารถเชื่อมต่อ API ได้ หรือ API Key / Parameters ไม่ถูกต้อง')
+    } finally {
+      setApiLoading(false)
+    }
+  }
+
+  const generateCodeSnippet = () => {
+    const keyStr = apiKeyInput.trim() || 'YOUR_API_KEY'
+    if (selectedEndpoint === 'balance') {
+      return `fetch('https://chatpos.biz/api/v1/balance', {
+  method: 'GET',
+  headers: {
+    'Authorization': 'Bearer ${keyStr}'
+  }
+})
+.then(res => res.json())
+.then(data => console.log(data))
+.catch(err => console.error(err));`
+    }
+
+    if (selectedEndpoint === 'create_qr') {
+      return `fetch('https://chatpos.biz/api/v1/payments/qr', {
+  method: 'POST',
+  headers: {
+    'Authorization': 'Bearer ${keyStr}',
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    amount: ${paramAmount || '100'},
+    orderId: 'ORD-${Date.now()}',
+    description: '${paramDescription || 'ชำระค่าสินค้า POS'}'
+  })
+})
+.then(res => res.json())
+.then(data => console.log(data))
+.catch(err => console.error(err));`
+    }
+
+    if (selectedEndpoint === 'check_payment') {
+      return `fetch('https://chatpos.biz/api/v1/payments/${paramRef || 'PAY-REF-100293'}', {
+  method: 'GET',
+  headers: {
+    'Authorization': 'Bearer ${keyStr}'
+  }
+})
+.then(res => res.json())
+.then(data => console.log(data))
+.catch(err => console.error(err));`
+    }
+
+    if (selectedEndpoint === 'auth') {
+      return `fetch('https://chatpos.biz/api/v1/auth', {
+  method: 'POST',
+  headers: {
+    'Authorization': 'Bearer ${keyStr}',
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    clientId: 'YOUR_CLIENT_ID',
+    clientSecret: 'YOUR_CLIENT_SECRET'
+  })
+})
+.then(res => res.json())
+.then(data => console.log(data))
+.catch(err => console.error(err));`
+    }
+
+    if (selectedEndpoint === 'create_payout') {
+      return `fetch('https://chatpos.biz/api/v1/payouts', {
+  method: 'POST',
+  headers: {
+    'Authorization': 'Bearer ${keyStr}',
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    amount: ${paramAmount || '500'},
+    remark: 'คำขอถอนเงินผ่านระบบ POS'
+  })
+})
+.then(res => res.json())
+.then(data => console.log(data))
+.catch(err => console.error(err));`
+    }
+
+    return ''
+  }
+
+  const handleCopySnippet = () => {
+    navigator.clipboard.writeText(generateCodeSnippet())
+    setCodeCopied(true)
+    setTimeout(() => setCodeCopied(false), 2000)
+  }
+
   const avatarOptions = [
     '/mascot/nabtang_presenting.png',
     '/mascot/kyc_3_checking_documents.png',
@@ -134,7 +302,7 @@ export function ProfileSettingsModal({
           <div className="modal-title-group">
             <span className="badge-pill green">PROFILE & ACCOUNT SETTINGS</span>
             <h2>⚙️ ตั้งค่าโปรไฟล์และบัญชีผู้ใช้งาน ({role.toUpperCase()})</h2>
-            <p className="muted-text">จัดการข้อมูลส่วนตัว ภาพโปรไฟล์ รหัสผ่าน และการแจ้งเตือน</p>
+            <p className="muted-text">จัดการข้อมูลส่วนตัว ภาพโปรไฟล์ รหัสผ่าน การแจ้งเตือน และ API Key Integration</p>
           </div>
           <button aria-label="Close modal" className="close-modal-btn" onClick={onClose} type="button">
             <X size={20} />
@@ -163,6 +331,14 @@ export function ProfileSettingsModal({
             onClick={() => setActiveTab('security')}
           >
             <KeyRound size={16} /> รหัสผ่าน & ความปลอดภัย
+          </button>
+
+          <button
+            type="button"
+            className={`profile-tab-btn ${activeTab === 'api' ? 'active' : ''}`}
+            onClick={() => setActiveTab('api')}
+          >
+            <Key size={16} /> ChatPOS API Key
           </button>
 
           <button
@@ -300,7 +476,7 @@ export function ProfileSettingsModal({
                   required
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
-                  placeholder="กรอกรหัสผ่านใหม่อีกครั้ง"
+                  placeholder="กรอกรหัสผ่านใหมีกครั้ง"
                 />
               </div>
             </div>
@@ -334,7 +510,192 @@ export function ProfileSettingsModal({
           </form>
         )}
 
-        {/* TAB 3: Notifications */}
+        {/* TAB 3: ChatPOS API Key Integration & Tester */}
+        {activeTab === 'api' && (
+          <div className="profile-form">
+            <form onSubmit={handleSaveApiKey} className="api-key-config-section">
+              <div className="api-header-info">
+                <div className="api-icon-badge">
+                  <Server size={22} />
+                </div>
+                <div>
+                  <strong>การเชื่อมต่อ ChatPOS API (https://chatpos.biz)</strong>
+                  <p className="muted-text">กรอก Bearer API Key สำหรับใช้กับเส้นทาง API ทั้งหมดในระบบ ChatPOS</p>
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span>Authorization Bearer Token / API Key</span>
+                  {getStoredApiKey() && <span className="api-key-status-badge">บันทึกเรียบร้อย</span>}
+                </label>
+                <div className="api-input-wrap">
+                  <Key size={18} className="api-input-icon" />
+                  <input
+                    type="password"
+                    value={apiKeyInput}
+                    onChange={(e) => setApiKeyInput(e.target.value)}
+                    placeholder="ป้อน API Key (เช่น chatpos_live_secret_key_...)"
+                    className="api-key-input"
+                  />
+                  {apiKeyInput && (
+                    <button
+                      type="button"
+                      className="clear-key-btn"
+                      onClick={() => setApiKeyInput('')}
+                      title="ล้างข้อมูล"
+                    >
+                      ล้าง
+                    </button>
+                  )}
+                </div>
+                <small className="muted-text">คีย์นี้จะถูกเก็บไว้อย่างปลอดภัยในเบราว์เซอร์ของคุณ และใช้ใน Authorization Header (`Bearer ...`)</small>
+              </div>
+
+              <div className="broadcast-footer" style={{ borderTop: 'none', padding: 0, marginTop: 4 }}>
+                <button type="submit" className="primary-button">
+                  <CheckCircle2 size={16} /> บันทึก API Key
+                </button>
+              </div>
+            </form>
+
+            <hr style={{ border: 'none', borderTop: '1px dashed #e2e8f0', margin: '20px 0' }} />
+
+            {/* Quick Reference API Tester Console */}
+            <div className="api-tester-card">
+              <div className="api-tester-title">
+                <Server size={18} className="green-text" />
+                <strong>🚀 Quick Reference API Console Tester</strong>
+              </div>
+
+              <div className="form-group" style={{ marginTop: 12 }}>
+                <label>เลือกเส้นทาง API (Endpoint)</label>
+                <select
+                  value={selectedEndpoint}
+                  onChange={(e) => {
+                    setSelectedEndpoint(e.target.value as any)
+                    setApiResult(null)
+                    setApiError(null)
+                  }}
+                  className="api-endpoint-select"
+                >
+                  <option value="balance">GET /api/v1/balance (Check account balance)</option>
+                  <option value="create_qr">POST /api/v1/payments/qr (Create payment QR)</option>
+                  <option value="check_payment">GET /api/v1/payments/&#123;reference&#125; (Check payment status)</option>
+                  <option value="auth">POST /api/v1/auth (Authenticate & get token)</option>
+                  <option value="create_payout">POST /api/v1/payouts (Create withdrawal/payout)</option>
+                </select>
+              </div>
+
+              {/* Dynamic Parameter Inputs depending on Endpoint */}
+              {selectedEndpoint === 'check_payment' && (
+                <div className="form-group">
+                  <label>Payment Reference ID (เลขที่อ้างอิงชำระเงิน)</label>
+                  <input
+                    value={paramRef}
+                    onChange={(e) => setParamRef(e.target.value)}
+                    placeholder="เช่น PAY-REF-100293"
+                  />
+                </div>
+              )}
+
+              {(selectedEndpoint === 'create_qr' || selectedEndpoint === 'create_payout') && (
+                <div className="form-grid-2">
+                  <div className="form-group">
+                    <label>จำนวนเงิน (Amount - บาท)</label>
+                    <input
+                      type="number"
+                      value={paramAmount}
+                      onChange={(e) => setParamAmount(e.target.value)}
+                      placeholder="100"
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>รายละเอียด / หมายเหตุ</label>
+                    <input
+                      value={paramDescription}
+                      onChange={(e) => setParamDescription(e.target.value)}
+                      placeholder="เช่น ชำระค่าสินค้า"
+                    />
+                  </div>
+                </div>
+              )}
+
+              <div style={{ marginTop: 12 }}>
+                <button
+                  type="button"
+                  className="primary-button test-api-btn"
+                  onClick={handleTestEndpoint}
+                  disabled={apiLoading}
+                >
+                  {apiLoading ? (
+                    <>
+                      <RefreshCw size={16} className="spin-icon" /> กำลังเรียกใช้ API...
+                    </>
+                  ) : (
+                    <>
+                      <Server size={16} /> ส่งคำขอ (Execute Request)
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+
+            {/* Test Results Output Section */}
+            {apiError && (
+              <div className="api-result-box error" style={{ marginTop: 16 }}>
+                <div className="api-result-header">
+                  <AlertCircle size={18} />
+                  <strong>ผลการทดสอบ: เกิดข้อผิดพลาด</strong>
+                </div>
+                <p>{apiError}</p>
+                <small className="muted-text">ข้อแนะนำ: ตรวจสอบความถูกต้องของ API Key และ Request Parameters</small>
+              </div>
+            )}
+
+            {apiResult && (
+              <div className="api-result-box success" style={{ marginTop: 16 }}>
+                <div className="api-result-header">
+                  <CheckCircle2 size={18} />
+                  <strong>ผลการทดสอบ: เรียกใช้ API สำเร็จ!</strong>
+                </div>
+                {apiResult.balance !== undefined && (
+                  <div className="balance-highlight-card">
+                    <small>ยอดเงินคงเหลือปัจจุบัน (Balance):</small>
+                    <h3>{Number(apiResult.balance).toLocaleString()} {apiResult.currency || 'THB'}</h3>
+                  </div>
+                )}
+                {apiResult.qrCodeUrl && (
+                  <div className="balance-highlight-card">
+                    <small>QR Code URL:</small>
+                    <p style={{ margin: '4px 0 0', fontWeight: 'bold' }}>{apiResult.qrCodeUrl}</p>
+                  </div>
+                )}
+                <div className="json-output-wrap">
+                  <small>Raw Response Data:</small>
+                  <pre>{JSON.stringify(apiResult, null, 2)}</pre>
+                </div>
+              </div>
+            )}
+
+            {/* Dynamic Code Snippet Generator */}
+            <div className="code-example-card" style={{ marginTop: 20 }}>
+              <div className="code-example-header">
+                <div className="code-title">
+                  <Code size={16} /> โค้ดตัวอย่าง JavaScript fetch (สร้างตามพารามิเตอร์จริง)
+                </div>
+                <button type="button" className="copy-code-btn" onClick={handleCopySnippet}>
+                  {codeCopied ? <Check size={14} /> : <Copy size={14} />} {codeCopied ? 'คัดลอกแล้ว!' : 'คัดลอกโค้ด'}
+                </button>
+              </div>
+              <pre className="code-snippet-pre">
+{generateCodeSnippet()}
+              </pre>
+            </div>
+          </div>
+        )}
+
+        {/* TAB 4: Notifications */}
         {activeTab === 'notifications' && (
           <div className="profile-form">
             <div className="notification-options-list">
@@ -387,7 +748,7 @@ export function ProfileSettingsModal({
           </div>
         )}
 
-        {/* TAB 4: Business / Settlement (For Merchants) */}
+        {/* TAB 5: Business / Settlement (For Merchants) */}
         {activeTab === 'business' && role === 'merchant' && (
           <form onSubmit={handleSaveProfile} className="profile-form">
             <div className="form-group">
@@ -439,3 +800,4 @@ export function ProfileSettingsModal({
     </div>
   )
 }
+

@@ -1,0 +1,219 @@
+/**
+ * ChatPOS API Utility Helper
+ * Base URL: https://chatpos.biz
+ */
+
+export const STORAGE_KEY_API_KEY = 'chatpos_api_key'
+export const DEFAULT_API_BASE_URL =
+  typeof window !== 'undefined' &&
+  (window.location.hostname === 'localhost' ||
+    window.location.hostname === '127.0.0.1' ||
+    window.location.hostname.endsWith('.local'))
+    ? ''
+    : 'https://chatpos.biz'
+
+/**
+ * Get saved API Key from localStorage
+ */
+export const getStoredApiKey = (): string => {
+  if (typeof window === 'undefined') return ''
+  return localStorage.getItem(STORAGE_KEY_API_KEY) || ''
+}
+
+/**
+ * Save API Key to localStorage
+ */
+export const setStoredApiKey = (key: string): void => {
+  if (typeof window === 'undefined') return
+  localStorage.setItem(STORAGE_KEY_API_KEY, key.trim())
+}
+
+export type ApiRequestOptions = RequestInit & {
+  apiKey?: string
+  baseUrl?: string
+}
+
+/**
+ * Generic API Fetcher for ChatPOS API endpoints
+ */
+export async function fetchChatPosApi<T = any>(
+  endpoint: string,
+  options: ApiRequestOptions = {}
+): Promise<T> {
+  const { apiKey: customApiKey, baseUrl = DEFAULT_API_BASE_URL, headers: customHeaders, ...fetchOptions } = options
+
+  const apiKey = (customApiKey !== undefined ? customApiKey : getStoredApiKey()).trim()
+  const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`
+  const url = endpoint.startsWith('http') ? endpoint : `${baseUrl}${cleanEndpoint}`
+
+  const headers: Record<string, string> = {
+    'Accept': 'application/json',
+    'Content-Type': 'application/json',
+    ...(customHeaders as Record<string, string>),
+  }
+
+  if (apiKey) {
+    headers['Authorization'] = apiKey.startsWith('Bearer ') ? apiKey : `Bearer ${apiKey}`
+  }
+
+  let response: Response
+  try {
+    response = await fetch(url, {
+      ...fetchOptions,
+      headers,
+    })
+  } catch (netErr: any) {
+    const errorMsg = netErr?.message || 'Network request failed'
+    const error = new Error(`การเชื่อมต่อ ChatPOS API ล้มเหลว (${errorMsg}): ตรวจสอบการเชื่อมต่อเซิร์ฟเวอร์หรือ API Key`) as Error & { status: number; data: any }
+    error.status = 0
+    error.data = { error: errorMsg, endpoint: cleanEndpoint }
+    throw error
+  }
+
+  const contentType = response.headers.get('content-type') || ''
+  let responseData: any
+
+  if (contentType.includes('application/json')) {
+    responseData = await response.json()
+  } else {
+    responseData = await response.text()
+  }
+
+  if (!response.ok) {
+    const errorMsg = typeof responseData === 'object' && responseData.message 
+      ? responseData.message 
+      : typeof responseData === 'string' && responseData 
+      ? responseData 
+      : `HTTP ${response.status} ${response.statusText}`
+    
+    const error = new Error(errorMsg) as Error & { status: number; data: any }
+    error.status = response.status
+    error.data = responseData
+    throw error
+  }
+
+  return responseData as T
+}
+
+/* ==========================================================================
+   CHATPOS QUICK REFERENCE ENDPOINT HELPER FUNCTIONS
+   ========================================================================== */
+
+/**
+ * 1. GET /api/v1/balance
+ * Purpose: Check account balance
+ */
+export async function fetchBalance(apiKey?: string) {
+  return fetchChatPosApi<{
+    success?: boolean
+    balance?: number
+    currency?: string
+    [key: string]: any
+  }>('/api/v1/balance', { method: 'GET', apiKey })
+}
+
+export type CreatePaymentQrPayload = {
+  amount: number
+  orderId?: string
+  currency?: string
+  description?: string
+  customerName?: string
+  customerPhone?: string
+  [key: string]: any
+}
+
+/**
+ * 2. POST /api/v1/payments/qr
+ * Purpose: Create payment QR code
+ */
+export async function createPaymentQr(payload: CreatePaymentQrPayload, apiKey?: string) {
+  return fetchChatPosApi<{
+    success?: boolean
+    reference?: string
+    qrCodeUrl?: string
+    qrRawText?: string
+    amount?: number
+    status?: string
+    expiresAt?: string
+    [key: string]: any
+  }>('/api/v1/payments/qr', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+    apiKey,
+  })
+}
+
+/**
+ * 3. GET /api/v1/payments/{reference}
+ * Purpose: Check payment status
+ */
+export async function checkPaymentStatus(reference: string, apiKey?: string) {
+  return fetchChatPosApi<{
+    success?: boolean
+    reference?: string
+    status?: 'pending' | 'completed' | 'failed' | 'expired' | string
+    amount?: number
+    paidAt?: string
+    transactionId?: string
+    [key: string]: any
+  }>(`/api/v1/payments/${encodeURIComponent(reference)}`, {
+    method: 'GET',
+    apiKey,
+  })
+}
+
+export type AuthApiPayload = {
+  clientId?: string
+  clientSecret?: string
+  grantType?: string
+  [key: string]: any
+}
+
+/**
+ * 4. POST /api/v1/auth
+ * Purpose: Authenticate & get token
+ */
+export async function authenticateApi(payload: AuthApiPayload = {}, apiKey?: string) {
+  return fetchChatPosApi<{
+    success?: boolean
+    token?: string
+    accessToken?: string
+    expiresIn?: number
+    tokenType?: string
+    [key: string]: any
+  }>('/api/v1/auth', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+    apiKey,
+  })
+}
+
+export type CreatePayoutPayload = {
+  amount: number
+  accountNumber?: string
+  accountName?: string
+  bankCode?: string
+  promptPayId?: string
+  remark?: string
+  [key: string]: any
+}
+
+/**
+ * 5. POST /api/v1/payouts
+ * Purpose: Create withdrawal/payout
+ */
+export async function createPayout(payload: CreatePayoutPayload, apiKey?: string) {
+  return fetchChatPosApi<{
+    success?: boolean
+    payoutId?: string
+    reference?: string
+    amount?: number
+    status?: string
+    createdAt?: string
+    [key: string]: any
+  }>('/api/v1/payouts', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+    apiKey,
+  })
+}

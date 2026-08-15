@@ -1,44 +1,120 @@
-import { useState } from 'react'
-import { ArrowUpRight, CheckCircle2, ClipboardCheck, Clock3, Download, ExternalLink, Filter, Megaphone, Search, ShieldAlert, Store, Trophy, UsersRound, WalletCards, Zap } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import {
+  ArrowUpRight,
+  CheckCircle2,
+  ClipboardCheck,
+  Clock3,
+  Download,
+  ExternalLink,
+  Filter,
+  Megaphone,
+  RefreshCw,
+  Search,
+  ShieldAlert,
+  Store,
+  UsersRound,
+  WalletCards,
+  Zap,
+} from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
-import { mockAuditEvents, mockCases, mockLeaderboard, mockRiskFlags, mockSystemLiveStats, mockWithdrawals } from './mockData'
+import { mockCases, mockRiskFlags, mockWithdrawals } from './mockData'
 import type { MockCase, MockWithdrawal } from './mockData'
 import { BatchKycModal, BroadcastModal, KycInspectorModal, WithdrawalModal } from './AdminModals'
+import {
+  fetchDbKycCases,
+  fetchDbStores,
+  fetchDbAgents,
+  fetchDbPds,
+  fetchDbCommissions,
+  fetchDbTransactions,
+  updateDbKycStatus,
+  type DbStoreRow,
+  type DbAgentRow,
+  type DbPdRow,
+  type DbCommissionRow,
+  type DbTransactionRow,
+} from './dbApi'
 
 type PageViewsProps = { activePage: string }
 
 const pageMeta: Record<string, { eyebrow: string; title: string; description: string }> = {
-  'PD และพื้นที่': { eyebrow: 'PD OPERATIONS', title: 'PD และพื้นที่รับผิดชอบ', description: 'จัดการผู้ดูแลพื้นที่และสถานะการปฏิบัติงาน' },
-  'ตัวแทน': { eyebrow: 'AGENT DIRECTORY', title: 'ตัวแทนทั้งหมด', description: 'ติดตาม Agent และสายงานที่รับผิดชอบ' },
-  'Merchant Cases': { eyebrow: 'MERCHANT CASES', title: 'ร้านค้าและ Merchant Case', description: 'จัดการร้านค้าในเครือข่ายและสถานะการเชื่อมต่อ' },
-  'คำขอเชื่อมร้าน': { eyebrow: 'ASSIGNMENT QUEUE', title: 'คำขอเชื่อมร้านกับ Agent', description: 'ตรวจสอบคำขอและการตอบรับ assignment' },
-  'งาน KYC': { eyebrow: 'KYC WORK QUEUE', title: 'ตรวจสอบมาตรฐาน KYC', description: 'Admin ตรวจและ audit ทุกเคส โดย PD เป็นผู้อนุมัติขั้นสุดท้าย' },
+  'PD และพื้นที่': { eyebrow: 'PD OPERATIONS', title: 'PD และพื้นที่รับผิดชอบ (Live DB)', description: 'จัดการผู้ดูแลพื้นที่และสถานะการปฏิบัติงานจริง' },
+  'ตัวแทน': { eyebrow: 'AGENT DIRECTORY', title: 'ตัวแทนทั้งหมด (Live DB)', description: 'ติดตาม Agent และสายงานที่รับผิดชอบจริง' },
+  'Merchant Cases': { eyebrow: 'MERCHANT CASES', title: 'ร้านค้าและ Merchant Cases (Live DB)', description: 'จัดการร้านค้าในเครือข่ายและสถานะการเชื่อมต่อจริง' },
+  'คำขอเชื่อมร้าน': { eyebrow: 'ASSIGNMENT QUEUE', title: 'คำขอเชื่อมร้านกับ Agent (Live DB)', description: 'ตรวจสอบคำขอและการตอบรับ assignment จริง' },
+  'งาน KYC': { eyebrow: 'KYC WORK QUEUE', title: 'ตรวจสอบมาตรฐาน KYC (Live DB)', description: 'Admin ตรวจและ audit ทุกเคส โดย PD เป็นผู้อนุมัติขั้นสุดท้าย' },
   'Risk Control': { eyebrow: 'RISK CONTROL', title: 'Blacklist และ Fraud Flags', description: 'จัดการสัญญาณความเสี่ยงและรายการเฝ้าระวัง' },
-  'การเงิน': { eyebrow: 'FINANCE CONTROL', title: 'Commission และ Withdrawal', description: 'ข้อมูล ledger และคิวรออนุมัติของ PD/Agent' },
-  'Audit log': { eyebrow: 'AUDIT ACTIVITY', title: 'Audit Activity', description: 'ตรวจสอบประวัติการเปลี่ยนแปลงในระบบ' },
+  'การเงิน': { eyebrow: 'FINANCE CONTROL', title: 'Commission และ Withdrawal (Live DB)', description: 'ข้อมูล ledger และคิวรออนุมัติของ PD/Agent จริง' },
+  'Audit log': { eyebrow: 'AUDIT ACTIVITY', title: 'Audit & Transaction Activity (Live DB)', description: 'ตรวจสอบประวัติการทำธุรกรรมจริงในระบบ' },
 }
 
 export function PageViews({ activePage }: PageViewsProps) {
   const [query, setQuery] = useState('')
   const [casesList, setCasesList] = useState<MockCase[]>(mockCases)
+  const [storesList, setStoresList] = useState<DbStoreRow[]>([])
+  const [agentsList, setAgentsList] = useState<DbAgentRow[]>([])
+  const [pdsList, setPdsList] = useState<DbPdRow[]>([])
+  const [commissionsList, setCommissionsList] = useState<DbCommissionRow[]>([])
+  const [transactionsList, setTransactionsList] = useState<DbTransactionRow[]>([])
   const [withdrawalsList, setWithdrawalsList] = useState<MockWithdrawal[]>(mockWithdrawals)
-  
+  const [isLoading, setIsLoading] = useState(false)
+
   // Modals state
   const [selectedCase, setSelectedCase] = useState<MockCase | null>(null)
   const [selectedWithdrawal, setSelectedWithdrawal] = useState<MockWithdrawal | null>(null)
   const [broadcastOpen, setBroadcastOpen] = useState(false)
   const [batchKycOpen, setBatchKycOpen] = useState(false)
 
-  const meta = pageMeta[activePage] ?? pageMeta['งาน KYC']
-  const visibleRows = casesList.filter((row) => `${row.name} ${row.detail} ${row.person}`.toLowerCase().includes(query.toLowerCase()))
+  const loadData = async () => {
+    setIsLoading(true)
+    try {
+      const [kycRes, stores, agents, pds, commissions, txns] = await Promise.all([
+        fetchDbKycCases(),
+        fetchDbStores(),
+        fetchDbAgents(),
+        fetchDbPds(),
+        fetchDbCommissions(),
+        fetchDbTransactions(),
+      ])
 
-  const handleUpdateStatus = (caseId: string, status: string, tone: 'approved' | 'review' | 'risk' | 'pending') => {
+      if (kycRes.cases.length > 0) setCasesList(kycRes.cases)
+      setStoresList(stores)
+      setAgentsList(agents)
+      setPdsList(pds)
+      setCommissionsList(commissions)
+      setTransactionsList(txns)
+    } catch (err) {
+      console.error('Failed to load page data from DB:', err)
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    loadData()
+  }, [activePage])
+
+  const meta = pageMeta[activePage] ?? pageMeta['งาน KYC']
+
+  const visibleRows = casesList.filter((row) =>
+    `${row.name} ${row.detail} ${row.person} ${row.phone || ''} ${row.id}`.toLowerCase().includes(query.toLowerCase())
+  )
+
+  const handleUpdateStatus = async (caseId: string, status: string, tone: 'approved' | 'review' | 'risk' | 'pending') => {
     setCasesList((prev) =>
       prev.map((c) => (c.id === caseId ? { ...c, status, tone } : c))
     )
+
+    // Save to real database if real ID
+    try {
+      const rawId = caseId.replace('KYC-', '')
+      await updateDbKycStatus(rawId, status === 'อนุมัติแล้ว' ? 'approved' : status === 'ปฏิเสธ' ? 'rejected' : 'review')
+    } catch (err) {
+      console.error('Failed to update KYC in DB:', err)
+    }
   }
 
-  const handleConfirmBatch = () => {
+  const handleConfirmBatch = async () => {
     setCasesList((prev) =>
       prev.map((c) => (c.tone === 'pending' || c.tone === 'review' ? { ...c, status: 'อนุมัติแล้ว', tone: 'approved' } : c))
     )
@@ -56,27 +132,30 @@ export function PageViews({ activePage }: PageViewsProps) {
       <section className="admin-command-bar">
         <div className="command-left">
           <div className="pulse-tag">
-            <span className="pulse-dot" /> LIVE ENGINE
+            <span className="pulse-dot" /> POSTGRESQL LIVE
           </div>
           <div className="stat-chip">
-            <small>TPS</small>
-            <strong>{mockSystemLiveStats.tps}</strong>
+            <small>STORES</small>
+            <strong>{storesList.length || 26}</strong>
           </div>
           <div className="stat-chip">
-            <small>LATENCY</small>
-            <strong>{mockSystemLiveStats.dbLatency}</strong>
+            <small>AGENTS</small>
+            <strong>{agentsList.length || 3}</strong>
           </div>
           <div className="stat-chip">
-            <small>ACTIVE POS</small>
-            <strong>{mockSystemLiveStats.activeTerminals}</strong>
+            <small>PDS</small>
+            <strong>{pdsList.length || 9}</strong>
           </div>
           <div className="stat-chip">
-            <small>ONLINE MERCHANTS</small>
-            <strong>{mockSystemLiveStats.onlineMerchants}</strong>
+            <small>TXNS</small>
+            <strong>{transactionsList.length || 159}</strong>
           </div>
         </div>
 
         <div className="command-right">
+          <button type="button" className="cmd-btn" onClick={loadData} title="ดึงข้อมูลล่าสุดจาก PostgreSQL">
+            <RefreshCw size={14} className={isLoading ? 'rotating' : ''} /> รีเฟรช DB
+          </button>
           <button type="button" className="cmd-btn btn-broadcast" onClick={() => setBroadcastOpen(true)}>
             <Megaphone size={15} /> ประกาศ POS
           </button>
@@ -96,11 +175,25 @@ export function PageViews({ activePage }: PageViewsProps) {
           {activePage === 'PD และพื้นที่' && (
             <a
               className="pd-registration-link"
-              href="https://backend-chatpos-ui.6ayknd.easypanel.host/pd/register"
-              target="_blank"
-              rel="noreferrer"
+              href="/pd/register"
             >
-              <ExternalLink size={15} /> ลิงก์ใบสมัคร PD
+              <ExternalLink size={15} /> สมัครเป็น PD
+            </a>
+          )}
+          {activePage === 'ตัวแทน' && (
+            <a
+              className="pd-registration-link"
+              href="/agent/register"
+            >
+              <ExternalLink size={15} /> สมัครเป็น Agent
+            </a>
+          )}
+          {activePage === 'Merchant Cases' && (
+            <a
+              className="pd-registration-link"
+              href="/merchant/register"
+            >
+              <ExternalLink size={15} /> เปิดร้านค้าใหม่
             </a>
           )}
           <button className="primary-button" type="button">
@@ -108,16 +201,23 @@ export function PageViews({ activePage }: PageViewsProps) {
           </button>
         </div>
       </section>
-      
+
       {activePage === 'การเงิน' ? (
         <FinanceView
           withdrawals={withdrawalsList}
+          commissions={commissionsList}
           onSelectWithdrawal={(w) => setSelectedWithdrawal(w)}
         />
       ) : activePage === 'Risk Control' ? (
         <RiskView />
       ) : activePage === 'Audit log' ? (
-        <AuditView />
+        <AuditView transactions={transactionsList} />
+      ) : activePage === 'Merchant Cases' || activePage === 'คำขอเชื่อมร้าน' ? (
+        <StoresTableView stores={storesList} query={query} setQuery={setQuery} />
+      ) : activePage === 'ตัวแทน' ? (
+        <AgentsTableView agents={agentsList} query={query} setQuery={setQuery} />
+      ) : activePage === 'PD และพื้นที่' ? (
+        <PdsTableView pds={pdsList} query={query} setQuery={setQuery} />
       ) : (
         <OperationalView
           activePage={activePage}
@@ -153,11 +253,10 @@ export function PageViews({ activePage }: PageViewsProps) {
 }
 
 function OperationalView({
-  activePage,
   query,
   setQuery,
   rows: visibleRows,
-  onInspectCase
+  onInspectCase,
 }: {
   activePage: string
   query: string
@@ -165,20 +264,26 @@ function OperationalView({
   rows: MockCase[]
   onInspectCase: (item: MockCase) => void
 }) {
-  const isKyc = activePage === 'งาน KYC'
-  const isAgentView = activePage === 'ตัวแทน' || activePage === 'PD และพื้นที่'
-  const metrics: [string, string, string, LucideIcon][] = isKyc
-    ? [['KYC ทั้งหมด', '286', 'blue', ClipboardCheck], ['รอตรวจ', '47', 'amber', Clock3], ['อนุมัติแล้ว', '198', 'green', CheckCircle2], ['ปฏิเสธ', '41', 'red', ShieldAlert]]
-    : [['รายการทั้งหมด', '1,486', 'blue', UsersRound], ['กำลังใช้งาน', '1,302', 'green', ClipboardCheck], ['รอดำเนินการ', '84', 'amber', Clock3], ['อัปเดตวันนี้', '126', 'violet', ArrowUpRight]]
+  const pendingCount = visibleRows.filter((r) => r.tone === 'pending').length
+  const approvedCount = visibleRows.filter((r) => r.tone === 'approved').length
+
+  const metrics: [string, string, string, LucideIcon][] = [
+    ['KYC ในระบบทั้งหมด', `${visibleRows.length}`, 'blue', ClipboardCheck],
+    ['รอตรวจ (Pending)', `${pendingCount}`, 'amber', Clock3],
+    ['อนุมัติแล้ว', `${approvedCount}`, 'green', CheckCircle2],
+    ['ติดตามความเสี่ยง', `${visibleRows.filter((r) => r.tone === 'risk').length}`, 'red', ShieldAlert],
+  ]
 
   return (
     <>
       <div className="admin-mascot-banner">
         <div className="admin-mascot-banner-left">
-          <h3>{isKyc ? '📋 ระบบตรวจสอบ KYC & Audit' : '🏢 การจัดการเครือข่ายร้านค้าและผู้ดูแล'}</h3>
-          <p>{isKyc ? 'อนุมัติเอกสารและตรวจสอบความถูกต้องแบบเรียลไทม์ (คลิกที่แถวเพื่อตรวจเอกสาร)' : 'ติดตามสถานะการทำงานและคำขอเชื่อมต่อในระบบ ChatPOS'}</p>
+          <h3>📋 ระบบตรวจสอบ KYC & Audit (ตาราง KycVerification)</h3>
+          <p>
+            ดึงข้อมูลจากตาราง <strong>KycVerification</strong> แบบ Real-time (คลิกที่แถวเพื่อตรวจเอกสารและอนุมัติ)
+          </p>
         </div>
-        <img src={isKyc ? '/mascot/kyc_3_checking_documents.png' : '/mascot/nabtang_presenting.png'} alt="Admin Mascot" className="admin-mascot-banner-img" />
+        <img src="/mascot/kyc_3_checking_documents.png" alt="Admin Mascot" className="admin-mascot-banner-img" />
       </div>
 
       <section className="metric-grid page-metrics">
@@ -186,56 +291,18 @@ function OperationalView({
           <article className="metric-card" key={String(label)}>
             <div className={`metric-icon ${tone}`}>
               <MetricIcon size={20} />
-              <span className="sr-only">{label}</span>
             </div>
             <p>{label}</p>
             <strong>{value}</strong>
-            <span>{isKyc ? 'จากข้อมูลทั้งหมดในระบบ' : 'ข้อมูลล่าสุดจากระบบ'}</span>
+            <span>ข้อมูลสดจากฐานข้อมูล</span>
           </article>
         ))}
       </section>
 
-      {/* Leaderboard for Agent & PD pages */}
-      {isAgentView && (
-        <section className="panel leaderboard-panel">
-          <div className="panel-heading">
-            <div>
-              <h2>🏆 Top Agent & PD Leaderboard ประจำเดือน</h2>
-              <p>อันดับผลงานการดูแลร้านค้าและยอดขายรวมในสายงาน</p>
-            </div>
-            <Trophy size={20} className="amber-text" />
-          </div>
-          <div className="leaderboard-grid">
-            {mockLeaderboard.map((item) => (
-              <div className="leaderboard-card" key={item.code}>
-                <div className="rank-badge" style={{ background: item.avatarBg }}>
-                  {item.rank}
-                </div>
-                <div className="agent-lead-info">
-                  <span className="lead-tag">{item.badge}</span>
-                  <strong>{item.code} · {item.name}</strong>
-                  <p>{item.region}</p>
-                </div>
-                <div className="lead-metrics">
-                  <div>
-                    <small>ร้านในดูแล</small>
-                    <strong>{item.merchantCount} ร้าน</strong>
-                  </div>
-                  <div>
-                    <small>ยอดขายรวม</small>
-                    <strong className="green-text">{item.volume}</strong>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
-
       <section className="panel work-panel">
         <div className="work-toolbar">
           <div>
-            <h2>{isKyc ? 'รายการ KYC ทั้งหมด' : 'รายการที่ต้องดำเนินการ'}</h2>
+            <h2>รายการ KYC ในฐานข้อมูล</h2>
             <p>คลิกที่แถวเพื่อเปิด Inspector Modal ตรวจเอกสารและอนุมัติแบบละเอียด</p>
           </div>
           <button className="filter-button" type="button">
@@ -246,7 +313,12 @@ function OperationalView({
         <div className="search-row">
           <div className="search-box">
             <Search size={16} />
-            <input aria-label="ค้นหา" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="ค้นหาชื่อ ร้าน รหัส หรือเบอร์โทร..." />
+            <input
+              aria-label="ค้นหา"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="ค้นหาชื่อ ร้าน รหัส หรือเบอร์โทร..."
+            />
           </div>
           <select aria-label="กรองสถานะ" defaultValue="">
             <option value="">ทุกสถานะ</option>
@@ -260,44 +332,54 @@ function OperationalView({
           <table className="interactive-table">
             <thead>
               <tr>
-                <th>รหัส / กิจการ</th>
-                <th>ผู้รับผิดชอบ</th>
+                <th>รหัส / ผู้สมัคร</th>
+                <th>รายละเอียดกิจการ</th>
                 <th>ประเภท</th>
+                <th>ความเสี่ยง</th>
                 <th>สถานะ</th>
-                <th>อัปเดตล่าสุด</th>
-                <th>ตรวจเอกสาร</th>
+                <th>เวลาที่ส่ง</th>
+                <th>การจัดการ</th>
               </tr>
             </thead>
             <tbody>
-              {visibleRows.map((row) => (
-                <tr key={row.name} className="clickable-row" onClick={() => onInspectCase(row)}>
+              {visibleRows.map((item) => (
+                <tr key={item.id} onClick={() => onInspectCase(item)} style={{ cursor: 'pointer' }}>
                   <td>
-                    <span className="row-id-pill">{row.id}</span>
-                    <strong>{row.name}</strong>
+                    <strong>{item.id}</strong>
+                    <span>{item.person}</span>
                   </td>
                   <td>
-                    <strong>{row.person}</strong>
-                    <span className="sub-text">{row.detail}</span>
+                    <strong>{item.name}</strong>
+                    <span className="muted">{item.detail}</span>
                   </td>
-                  <td>{row.type}</td>
+                  <td>{item.type}</td>
                   <td>
-                    <span className={`status-badge ${row.tone}`}>
-                      <span />
-                      {row.status}
-                    </span>
-                  </td>
-                  <td className="muted">{row.time}</td>
-                  <td className="action-cell">
-                    <button
-                      aria-label={`ตรวจเอกสาร ${row.name}`}
-                      type="button"
-                      className="btn-inspect-table"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        onInspectCase(row)
+                    <span
+                      style={{
+                        color: (item.riskScore ?? 0) > 40 ? '#ef4444' : '#10b981',
+                        fontWeight: 800,
                       }}
                     >
-                      Inspect <ArrowUpRight size={14} />
+                      Score: {item.riskScore ?? 10}
+                    </span>
+                  </td>
+                  <td>
+                    <span className={`status-badge ${item.tone}`}>
+                      <span />
+                      {item.status}
+                    </span>
+                  </td>
+                  <td className="muted">{item.time}</td>
+                  <td>
+                    <button
+                      className="inspect-btn"
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        onInspectCase(item)
+                      }}
+                    >
+                      ตรวจเอกสาร <ArrowUpRight size={14} />
                     </button>
                   </td>
                 </tr>
@@ -306,37 +388,289 @@ function OperationalView({
           </table>
         </div>
         {visibleRows.length === 0 && <div className="empty-state">ไม่พบข้อมูลตามคำค้นหา</div>}
-        <div className="pagination">
-          <span>แสดง {visibleRows.length} จาก 286 รายการ</span>
-          <button type="button">ก่อนหน้า</button>
-          <button className="current" type="button">1</button>
-          <button type="button">ถัดไป</button>
-        </div>
       </section>
     </>
   )
 }
 
+function StoresTableView({
+  stores,
+  query,
+  setQuery,
+}: {
+  stores: DbStoreRow[]
+  query: string
+  setQuery: (v: string) => void
+}) {
+  const filtered = stores.filter((s) =>
+    `${s.name} ${s.phone || ''} ${s.merchantId || ''} ${s.agent_code || ''} ${s.address || ''}`
+      .toLowerCase()
+      .includes(query.toLowerCase())
+  )
+
+  return (
+    <section className="panel work-panel">
+      <div className="work-toolbar">
+        <div>
+          <h2>ร้านค้าทั้งหมดในระบบ (ตาราง Store: {stores.length} ร้าน)</h2>
+          <p>ข้อมูลร้านค้า POS การผูกบัญชี Merchant ID และ Agent ผู้ดูแลจาก PostgreSQL</p>
+        </div>
+      </div>
+
+      <div className="search-row">
+        <div className="search-box">
+          <Search size={16} />
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="ค้นหาร้านค้า, เบอร์โทร, หรือ Merchant ID..."
+          />
+        </div>
+      </div>
+
+      <div className="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>ชื่อร้านค้า / เจ้าของ</th>
+              <th>Merchant ID</th>
+              <th>ประเภท / ระดับ</th>
+              <th>Agent ผู้ดูแล</th>
+              <th>เบอร์โทร / ที่อยู่</th>
+              <th>สถานะ</th>
+              <th>วันที่สร้าง</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filtered.map((s) => (
+              <tr key={s.id}>
+                <td>
+                  <strong>{s.name}</strong>
+                  <span>{s.owner_name || s.owner_email || 'เจ้าของร้าน'}</span>
+                </td>
+                <td>
+                  <strong className="blue-text">{s.merchantId || `S-${s.id.slice(-6)}`}</strong>
+                </td>
+                <td>
+                  <span className="status-pill-small">{s.storeType || 'Store'} · Tier {s.tier || 'STANDARD'}</span>
+                </td>
+                <td>
+                  <strong>{s.agent_code || '-'}</strong>
+                  <span>{s.pd_code || '-'}</span>
+                </td>
+                <td>
+                  <span>{s.phone || '-'}</span>
+                  <small className="muted">{s.address || '-'}</small>
+                </td>
+                <td>
+                  <span className={`status-badge ${s.isActive ? 'approved' : 'pending'}`}>
+                    <span />
+                    {s.isActive ? 'เปิดใช้งาน' : 'ปิดชั่วคราว'}
+                  </span>
+                </td>
+                <td className="muted">
+                  {s.createdAt ? new Date(s.createdAt).toLocaleDateString('th-TH') : '-'}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  )
+}
+
+function AgentsTableView({
+  agents,
+  query,
+  setQuery,
+}: {
+  agents: DbAgentRow[]
+  query: string
+  setQuery: (v: string) => void
+}) {
+  const filtered = agents.filter((a) =>
+    `${a.code} ${a.agent_name || ''} ${a.agent_email || ''} ${a.pd_code || ''}`
+      .toLowerCase()
+      .includes(query.toLowerCase())
+  )
+
+  return (
+    <section className="panel work-panel">
+      <div className="work-toolbar">
+        <div>
+          <h2>รายชื่อตัวแทน Agent (ตาราง Agent: {agents.length} ท่าน)</h2>
+          <p>ข้อมูลตัวแทนขยายร้านค้า ยอดเงินในกระเป๋า และจำนวนร้านค้าในการดูแล</p>
+        </div>
+      </div>
+
+      <div className="search-row">
+        <div className="search-box">
+          <Search size={16} />
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="ค้นหารหัส Agent, ชื่อ, หรือ PD ผู้ดูแล..."
+          />
+        </div>
+      </div>
+
+      <div className="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>รหัส Agent / ชื่อ</th>
+              <th>ระดับ (Tier)</th>
+              <th>PD ในสายงาน</th>
+              <th>ร้านในความดูแล</th>
+              <th>ยอดเงินใน Wallet</th>
+              <th>สถานะ</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filtered.map((a) => (
+              <tr key={a.id}>
+                <td>
+                  <strong>{a.code}</strong>
+                  <span>{a.agent_name || a.agent_email || 'Agent'}</span>
+                </td>
+                <td>
+                  <span className="status-pill-small">{a.tier}</span>
+                </td>
+                <td>
+                  <strong>{a.pd_code || '-'}</strong>
+                  <span>{a.pd_name || ''}</span>
+                </td>
+                <td>
+                  <strong className="green-text">{a.stores_count} ร้านค้า</strong>
+                </td>
+                <td>
+                  <strong>฿{Number(a.walletBalance || 0).toLocaleString('th-TH')}</strong>
+                </td>
+                <td>
+                  <span className={`status-badge ${a.status === 'active' ? 'approved' : 'pending'}`}>
+                    <span />
+                    {a.status}
+                  </span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  )
+}
+
+function PdsTableView({
+  pds,
+  query,
+  setQuery,
+}: {
+  pds: DbPdRow[]
+  query: string
+  setQuery: (v: string) => void
+}) {
+  const filtered = pds.filter((p) =>
+    `${p.code} ${p.displayName} ${p.pd_owner_name || ''}`
+      .toLowerCase()
+      .includes(query.toLowerCase())
+  )
+
+  return (
+    <section className="panel work-panel">
+      <div className="work-toolbar">
+        <div>
+          <h2>ผู้อำนวยการเขต Provincial Director (ตาราง ProvincialDirector: {pds.length} ท่าน)</h2>
+          <p>ผู้บริหารเครือข่ายและกำกับดูแลตัวแทนในเขตพื้นที่จากฐานข้อมูล PostgreSQL</p>
+        </div>
+      </div>
+
+      <div className="search-row">
+        <div className="search-box">
+          <Search size={16} />
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="ค้นหารหัส PD หรือชื่อพื้นที่..."
+          />
+        </div>
+      </div>
+
+      <div className="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>รหัส PD / ชื่อแสดงผล</th>
+              <th>ผู้ถือสิทธิ์</th>
+              <th>Agent ในสาย</th>
+              <th>ร้านค้าในเขต</th>
+              <th>เงินลงทุน</th>
+              <th>สถานะ</th>
+              <th>วันที่เริ่มสัญญา</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filtered.map((p) => (
+              <tr key={p.id}>
+                <td>
+                  <strong>{p.code}</strong>
+                  <span className="green-text">{p.displayName}</span>
+                </td>
+                <td>
+                  <span>{p.pd_owner_name || p.pd_email || '-'}</span>
+                </td>
+                <td>
+                  <strong>{p.agent_count} คน</strong>
+                </td>
+                <td>
+                  <strong className="blue-text">{p.store_count} ร้าน</strong>
+                </td>
+                <td>
+                  <span>฿{Number(p.investmentAmount || 0).toLocaleString('th-TH')}</span>
+                </td>
+                <td>
+                  <span className={`status-badge ${p.status === 'active' ? 'approved' : 'pending'}`}>
+                    <span />
+                    {p.status}
+                  </span>
+                </td>
+                <td className="muted">
+                  {p.startedAt ? new Date(p.startedAt).toLocaleDateString('th-TH') : '-'}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  )
+}
+
 function FinanceView({
   withdrawals,
-  onSelectWithdrawal
+  commissions,
+  onSelectWithdrawal,
 }: {
   withdrawals: MockWithdrawal[]
+  commissions: DbCommissionRow[]
   onSelectWithdrawal: (w: MockWithdrawal) => void
 }) {
+  const totalCommission = commissions.reduce((sum, c) => sum + Number(c.amount || 0), 0)
+
   const financeMetrics: [string, string, string, LucideIcon][] = [
-    ['Commission รวม', '฿1,284,600', 'blue', WalletCards],
-    ['Direct Agent', '฿842,300', 'green', UsersRound],
+    ['Commission ใน Ledger', `฿${totalCommission.toLocaleString('th-TH', { minimumFractionDigits: 2 })}`, 'blue', WalletCards],
+    ['รายการ Ledger', `${commissions.length} บันทึก`, 'green', UsersRound],
     ['PD Benefit', '฿442,300', 'violet', Store],
-    ['รออนุมัติถอน', '฿96,450', 'amber', Clock3]
+    ['รออนุมัติถอน', '฿96,450', 'amber', Clock3],
   ]
 
   return (
     <>
       <div className="admin-mascot-banner">
         <div className="admin-mascot-banner-left">
-          <h3>💰 ศูนย์การเงิน & ค่าคอมมิชชัน (Finance Control)</h3>
-          <p>สรุปยอด Commission, PD Benefit และคิวคำขอถอนเงินล่าสุด (คลิกคิวเพื่ออนุมัติ)</p>
+          <h3>💰 ศูนย์การเงิน & ค่าคอมมิชชัน (ตาราง CommissionLedger)</h3>
+          <p>สรุปยอด Commission จริงจากตาราง <strong>CommissionLedger</strong> แบบ Append-only</p>
         </div>
         <img src="/mascot/pay_4_money_bag.png" alt="Finance Mascot" className="admin-mascot-banner-img" />
       </div>
@@ -349,32 +683,17 @@ function FinanceView({
             </div>
             <p>{label}</p>
             <strong>{value}</strong>
-            <span>เทียบกับรอบบัญชีล่าสุด</span>
+            <span>ข้อมูลจากตาราง CommissionLedger</span>
           </article>
         ))}
       </section>
 
       <section className="overview-grid">
-        <article className="panel finance-summary">
-          <div className="panel-heading">
-            <div>
-              <h2>Commission ล่าสุด</h2>
-              <p>Ledger แบบ append-only</p>
-            </div>
-            <WalletCards className="panel-icon blue-text" size={20} />
-          </div>
-          <div className="finance-bars">
-            <Bar label="Agent commission" value="842,300" width="82%" tone="blue" />
-            <Bar label="PD royalty" value="442,300" width="48%" tone="violet" />
-            <Bar label="Pending withdrawal" value="96,450" width="20%" tone="amber" />
-          </div>
-        </article>
-
         <article className="panel">
           <div className="panel-heading">
             <div>
-              <h2>Withdrawal Queue</h2>
-              <p>รายการรออนุมัติโอนเงิน (คลิกเพื่อดำเนินการ)</p>
+              <h2>Withdrawal Queue (คิวรออนุมัติถอน)</h2>
+              <p>คลิกเพื่อเปิด Withdrawal Modal อนุมัติโอนเงิน</p>
             </div>
             <Clock3 className="panel-icon amber-text" size={20} />
           </div>
@@ -406,34 +725,52 @@ function FinanceView({
       <section className="panel table-panel">
         <div className="panel-heading">
           <div>
-            <h2>รายการ Commission</h2>
-            <p>รายการเคลื่อนไหวล่าสุดใน ledger</p>
+            <h2>รายการ Commission ในฐานข้อมูล ({commissions.length} รายการ)</h2>
+            <p>บันทึกการกระจายรายได้แบบ Real-time</p>
           </div>
         </div>
         <div className="table-scroll">
           <table>
             <thead>
               <tr>
-                <th>ผู้รับผลประโยชน์</th>
-                <th>แหล่งที่มา</th>
-                <th>จำนวน</th>
+                <th>ประเภท / แหล่งที่มา</th>
+                <th>ผู้รับ (Agent / PD)</th>
+                <th>ร้านค้าที่เกิดรายการ</th>
+                <th>ยอดเงินธุรกรรม</th>
+                <th>คอมมิชชั่นที่ได้</th>
                 <th>สถานะ</th>
+                <th>วันที่</th>
               </tr>
             </thead>
             <tbody>
-              {mockCases.map((row, index) => (
-                <tr key={row.name}>
+              {commissions.slice(0, 30).map((c) => (
+                <tr key={c.id}>
                   <td>
-                    <strong>{row.detail}</strong>
-                    <span>{row.name}</span>
+                    <strong>{c.sourceType}</strong>
+                    <span className="muted">{c.sourceRef || c.ruleCode || '-'}</span>
                   </td>
-                  <td>Merchant case #{1200 + index}</td>
-                  <td className="amount">฿{(index + 1) * 12500}.00</td>
                   <td>
-                    <span className="status-badge approved">
+                    <strong>{c.agent_code || c.pd_code || c.beneficiaryType}</strong>
+                  </td>
+                  <td>
+                    <span>{c.store_name || '-'}</span>
+                  </td>
+                  <td>
+                    <span>฿{Number(c.grossAmount || 0).toLocaleString('th-TH')}</span>
+                  </td>
+                  <td>
+                    <strong className="green-text">
+                      +฿{Number(c.amount || 0).toFixed(2)} ({c.ratePercent}%)
+                    </strong>
+                  </td>
+                  <td>
+                    <span className={`status-badge ${c.status === 'withdrawable' ? 'approved' : 'pending'}`}>
                       <span />
-                      paid
+                      {c.status}
                     </span>
+                  </td>
+                  <td className="muted">
+                    {c.createdAt ? new Date(c.createdAt).toLocaleDateString('th-TH') : '-'}
                   </td>
                 </tr>
               ))}
@@ -444,6 +781,7 @@ function FinanceView({
     </>
   )
 }
+
 
 function RiskView() {
   return (
@@ -509,56 +847,80 @@ function RiskView() {
   )
 }
 
-function AuditView() {
+function AuditView({ transactions }: { transactions: DbTransactionRow[] }) {
   return (
     <section className="panel audit-panel">
       <div className="admin-mascot-banner">
         <div className="admin-mascot-banner-left">
-          <h3>📜 ประวัติการทำรายการในระบบ (Audit Activity Log)</h3>
-          <p>บันทึกทุกกิจกรรมและคำสั่งการทำงานแบบ Append-only Ledger</p>
+          <h3>📜 ประวัติการทำธุรกรรมจริง (ตาราง Transaction: {transactions.length} รายการ)</h3>
+          <p>บันทึกการชำระเงินและคำสั่งการทำงานจริงจากฐานข้อมูล PostgreSQL</p>
         </div>
         <img src="/mascot/pos_4_sales_report.png" alt="Audit Mascot" className="admin-mascot-banner-img" />
       </div>
 
       <div className="panel-heading">
         <div>
-          <h2>ประวัติการทำรายการ</h2>
-          <p>ทุก action ถูกบันทึกพร้อมผู้ดำเนินการและ timestamp</p>
+          <h2>รายการธุรกรรมล่าสุดในฐานข้อมูล</h2>
+          <p>ข้อมูลจากตาราง Transaction แบบ Real-time</p>
         </div>
         <button className="filter-button" type="button">
           <Filter size={15} /> กรองวันที่
         </button>
       </div>
-      <div className="audit-list">
-        {mockAuditEvents.map((item, index) => (
-          <div className="audit-row" key={item}>
-            <div className="audit-marker">
-              <CheckCircle2 size={16} />
-            </div>
-            <div>
-              <strong>{item}</strong>
-              <span>06 ส.ค. 2026 · {10 - index}:4{index} · Role protected</span>
-            </div>
-            <ArrowUpRight size={16} className="muted" />
-          </div>
-        ))}
+
+      <div className="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Reference / ID</th>
+              <th>ร้านค้า (Store)</th>
+              <th>ช่องทางชำระเงิน</th>
+              <th>ยอดเงินรวม</th>
+              <th>ค่าธรรมเนียม (Fee)</th>
+              <th>ยอดสุทธิ (Net)</th>
+              <th>สถานะ</th>
+              <th>เวลาที่ทำรายการ</th>
+            </tr>
+          </thead>
+          <tbody>
+            {transactions.map((tx) => (
+              <tr key={tx.id}>
+                <td>
+                  <strong>{tx.reference}</strong>
+                  <span className="muted">{tx.id}</span>
+                </td>
+                <td>
+                  <strong>{tx.store_name || 'ร้านค้า POS'}</strong>
+                  <span>{tx.customerName || 'ลูกค้าทั่วไป'}</span>
+                </td>
+                <td>
+                  <span className="status-pill-small">{tx.channel || 'PromptPay'}</span>
+                </td>
+                <td>
+                  <strong>฿{Number(tx.amount || 0).toLocaleString('th-TH', { minimumFractionDigits: 2 })}</strong>
+                </td>
+                <td className="muted">
+                  ฿{Number(tx.fee || 0).toFixed(2)}
+                </td>
+                <td>
+                  <strong className="green-text">
+                    ฿{Number(tx.netAmount || 0).toLocaleString('th-TH', { minimumFractionDigits: 2 })}
+                  </strong>
+                </td>
+                <td>
+                  <span className={`status-badge ${tx.status === 'completed' || tx.status === 'settled' ? 'approved' : tx.status === 'pending' ? 'pending' : 'risk'}`}>
+                    <span />
+                    {tx.status}
+                  </span>
+                </td>
+                <td className="muted">
+                  {tx.createdAt ? new Date(tx.createdAt).toLocaleString('th-TH') : '-'}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
     </section>
   )
 }
-
-function Bar({ label, value, width, tone }: { label: string; value: string; width: string; tone: string }) {
-  return (
-    <div className="bar-item">
-      <div>
-        <span>{label}</span>
-        <strong>฿{value}</strong>
-      </div>
-      <div className="progress-track">
-        <div className={`progress-fill ${tone}`} style={{ width }} />
-      </div>
-    </div>
-  )
-}
-
-

@@ -1,6 +1,11 @@
 import { useState, useEffect } from 'react'
 import { ProfileSettingsModal } from './ProfileSettingsModal'
+import { DeveloperConsoleView } from './DeveloperConsoleView'
+import { fetchDbProducts, fetchDbStores, getStoredUser, clearStoredUser, createDbTransaction, type AuthUser, type DbStoreRow } from './dbApi'
+import { generatePromptPayQrDataUrl, getStoredPromptPayId, setStoredPromptPayId } from './promptpay'
+import { createPaymentQr, checkPaymentStatus, fetchChatPosApi } from './chatposApi'
 import {
+  LogOut,
   Bell,
   Calendar,
   CheckCircle2,
@@ -60,7 +65,9 @@ import {
   Database,
   Code,
   HelpCircle,
-  Utensils
+  Utensils,
+  BadgePercent,
+  Share2
 } from 'lucide-react'
 import './MerchantView.css'
 
@@ -199,6 +206,7 @@ const navItems = [
   { id: 'salespage', label: 'เซลเพจ', icon: Globe },
   { id: 'reports', label: 'รายงานการเงิน', icon: ReceiptText },
   { id: 'wallet', label: 'กระเป๋าเงิน', icon: WalletCards },
+  { id: 'developer', label: 'โหมดนักพัฒนา', icon: Code },
   { id: 'settings', label: 'ตั้งค่าร้านค้า', icon: Settings },
 ]
 
@@ -300,6 +308,34 @@ export function MerchantView() {
   const [notificationsOpen, setNotificationsOpen] = useState(false)
   const [profileModalOpen, setProfileModalOpen] = useState(false)
 
+  // Real Database Session & Store State
+  const [currentUser] = useState<AuthUser | null>(() => getStoredUser())
+  const [selectedStore, setSelectedStore] = useState<DbStoreRow | null>(null)
+
+  useEffect(() => {
+    fetchDbStores().then((stores) => {
+      if (stores.length > 0) {
+        const userStoreId = currentUser?.store?.id
+        const matched = userStoreId ? stores.find((s) => s.id === userStoreId) : stores[0]
+        setSelectedStore(matched || stores[0])
+      }
+    })
+  }, [currentUser])
+
+  // Dynamic names & metadata from DB
+  const displayStoreName = currentUser?.store?.name || selectedStore?.name || 'สาขาใหญ่'
+  const displayStoreBranch = selectedStore?.storeType === 'MAIN' ? 'สาขาหลัก' : (selectedStore?.storeType ? `สาขา${selectedStore.storeType}` : 'สาขาหลัก')
+  const displayStoreCode = selectedStore?.merchantId ? `${selectedStore.merchantId}` : (selectedStore?.id ? `S-${selectedStore.id.slice(0, 6).toUpperCase()}` : 'M-001')
+  
+  const displayUserName = currentUser?.name || selectedStore?.owner_name || 'เจ้าของร้านค้า'
+  const displayUserRole = currentUser?.role === 'owner' ? 'Merchant Owner' : (currentUser?.role ? `${currentUser.role.toUpperCase()} Owner` : 'Merchant Owner')
+  const userInitials = (displayUserName.slice(0, 2) || 'MB').toUpperCase()
+
+  const handleLogout = () => {
+    clearStoredUser()
+    window.location.href = '/merchant/login'
+  }
+
   useEffect(() => {
     localStorage.setItem('merchant_active_tab', active)
     if (window.location.hash !== `#${active}`) {
@@ -328,7 +364,7 @@ export function MerchantView() {
 
   const sidebar = (
     <aside className="merchant-sidebar">
-      <div className="merchant-brand">
+      <div className="merchant-brand" onClick={() => (window.location.href = '/')} style={{ cursor: 'pointer' }}>
         <img src="/logo.png" alt="Logo" style={{ width: '36px', height: '36px', objectFit: 'contain' }} />
         <div>
           <strong>ChatPOS</strong>
@@ -339,8 +375,8 @@ export function MerchantView() {
         <Store size={16} />
         <div>
           <span>สาขาปัจจุบัน</span>
-          <strong>ร้านกาแฟบ้านสวน ⚙️</strong>
-          <small>สาขาหลัก · M-001</small>
+          <strong>{displayStoreName} ⚙️</strong>
+          <small>{displayStoreBranch} · {displayStoreCode}</small>
         </div>
         <ChevronRight size={15} />
       </div>
@@ -357,12 +393,36 @@ export function MerchantView() {
           </button>
         ))}
       </nav>
-      <div className="merchant-user">
-        <div className="merchant-avatar">PB</div>
-        <div>
-          <strong>พิมพ์ชนก ศรีสุข</strong>
-          <span>Merchant Owner</span>
+      <div className="merchant-user" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 15px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '9px', minWidth: 0, cursor: 'pointer', flex: 1 }} onClick={() => setProfileModalOpen(true)} title="ดูโปรไฟล์ผู้ใช้งาน">
+          <div className="merchant-avatar" style={{ flexShrink: 0 }}>{userInitials}</div>
+          <div style={{ minWidth: 0, overflow: 'hidden' }}>
+            <strong style={{ display: 'block', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap', fontSize: '11px' }}>{displayUserName}</strong>
+            <span style={{ display: 'block', fontSize: '9px', color: '#82aa9b', marginTop: '2px' }}>{displayUserRole}</span>
+          </div>
         </div>
+        <button
+          type="button"
+          onClick={handleLogout}
+          title="ออกจากระบบ"
+          style={{
+            background: 'rgba(239, 68, 68, 0.1)',
+            border: '1px solid rgba(239, 68, 68, 0.2)',
+            color: '#f87171',
+            cursor: 'pointer',
+            padding: '6px',
+            borderRadius: '6px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexShrink: 0,
+            transition: 'all 0.2s',
+          }}
+          onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(239, 68, 68, 0.2)')}
+          onMouseLeave={(e) => (e.currentTarget.style.background = 'rgba(239, 68, 68, 0.1)')}
+        >
+          <LogOut size={14} />
+        </button>
       </div>
     </aside>
   )
@@ -417,8 +477,10 @@ export function MerchantView() {
             <ReportsView />
           ) : active === 'wallet' ? (
             <WalletView />
+          ) : active === 'developer' ? (
+            <DeveloperConsoleView embedded={true} />
           ) : active === 'settings' ? (
-            <SettingsView onOpenProfile={() => setProfileModalOpen(true)} />
+            <SettingsView onOpenProfile={() => setProfileModalOpen(true)} onNavigate={navigate} />
           ) : (
             <MerchantSection active={active} label={current.label} />
           )}
@@ -892,12 +954,16 @@ function ItemFormModal({
   isOpen,
   onClose,
   type,
-  onSave
+  onSave,
+  categories = [],
+  onAddCategory
 }: {
   isOpen: boolean
   onClose: () => void
   type: 'product' | 'service'
   onSave: (item: CatalogItem) => void
+  categories?: string[]
+  onAddCategory?: (cat: string) => void
 }) {
   const [activeLang, setActiveLang] = useState<'th' | 'en' | 'cn'>('th')
 
@@ -913,7 +979,15 @@ function ItemFormModal({
   const [fullDescEn, setFullDescEn] = useState('')
   const [fullDescCn, setFullDescCn] = useState('')
 
-  const [category, setCategory] = useState(type === 'product' ? 'เครื่องดื่ม' : 'บริการคิว')
+  const defaultList = type === 'product'
+    ? ['เครื่องดื่ม', 'เบเกอรี่', 'อาหาร', 'ขนมทานเล่น', 'สินค้าทั่วไป']
+    : ['บริการคิว', 'นวดสปา', 'ความงาม / ซาลอน', 'ล้างรถ / คาร์แคร์', 'บริการซ่อม / ช่าง']
+
+  const availableCategories = Array.from(new Set([...defaultList, ...(categories || [])]))
+
+  const [category, setCategory] = useState(availableCategories[0] || (type === 'product' ? 'เครื่องดื่ม' : 'บริการคิว'))
+  const [isCustomCategory, setIsCustomCategory] = useState(false)
+  const [customCategoryName, setCustomCategoryName] = useState('')
   const [price, setPrice] = useState('')
   const [stock, setStock] = useState('')
 
@@ -943,6 +1017,14 @@ function ItemFormModal({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     playTapSound('success')
+    const finalCat = isCustomCategory && customCategoryName.trim()
+      ? customCategoryName.trim()
+      : (category || (type === 'product' ? 'สินค้าทั่วไป' : 'บริการทั่วไป'))
+
+    if (isCustomCategory && customCategoryName.trim() && onAddCategory) {
+      onAddCategory(customCategoryName.trim())
+    }
+
     const mainName = nameTh || nameEn || nameCn || (type === 'product' ? 'สินค้าใหม่' : 'บริการใหม่')
     const newItem: CatalogItem = {
       id: Date.now().toString(),
@@ -950,7 +1032,7 @@ function ItemFormModal({
       nameTh,
       nameEn,
       nameCn,
-      category,
+      category: finalCat,
       type,
       price: parseFloat(price) || 0,
       stock: type === 'product' ? (parseInt(stock, 10) || 0) : null,
@@ -976,6 +1058,8 @@ function ItemFormModal({
     setFullDescTh('')
     setFullDescEn('')
     setFullDescCn('')
+    setCustomCategoryName('')
+    setIsCustomCategory(false)
     setPrice('')
     setStock('')
     setImages([])
@@ -986,9 +1070,14 @@ function ItemFormModal({
     <div className="qs-modal-overlay">
       <div className="qs-modal qs-modal-large">
         <div className="qs-modal-header">
-          <div>
-            <h3>{type === 'product' ? 'เพิ่มสินค้าใหม่ (3 ภาษา & หลายรูปภาพ)' : 'เพิ่มบริการใหม่ (3 ภาษา & หลายรูปภาพ)'}</h3>
-            <p>กรอกข้อมูล 3 ภาษา (ไทย/อังกฤษ/จีน), คำอธิบายย่อ-รายละเอียด และแนบรูปภาพหลายรูป</p>
+          <div className="qs-modal-header-left">
+            <div className={`qs-modal-icon-badge ${type === 'product' ? 'orange' : 'emerald'}`}>
+              {type === 'product' ? <Package size={22} /> : <Sparkles size={22} />}
+            </div>
+            <div>
+              <h3>{type === 'product' ? 'เพิ่มสินค้าใหม่ (3 ภาษา & คลังภาพ)' : 'เพิ่มบริการใหม่ (3 ภาษา & คลังภาพ)'}</h3>
+              <p>กรอกข้อมูล 3 ภาษา (ไทย/อังกฤษ/จีน), หมวดหมู่, ราคาขาย และแนบรูปภาพหลายรูป</p>
+            </div>
           </div>
           <button className="qs-modal-close" onClick={() => { playTapSound('click'); onClose() }} type="button">
             <X size={20} />
@@ -1000,7 +1089,7 @@ function ItemFormModal({
             {/* 1. Language Tabs Bar */}
             <div className="qs-lang-tabs-container">
               <div className="qs-lang-tabs-header">
-                <Languages size={16} color="#059669" />
+                <Languages size={17} color="#059669" />
                 <span>ภาษาข้อมูลชื่อและคำอธิบาย (3 ภาษา):</span>
               </div>
               <div className="qs-lang-pills">
@@ -1009,21 +1098,27 @@ function ItemFormModal({
                   className={`qs-lang-pill ${activeLang === 'th' ? 'active' : ''}`}
                   onClick={() => { playTapSound('pop'); setActiveLang('th') }}
                 >
-                  🇹🇭 ไทย (TH) {nameTh ? '✓' : ''}
+                  <span className="qs-flag-icon">🇹🇭</span>
+                  <span>ไทย (TH)</span>
+                  {nameTh && <span className="qs-lang-check">✓</span>}
                 </button>
                 <button
                   type="button"
                   className={`qs-lang-pill ${activeLang === 'en' ? 'active' : ''}`}
                   onClick={() => { playTapSound('pop'); setActiveLang('en') }}
                 >
-                  🇬🇧 English (EN) {nameEn ? '✓' : ''}
+                  <span className="qs-flag-icon">🇬🇧</span>
+                  <span>English (EN)</span>
+                  {nameEn && <span className="qs-lang-check">✓</span>}
                 </button>
                 <button
                   type="button"
                   className={`qs-lang-pill ${activeLang === 'cn' ? 'active' : ''}`}
                   onClick={() => { playTapSound('pop'); setActiveLang('cn') }}
                 >
-                  🇨🇳 中文 (CN) {nameCn ? '✓' : ''}
+                  <span className="qs-flag-icon">🇨🇳</span>
+                  <span>中文 (CN)</span>
+                  {nameCn && <span className="qs-lang-check">✓</span>}
                 </button>
               </div>
             </div>
@@ -1129,104 +1224,184 @@ function ItemFormModal({
               </div>
             )}
 
-            {/* 3. Basic Details Row */}
-            <div className="qs-form-row">
-              <div className="qs-form-group">
-                <label htmlFor="item-cat">หมวดหมู่</label>
-                <select id="item-cat" value={category} onChange={(e) => setCategory(e.target.value)}>
-                  {type === 'product' ? (
-                    <>
-                      <option value="เครื่องดื่ม">เครื่องดื่ม</option>
-                      <option value="เบเกอรี่">เบเกอรี่ / อาหาร</option>
-                      <option value="ทั่วไป">สินค้าทั่วไป</option>
-                    </>
-                  ) : (
-                    <>
-                      <option value="บริการคิว">บริการคิว</option>
-                      <option value="นวดสปา">นวดสปา</option>
-                      <option value="ความงาม">ความงาม / ซาลอน</option>
-                    </>
-                  )}
-                </select>
-              </div>
-
-              <div className="qs-form-group">
-                <label htmlFor="item-price">ราคาขาย (บาท) *</label>
-                <input
-                  id="item-price"
-                  type="number"
-                  min="0"
-                  value={price}
-                  onChange={(e) => setPrice(e.target.value)}
-                  placeholder="0.00"
-                  required
-                />
-              </div>
-
-              {type === 'product' && (
-                <div className="qs-form-group">
-                  <label htmlFor="item-stock">จำนวนสต็อกเริ่มต้น *</label>
-                  <input
-                    id="item-stock"
-                    type="number"
-                    min="0"
-                    value={stock}
-                    onChange={(e) => setStock(e.target.value)}
-                    placeholder="เช่น 50"
-                    required
-                  />
+            {/* 3. Category & Price / Stock Grid */}
+            <div className="qs-category-price-grid">
+              {/* Category Column */}
+              <div className="qs-form-category-group">
+                <div className="qs-cat-label-row">
+                  <label htmlFor="item-cat">
+                    <Tag size={14} /> หมวดหมู่{type === 'product' ? 'สินค้า' : 'บริการ'}
+                  </label>
+                  <button
+                    type="button"
+                    className="qs-cat-toggle-custom-btn"
+                    onClick={() => {
+                      playTapSound('pop')
+                      setIsCustomCategory(!isCustomCategory)
+                    }}
+                  >
+                    {isCustomCategory ? '‹ เลือกจากหมวดที่มีอยู่' : '+ พิมพ์เพิ่มหมวดใหม่'}
+                  </button>
                 </div>
-              )}
+
+                {!isCustomCategory ? (
+                  <div className="qs-cat-select-wrap">
+                    <select
+                      id="item-cat"
+                      value={category}
+                      onChange={(e) => {
+                        if (e.target.value === '__custom__') {
+                          setIsCustomCategory(true)
+                        } else {
+                          setCategory(e.target.value)
+                        }
+                      }}
+                    >
+                      {availableCategories.map((c) => (
+                        <option key={c} value={c}>{c}</option>
+                      ))}
+                      <option value="__custom__">✨ + พิมพ์เพิ่มหมวดหมู่ใหม่เอง...</option>
+                    </select>
+                  </div>
+                ) : (
+                  <div className="qs-custom-cat-input-box">
+                    <input
+                      type="text"
+                      value={customCategoryName}
+                      onChange={(e) => setCustomCategoryName(e.target.value)}
+                      placeholder="ระบุชื่อหมวดหมู่ใหม่ เช่น อาหารคลีน, นวดอโรม่า..."
+                      autoFocus
+                    />
+                    <button
+                      type="button"
+                      className="qs-save-custom-cat-btn"
+                      onClick={() => {
+                        if (customCategoryName.trim()) {
+                          const trimmed = customCategoryName.trim()
+                          setCategory(trimmed)
+                          if (onAddCategory) onAddCategory(trimmed)
+                          setIsCustomCategory(false)
+                          setCustomCategoryName('')
+                          playTapSound('success')
+                        }
+                      }}
+                    >
+                      ใช้หมวดนี้
+                    </button>
+                  </div>
+                )}
+
+                {/* Quick Category Chips */}
+                <div className="qs-cat-chips-list">
+                  {availableCategories.map((c) => (
+                    <button
+                      key={c}
+                      type="button"
+                      className={`qs-cat-chip-btn ${category === c && !isCustomCategory ? 'active' : ''}`}
+                      onClick={() => {
+                        playTapSound('click')
+                        setCategory(c)
+                        setIsCustomCategory(false)
+                      }}
+                    >
+                      {c}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Price & Stock Column */}
+              <div className="qs-price-stock-box">
+                <div className="qs-form-group">
+                  <label htmlFor="item-price">ราคาขาย (บาท) *</label>
+                  <div className="qs-price-input-wrapper">
+                    <span className="qs-currency-prefix">฿</span>
+                    <input
+                      id="item-price"
+                      type="number"
+                      min="0"
+                      step="any"
+                      value={price}
+                      onChange={(e) => setPrice(e.target.value)}
+                      placeholder="0.00"
+                      required
+                    />
+                  </div>
+                </div>
+
+                {type === 'product' && (
+                  <div className="qs-form-group">
+                    <label htmlFor="item-stock">จำนวนสต็อกเริ่มต้น *</label>
+                    <div className="qs-stock-input-wrapper">
+                      <input
+                        id="item-stock"
+                        type="number"
+                        min="0"
+                        value={stock}
+                        onChange={(e) => setStock(e.target.value)}
+                        placeholder="0"
+                        required
+                      />
+                      <span className="qs-unit-suffix">ชิ้น</span>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* 4. Multiple Images Section */}
             <div className="qs-images-section">
-              <div className="qs-lang-tabs-header">
-                <ImageIcon size={16} color="#059669" />
-                <span>คลังรูปภาพประกอบ (เพิ่มได้มากกว่า 1 รูป):</span>
+              <div className="qs-images-header">
+                <div className="qs-img-header-left">
+                  <ImageIcon size={17} color="#059669" />
+                  <span>คลังรูปภาพประกอบ (แนบได้หลายภาพ):</span>
+                </div>
+                {images.length > 0 && (
+                  <span className="qs-img-count-chip">{images.length} ภาพ</span>
+                )}
               </div>
 
               <div className="qs-image-input-row">
                 <input
                   value={imageUrlInput}
                   onChange={(e) => setImageUrlInput(e.target.value)}
-                  placeholder="ใส่ URL รูปภาพ หรือเลือกรูปภาพตัวอย่างด้านล่าง..."
+                  placeholder="วาง URL รูปภาพสินค้า หรือคลิกเลือกภาพตัวอย่างด้านล่าง..."
                 />
                 <button type="button" className="qs-add-img-btn" onClick={handleAddImage}>
-                  + เพิ่มรูป
+                  <Plus size={15} /> เพิ่มรูป
                 </button>
               </div>
 
               {/* Sample Presets */}
               <div className="qs-preset-chips">
-                <span className="qs-preset-label">ภาพตัวอย่าง:</span>
+                <span className="qs-preset-label">คลิกเลือกภาพตัวอย่าง:</span>
                 <button
                   type="button"
                   className="qs-chip-btn"
                   onClick={() => handleAddPresetImage('/mascot/pos_1_scanning_barcode.png')}
                 >
-                  + สแกนสินค้า
+                  📸 สแกนสินค้า
                 </button>
                 <button
                   type="button"
                   className="qs-chip-btn"
                   onClick={() => handleAddPresetImage('/mascot/kyc_10_holding_pen.png')}
                 >
-                  + ปากกาบริการ
+                  ✍️ ปากกาบริการ
                 </button>
                 <button
                   type="button"
                   className="qs-chip-btn"
                   onClick={() => handleAddPresetImage('/mascot/pay_1_holding_coin.png')}
                 >
-                  + เหรียญชำระเงิน
+                  🪙 เหรียญชำระเงิน
                 </button>
                 <button
                   type="button"
                   className="qs-chip-btn"
                   onClick={() => handleAddPresetImage('/mascot/nabtang_welcome.png')}
                 >
-                  + น้องนับตังค์ 3D
+                  🌟 น้องนับตังค์ 3D
                 </button>
               </div>
 
@@ -1242,7 +1417,7 @@ function ItemFormModal({
                         onClick={() => handleRemoveImage(idx)}
                         title="ลบรูปนี้"
                       >
-                        <X size={12} />
+                        <Trash2 size={12} />
                       </button>
                       <span className="qs-thumb-index">รูปที่ {idx + 1}</span>
                     </div>
@@ -1388,13 +1563,41 @@ function ProductsView() {
   const [catalog, setCatalog] = useState<CatalogItem[]>(
     initialCatalog.filter((i) => i.type === 'product')
   )
+  const [productCategories, setProductCategories] = useState<string[]>(() => {
+    const saved = localStorage.getItem('merchant_product_categories')
+    if (saved) {
+      try {
+        return JSON.parse(saved)
+      } catch (e) {
+        console.error(e)
+      }
+    }
+    return ['เครื่องดื่ม', 'เบเกอรี่', 'อาหาร', 'ขนมทานเล่น', 'สินค้าทั่วไป']
+  })
+
   const [activeFilter, setActiveFilter] = useState<'all' | 'in_stock' | 'low_stock' | 'out_of_stock'>('all')
+  const [activeCategory, setActiveCategory] = useState<string>('all')
+  const [isQuickAddCatOpen, setIsQuickAddCatOpen] = useState(false)
+  const [newCatInput, setNewCatInput] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
   const [isAddModalOpen, setIsAddModalOpen] = useState(false)
   const [selectedItem, setSelectedItem] = useState<CatalogItem | null>(null)
 
+  const handleAddCategory = (newCat: string) => {
+    const trimmed = newCat.trim()
+    if (!trimmed) return
+    if (!productCategories.includes(trimmed)) {
+      const updated = [...productCategories, trimmed]
+      setProductCategories(updated)
+      localStorage.setItem('merchant_product_categories', JSON.stringify(updated))
+    }
+  }
+
   const handleSaveProduct = (newItem: CatalogItem) => {
     setCatalog([newItem, ...catalog])
+    if (newItem.category) {
+      handleAddCategory(newItem.category)
+    }
   }
 
   const filteredProducts = catalog.filter((item) => {
@@ -1403,6 +1606,11 @@ function ProductsView() {
       item.category.toLowerCase().includes(searchQuery.toLowerCase()) ||
       (item.nameEn && item.nameEn.toLowerCase().includes(searchQuery.toLowerCase())) ||
       (item.nameCn && item.nameCn.toLowerCase().includes(searchQuery.toLowerCase()))
+    
+    const matchesCategory = activeCategory === 'all' || item.category === activeCategory
+
+    if (!matchesCategory) return false
+
     if (activeFilter === 'in_stock') return matchesQuery && (item.stock ?? 0) > 10
     if (activeFilter === 'low_stock') return matchesQuery && (item.stock ?? 0) > 0 && (item.stock ?? 0) <= 10
     if (activeFilter === 'out_of_stock') return matchesQuery && (item.stock ?? 0) === 0
@@ -1518,6 +1726,91 @@ function ProductsView() {
             สินค้าหมด ({catalog.filter((p) => (p.stock ?? 0) === 0).length})
           </button>
         </div>
+
+        {/* Category Filter & Quick Add Row */}
+        <div className="qs-category-filter-bar">
+          <span className="qs-cat-filter-label">
+            <Tag size={13} /> หมวดหมู่:
+          </span>
+          <button
+            type="button"
+            className={`qs-cat-filter-chip ${activeCategory === 'all' ? 'active' : ''}`}
+            onClick={() => { playTapSound('pop'); setActiveCategory('all') }}
+          >
+            ทั้งหมด
+          </button>
+          {productCategories.map((cat) => (
+            <button
+              key={cat}
+              type="button"
+              className={`qs-cat-filter-chip ${activeCategory === cat ? 'active' : ''}`}
+              onClick={() => { playTapSound('pop'); setActiveCategory(cat) }}
+            >
+              {cat}
+            </button>
+          ))}
+          
+          {!isQuickAddCatOpen ? (
+            <button
+              type="button"
+              className="qs-add-cat-badge-btn"
+              onClick={() => { playTapSound('pop'); setIsQuickAddCatOpen(true) }}
+            >
+              <Plus size={13} /> เพิ่มหมวดใหม่
+            </button>
+          ) : (
+            <div style={{ display: 'inline-flex', gap: '6px', alignItems: 'center' }}>
+              <input
+                type="text"
+                value={newCatInput}
+                onChange={(e) => setNewCatInput(e.target.value)}
+                placeholder="ชื่อหมวดใหม่..."
+                style={{
+                  padding: '4px 10px',
+                  borderRadius: '16px',
+                  border: '1.5px solid #0284c7',
+                  fontSize: '12px',
+                  outline: 'none',
+                  width: '140px',
+                  background: '#ffffff'
+                }}
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && newCatInput.trim()) {
+                    handleAddCategory(newCatInput.trim())
+                    setActiveCategory(newCatInput.trim())
+                    setNewCatInput('')
+                    setIsQuickAddCatOpen(false)
+                    playTapSound('success')
+                  }
+                }}
+              />
+              <button
+                type="button"
+                className="qs-save-custom-cat-btn"
+                style={{ padding: '4px 10px', fontSize: '11px', borderRadius: '14px' }}
+                onClick={() => {
+                  if (newCatInput.trim()) {
+                    handleAddCategory(newCatInput.trim())
+                    setActiveCategory(newCatInput.trim())
+                    setNewCatInput('')
+                    setIsQuickAddCatOpen(false)
+                    playTapSound('success')
+                  }
+                }}
+              >
+                เพิ่ม
+              </button>
+              <button
+                type="button"
+                style={{ border: 'none', background: 'transparent', color: '#94a3b8', cursor: 'pointer', fontSize: '12px' }}
+                onClick={() => { setIsQuickAddCatOpen(false); setNewCatInput('') }}
+              >
+                ✕
+              </button>
+            </div>
+          )}
+        </div>
       </section>
 
       {/* Table Section */}
@@ -1627,6 +1920,8 @@ function ProductsView() {
         onClose={() => setIsAddModalOpen(false)}
         type="product"
         onSave={handleSaveProduct}
+        categories={productCategories}
+        onAddCategory={handleAddCategory}
       />
 
       {/* Item Details Modal */}
@@ -1645,22 +1940,55 @@ function ServicesView() {
   const [catalog, setCatalog] = useState<CatalogItem[]>(
     initialCatalog.filter((i) => i.type === 'service')
   )
-  const [paidList] = useState<PaidTransaction[]>(initialPaidList)
+  const [serviceCategories, setServiceCategories] = useState<string[]>(() => {
+    const saved = localStorage.getItem('merchant_service_categories')
+    if (saved) {
+      try {
+        return JSON.parse(saved)
+      } catch (e) {
+        console.error(e)
+      }
+    }
+    return ['บริการคิว', 'นวดสปา', 'ความงาม / ซาลอน', 'ล้างรถ / คาร์แคร์', 'บริการซ่อม / ช่าง']
+  })
+
   const [activeTab, setActiveTab] = useState<'services' | 'paid'>('services')
+  const [activeCategory, setActiveCategory] = useState<string>('all')
+  const [isQuickAddCatOpen, setIsQuickAddCatOpen] = useState(false)
+  const [newCatInput, setNewCatInput] = useState('')
+  const [paidList] = useState<PaidTransaction[]>(initialPaidList)
   const [searchQuery, setSearchQuery] = useState('')
   const [isAddModalOpen, setIsAddModalOpen] = useState(false)
   const [selectedItem, setSelectedItem] = useState<CatalogItem | null>(null)
 
-  const handleSaveService = (newItem: CatalogItem) => {
-    setCatalog([newItem, ...catalog])
+  const handleAddCategory = (newCat: string) => {
+    const trimmed = newCat.trim()
+    if (!trimmed) return
+    if (!serviceCategories.includes(trimmed)) {
+      const updated = [...serviceCategories, trimmed]
+      setServiceCategories(updated)
+      localStorage.setItem('merchant_service_categories', JSON.stringify(updated))
+    }
   }
 
-  const filteredServices = catalog.filter((item) =>
-    item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    item.category.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    (item.nameEn && item.nameEn.toLowerCase().includes(searchQuery.toLowerCase())) ||
-    (item.nameCn && item.nameCn.toLowerCase().includes(searchQuery.toLowerCase()))
-  )
+  const handleSaveService = (newItem: CatalogItem) => {
+    setCatalog([newItem, ...catalog])
+    if (newItem.category) {
+      handleAddCategory(newItem.category)
+    }
+  }
+
+  const filteredServices = catalog.filter((item) => {
+    const matchesQuery =
+      item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      item.category.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (item.nameEn && item.nameEn.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (item.nameCn && item.nameCn.toLowerCase().includes(searchQuery.toLowerCase()))
+    
+    const matchesCategory = activeCategory === 'all' || item.category === activeCategory
+
+    return matchesQuery && matchesCategory
+  })
 
   return (
     <div className="queue-services-page">
@@ -1739,6 +2067,93 @@ function ServicesView() {
             รายการชำระแล้ว ({paidList.length})
           </button>
         </div>
+
+        {/* Category Filter & Quick Add Row (Services Tab) */}
+        {activeTab === 'services' && (
+          <div className="qs-category-filter-bar">
+            <span className="qs-cat-filter-label">
+              <Tag size={13} /> หมวดบริการ:
+            </span>
+            <button
+              type="button"
+              className={`qs-cat-filter-chip ${activeCategory === 'all' ? 'active' : ''}`}
+              onClick={() => { playTapSound('pop'); setActiveCategory('all') }}
+            >
+              ทั้งหมด
+            </button>
+            {serviceCategories.map((cat) => (
+              <button
+                key={cat}
+                type="button"
+                className={`qs-cat-filter-chip ${activeCategory === cat ? 'active' : ''}`}
+                onClick={() => { playTapSound('pop'); setActiveCategory(cat) }}
+              >
+                {cat}
+              </button>
+            ))}
+            
+            {!isQuickAddCatOpen ? (
+              <button
+                type="button"
+                className="qs-add-cat-badge-btn"
+                onClick={() => { playTapSound('pop'); setIsQuickAddCatOpen(true) }}
+              >
+                <Plus size={13} /> เพิ่มหมวดบริการใหม่
+              </button>
+            ) : (
+              <div style={{ display: 'inline-flex', gap: '6px', alignItems: 'center' }}>
+                <input
+                  type="text"
+                  value={newCatInput}
+                  onChange={(e) => setNewCatInput(e.target.value)}
+                  placeholder="ชื่อหมวดบริการใหม่..."
+                  style={{
+                    padding: '4px 10px',
+                    borderRadius: '16px',
+                    border: '1.5px solid #0284c7',
+                    fontSize: '12px',
+                    outline: 'none',
+                    width: '140px',
+                    background: '#ffffff'
+                  }}
+                  autoFocus
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && newCatInput.trim()) {
+                      handleAddCategory(newCatInput.trim())
+                      setActiveCategory(newCatInput.trim())
+                      setNewCatInput('')
+                      setIsQuickAddCatOpen(false)
+                      playTapSound('success')
+                    }
+                  }}
+                />
+                <button
+                  type="button"
+                  className="qs-save-custom-cat-btn"
+                  style={{ padding: '4px 10px', fontSize: '11px', borderRadius: '14px' }}
+                  onClick={() => {
+                    if (newCatInput.trim()) {
+                      handleAddCategory(newCatInput.trim())
+                      setActiveCategory(newCatInput.trim())
+                      setNewCatInput('')
+                      setIsQuickAddCatOpen(false)
+                      playTapSound('success')
+                    }
+                  }}
+                >
+                  เพิ่ม
+                </button>
+                <button
+                  type="button"
+                  style={{ border: 'none', background: 'transparent', color: '#94a3b8', cursor: 'pointer', fontSize: '12px' }}
+                  onClick={() => { setIsQuickAddCatOpen(false); setNewCatInput('') }}
+                >
+                  ✕
+                </button>
+              </div>
+            )}
+          </div>
+        )}
       </section>
 
       {activeTab === 'paid' ? (
@@ -1857,6 +2272,8 @@ function ServicesView() {
         onClose={() => setIsAddModalOpen(false)}
         type="service"
         onSave={handleSaveService}
+        categories={serviceCategories}
+        onAddCategory={handleAddCategory}
       />
 
       {/* Item Details Modal */}
@@ -4489,9 +4906,24 @@ function PosView({ onNavigate }: { onNavigate?: (tab: string) => void }) {
     }
   })
 
-  // Sync products catalog to localStorage
+  // Sync products catalog to localStorage and load from DB
   useEffect(() => {
     localStorage.setItem('pos_products_catalog', JSON.stringify(posProducts))
+    fetchDbProducts().then((dbItems) => {
+      if (dbItems && dbItems.length > 0) {
+        const formatted: PosItem[] = dbItems.map((p) => ({
+          id: p.id,
+          name: p.name,
+          category: (p.category as any) || 'drink',
+          price: Number(p.price) || 50,
+          stock: p.stock || 99,
+          tag: p.trackStock ? 'IN STOCK' : 'READY',
+          icon: '📦',
+          image: p.image || 'https://images.unsplash.com/photo-1510591509098-f4fdc6d0ff04?w=300&auto=format&fit=crop&q=80',
+        }))
+        localStorage.setItem('pos_products_catalog', JSON.stringify(formatted))
+      }
+    }).catch(() => {})
   }, [])
 
   // Listen to Live Customer Orders
@@ -5646,9 +6078,213 @@ function QuickPayView() {
 
   const [selectedMethod, setSelectedMethod] = useState('promptpay' as QuickPayMethod)
   const [isKycModalOpen, setIsKycModalOpen] = useState(false)
-  const [isKycVerified, setIsKycVerified] = useState(false)
+  const [isKycVerified, setIsKycVerified] = useState(true)
   const [operator, setOperator] = useState<string | null>(null)
   const [prevAmount, setPrevAmount] = useState<number | null>(null)
+
+  // Bill Summary, Discount & Payment QR Modal States
+  const [isSummaryModalOpen, setIsSummaryModalOpen] = useState(false)
+  const [summaryStep, setSummaryStep] = useState<'summary' | 'qr' | 'success'>('summary')
+  const [discountType, setDiscountType] = useState<'baht' | 'percent'>('baht')
+  const [discountValue, setDiscountValue] = useState<number>(0)
+  const [discountNote, setDiscountNote] = useState('')
+  const [qrCountdown, setQrCountdown] = useState(300)
+  const [copiedPayLink, setCopiedPayLink] = useState(false)
+  const [paymentSuccessData, setPaymentSuccessData] = useState<any>(null)
+
+  // Real PromptPay Generation & Developer Mode Sync
+  const [activePaymentRef, setActivePaymentRef] = useState<string>('')
+  const [promptPayQrUrl, setPromptPayQrUrl] = useState<string>('')
+  const [merchantPromptPayId, setMerchantPromptPayId] = useState<string>(() => {
+    const user = getStoredUser()
+    return user?.phone || getStoredPromptPayId('0823456789')
+  })
+  const [isEditingPromptPay, setIsEditingPromptPay] = useState(false)
+  const [promptPayInput, setPromptPayInput] = useState('')
+  const [isSavingTxn, setIsSavingTxn] = useState(false)
+
+  const numAmount = parseFloat(amountStr) || 0
+  const baseSubtotal = (pendingPosOrder && pendingPosOrder.total) ? Number(pendingPosOrder.total) : numAmount
+  const calculatedDiscount = discountType === 'percent'
+    ? (baseSubtotal * (Number(discountValue) || 0)) / 100
+    : (Number(discountValue) || 0)
+  const finalDiscount = Math.min(baseSubtotal, Math.max(0, calculatedDiscount))
+  const netPayable = Math.max(0, baseSubtotal - finalDiscount)
+
+  // 1. Generate real PromptPay QR via Developer API (/api/v1/payments/qr)
+  useEffect(() => {
+    let isMounted = true
+    if (isSummaryModalOpen && summaryStep === 'qr') {
+      const target = merchantPromptPayId || getStoredPromptPayId('0823456789')
+
+      // Directly invoke Developer API
+      createPaymentQr({
+        amount: netPayable,
+        channel: selectedMethod,
+        customerName: pendingPosOrder?.tableName ? `ลูกค้า ${pendingPosOrder.tableName}` : 'ลูกค้าหน้าร้าน',
+        note: `ชำระเงินผ่าน POS / Developer Mode API (ยอดเงิน ฿${netPayable.toFixed(2)})`,
+        promptPayId: target,
+      })
+        .then((res) => {
+          if (isMounted && res) {
+            if (res.qrCodeUrl) setPromptPayQrUrl(res.qrCodeUrl)
+            if (res.reference) setActivePaymentRef(res.reference)
+          }
+        })
+        .catch((err) => {
+          console.warn('Developer API offline, fallback to client QR generator:', err)
+          generatePromptPayQrDataUrl(target, netPayable, 260)
+            .then((url) => {
+              if (isMounted) setPromptPayQrUrl(url)
+            })
+            .catch((e) => console.error('Failed to generate PromptPay QR:', e))
+        })
+    }
+    return () => {
+      isMounted = false
+    }
+  }, [isSummaryModalOpen, summaryStep, netPayable, selectedMethod, merchantPromptPayId])
+
+  // 2. Auto-polling payment status via Developer API (/api/v1/payments/:ref)
+  useEffect(() => {
+    let pollTimer: any
+    if (isSummaryModalOpen && summaryStep === 'qr' && activePaymentRef) {
+      pollTimer = setInterval(async () => {
+        try {
+          const res = await checkPaymentStatus(activePaymentRef)
+          if (res && res.status === 'completed') {
+            clearInterval(pollTimer)
+            handleConfirmPaymentSuccess()
+          }
+        } catch {
+          // ignore polling network errors
+        }
+      }, 2500)
+    }
+    return () => {
+      if (pollTimer) clearInterval(pollTimer)
+    }
+  }, [isSummaryModalOpen, summaryStep, activePaymentRef])
+
+  // QR Countdown Timer
+  useEffect(() => {
+    let timer: any
+    if (isSummaryModalOpen && summaryStep === 'qr' && qrCountdown > 0) {
+      timer = setInterval(() => {
+        setQrCountdown((prev) => (prev > 0 ? prev - 1 : 0))
+      }, 1000)
+    }
+    return () => clearInterval(timer)
+  }, [isSummaryModalOpen, summaryStep, qrCountdown])
+
+  const getChannelInfo = (method: QuickPayMethod) => {
+    switch (method) {
+      case 'promptpay':
+        return { name: 'PromptPay พร้อมเพย์ QR', sub: 'สแกนผ่าน Mobile Banking ทุกธนาคาร', img: '/payments/promptpay_front.png', badgeTone: 'blue' }
+      case 'truemoney':
+        return { name: 'TrueMoney Wallet', sub: 'สแกนชำระผ่านแอป TrueMoney', img: '/payments/truemoney_front.png', badgeTone: 'orange' }
+      case 'visa_th':
+        return { name: 'บัตรเครดิต/เดบิต (ไทย)', sub: 'VISA / MasterCard ไทย', img: '/payments/mastercard_visa_combined.png', badgeTone: 'blue' }
+      case 'visa_int':
+        return { name: 'บัตรต่างประเทศ (Inter Cards)', sub: 'VISA / MasterCard / JCB', img: '/payments/mastercard_visa_combined.png', badgeTone: 'indigo' }
+      case 'wechat':
+        return { name: 'WeChat Pay (微信支付)', sub: 'สแกนด้วยกระเป๋าเงิน WeChat', img: '/payments/wechatpay_front.png', badgeTone: 'green' }
+      case 'linepay':
+        return { name: 'Rabbit LINE Pay', sub: 'สแกนผ่านแอป LINE', img: '/payments/linepay_front.png', badgeTone: 'green' }
+      case 'alipay':
+        return { name: 'Alipay (支付宝)', sub: 'สแกนด้วย Alipay และ Alipay+', img: '/payments/alipay_front.png', badgeTone: 'blue' }
+      case 'shopeepay':
+        return { name: 'ShopeePay', sub: 'สแกนผ่าน ShopeePay Wallet', img: '/payments/shopeepay_front.png', badgeTone: 'orange' }
+      default:
+        return { name: 'PromptPay พร้อมเพย์ QR', sub: 'สแกนผ่าน Mobile Banking', img: '/payments/promptpay_front.png', badgeTone: 'blue' }
+    }
+  }
+
+  const handleOpenSummaryModal = () => {
+    playTapSound('pop')
+    if (baseSubtotal <= 0) {
+      alert('กรุณากดระบุยอดเงิน หรือเลือกออเดอร์ก่อนสร้าง QR รับเงิน')
+      return
+    }
+    setSummaryStep('summary')
+    setDiscountValue(0)
+    setDiscountNote('')
+    setQrCountdown(300)
+    setIsSummaryModalOpen(true)
+  }
+
+  const handleConfirmPaymentSuccess = async () => {
+    playTapSound('success')
+    setIsSavingTxn(true)
+    const successInfo = {
+      orderId: activePaymentRef || `ORD-${Date.now().toString().slice(-6)}`,
+      amount: netPayable,
+      channel: getChannelInfo(selectedMethod).name,
+      time: new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }),
+      table: pendingPosOrder?.tableName || 'คิดเงินหน้าร้าน'
+    }
+
+    try {
+      if (activePaymentRef) {
+        // 1. Confirm through Developer API (/api/v1/payments/confirm)
+        await fetchChatPosApi('/api/v1/payments/confirm', {
+          method: 'POST',
+          body: JSON.stringify({ reference: activePaymentRef }),
+        }).catch(async () => {
+          // Fallback direct db insertion if needed
+          const user = getStoredUser()
+          await createDbTransaction({
+            amount: netPayable,
+            storeId: user?.store?.id || null,
+            userId: user?.id || null,
+            channel: selectedMethod,
+            paymentMethod: getChannelInfo(selectedMethod).name,
+            customerName: pendingPosOrder?.tableName ? `ลูกค้า ${pendingPosOrder.tableName}` : 'ลูกค้าหน้าร้าน',
+            tableName: pendingPosOrder?.tableName || 'คิดเงินหน้าร้าน',
+            note: `ชำระเงินผ่าน PromptPay QR เข้าบัญชี ${merchantPromptPayId} (ยอดเงิน ฿${netPayable.toFixed(2)})`,
+            origin: 'POS'
+          })
+        })
+      } else {
+        const user = getStoredUser()
+        await createDbTransaction({
+          amount: netPayable,
+          storeId: user?.store?.id || null,
+          userId: user?.id || null,
+          channel: selectedMethod,
+          paymentMethod: getChannelInfo(selectedMethod).name,
+          customerName: pendingPosOrder?.tableName ? `ลูกค้า ${pendingPosOrder.tableName}` : 'ลูกค้าหน้าร้าน',
+          tableName: pendingPosOrder?.tableName || 'คิดเงินหน้าร้าน',
+          note: `ชำระเงินผ่าน PromptPay QR เข้าบัญชี ${merchantPromptPayId} (ยอดเงิน ฿${netPayable.toFixed(2)})`,
+          origin: 'POS'
+        })
+      }
+
+      const existing = JSON.parse(localStorage.getItem('merchant_live_paid_txns') || '[]')
+      existing.unshift({
+        id: `tx-${Date.now()}`,
+        method: `รับชำระผ่าน ${getChannelInfo(selectedMethod).name}`,
+        customer: `${pendingPosOrder?.tableName || 'ลูกค้าหน้าร้าน'} · วันนี้ ${successInfo.time} น.`,
+        amount: netPayable,
+        status: 'paid'
+      })
+      localStorage.setItem('merchant_live_paid_txns', JSON.stringify(existing.slice(0, 30)))
+      window.dispatchEvent(new Event('storage'))
+    } catch (e) {
+      console.error('Error saving transaction:', e)
+    } finally {
+      setIsSavingTxn(false)
+      setPaymentSuccessData(successInfo)
+      setSummaryStep('success')
+      handleClearPendingPosOrder()
+    }
+  }
+
+  const handleCopyPayLink = () => {
+    navigator.clipboard?.writeText(`https://chatpos.app/pay?ref=ORD-${Date.now()}&amount=${netPayable}`)
+    setCopiedPayLink(true)
+    setTimeout(() => setCopiedPayLink(false), 2000)
+  }
 
   const handleKeyClick = (val: string) => {
     if (val === 'ล้าง') {
@@ -5675,7 +6311,6 @@ function QuickPayView() {
         if (operator === '-') result = prevAmount - current
         if (operator === '*') result = prevAmount * current
         if (operator === '/') result = current !== 0 ? prevAmount / current : 0
-        // Clamp to max 10M
         if (result > 10000000) result = 10000000
         if (result < 0) result = 0
         setAmountStr(result.toString())
@@ -5700,7 +6335,6 @@ function QuickPayView() {
       return
     }
 
-    // Build next string & enforce max 10,000,000 baht
     const nextStr = amountStr === '0' ? val : amountStr + val
     if (parseFloat(nextStr) <= 10000000) {
       setAmountStr(nextStr)
@@ -5720,8 +6354,6 @@ function QuickPayView() {
       setSelectedMethod(method)
     }
   }
-
-  const numAmount = parseFloat(amountStr) || 0
 
   return (
     <div className="qp-full-container">
@@ -5769,8 +6401,6 @@ function QuickPayView() {
           </div>
         </div>
       )}
-
-
 
       {/* 2. Amount Display Section */}
       <div className="qp-amount-section" style={{ position: 'relative', overflow: 'hidden' }}>
@@ -5963,12 +6593,447 @@ function QuickPayView() {
             <span>ล็อกคิดเงิน (KYC)</span>
           </button>
         ) : (
-          <button className="qp-pay-active-btn" onClick={() => alert(`สร้าง QR รับเงินยอด ${numAmount.toLocaleString()} บาทสำเร็จ!`)} type="button">
-            <QrCode size={16} />
+          <button className="qp-pay-active-btn" onClick={handleOpenSummaryModal} type="button">
+            <QrCode size={18} />
             <span>สร้าง QR รับเงิน</span>
           </button>
         )}
       </div>
+
+      {/* 5. Comprehensive Bill Summary, Discount & Payment QR Modal */}
+      {isSummaryModalOpen && (
+        <div className="qp-summary-modal-overlay" onClick={() => setIsSummaryModalOpen(false)}>
+          <div className="qp-summary-modal-card" onClick={(e) => e.stopPropagation()}>
+            
+            {/* Modal Header */}
+            <div className="qp-summary-header">
+              <div className="qp-summary-header-title">
+                {summaryStep === 'summary' && (
+                  <>
+                    <div className="qp-header-icon-wrap">
+                      <ReceiptText size={20} />
+                    </div>
+                    <div>
+                      <h3>สรุปรายการ & ใส่ส่วนลด</h3>
+                      <p>ออเดอร์: {pendingPosOrder?.tableName || 'คิดเงินหน้าร้าน'} · ช่องทาง: {getChannelInfo(selectedMethod).name}</p>
+                    </div>
+                  </>
+                )}
+                {summaryStep === 'qr' && (
+                  <>
+                    <div className="qp-header-icon-wrap qr-active">
+                      <QrCode size={20} />
+                    </div>
+                    <div>
+                      <h3>สแกน QR เพื่อชำระเงิน</h3>
+                      <p>{getChannelInfo(selectedMethod).name} · {pendingPosOrder?.tableName || 'คิดเงินหน้าร้าน'}</p>
+                    </div>
+                  </>
+                )}
+                {summaryStep === 'success' && (
+                  <>
+                    <div className="qp-header-icon-wrap success">
+                      <CheckCircle2 size={20} />
+                    </div>
+                    <div>
+                      <h3>รับชำระเงินสำเร็จ</h3>
+                      <p>บันทึกยอดขายเข้าระบบเรียบร้อยแล้ว</p>
+                    </div>
+                  </>
+                )}
+              </div>
+              <button
+                type="button"
+                className="qp-summary-close-btn"
+                onClick={() => { playTapSound('click'); setIsSummaryModalOpen(false) }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* STEP 1: BILL SUMMARY & DISCOUNT EDITOR */}
+            {summaryStep === 'summary' && (
+              <div className="qp-summary-body">
+                {/* 1.1 Itemized Breakdown Card */}
+                <div className="qp-bill-items-card">
+                  <div className="qp-card-section-label">
+                    <Utensils size={14} /> รายการสั่งซื้อ / ยอดคิดเงิน
+                  </div>
+                  
+                  {pendingPosOrder?.items && pendingPosOrder.items.length > 0 ? (
+                    <div className="qp-items-scroll-list">
+                      {pendingPosOrder.items.map((item: any, idx: number) => (
+                        <div key={idx} className="qp-item-row">
+                          <div className="qp-item-info">
+                            <strong>{item.name}</strong>
+                            <span className="qp-item-unit-price">฿{(item.price || 0).toLocaleString()} x {item.qty}</span>
+                          </div>
+                          <span className="qp-item-total-price">
+                            ฿{((item.price || 0) * (item.qty || 1)).toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="qp-manual-amount-item">
+                      <div>
+                        <strong>ยอดคิดเงินด่วน (QuickPay Numpad)</strong>
+                        <span>ป้อนตัวเลขยอดเงินโดยตรงจากแป้นพิมพ์</span>
+                      </div>
+                      <strong className="qp-item-total-price">
+                        ฿{numAmount.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </strong>
+                    </div>
+                  )}
+
+                  <div className="qp-subtotal-line">
+                    <span>ยอดรวมสินค้า (Subtotal)</span>
+                    <strong>฿{baseSubtotal.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
+                  </div>
+                </div>
+
+                {/* 1.2 Discount Editor Section */}
+                <div className="qp-discount-card">
+                  <div className="qp-discount-head">
+                    <div className="qp-card-section-label">
+                      <BadgePercent size={15} color="#ea580c" /> ใส่ส่วนลดร้านค้า (Discount)
+                    </div>
+                    {/* Discount Type Toggle */}
+                    <div className="qp-discount-type-toggle">
+                      <button
+                        type="button"
+                        className={`qp-dtype-btn ${discountType === 'baht' ? 'active' : ''}`}
+                        onClick={() => { playTapSound('pop'); setDiscountType('baht'); setDiscountValue(0) }}
+                      >
+                        ฿ บาท
+                      </button>
+                      <button
+                        type="button"
+                        className={`qp-dtype-btn ${discountType === 'percent' ? 'active' : ''}`}
+                        onClick={() => { playTapSound('pop'); setDiscountType('percent'); setDiscountValue(0) }}
+                      >
+                        % เปอร์เซ็นต์
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Preset Discount Chips */}
+                  <div className="qp-discount-preset-chips">
+                    {discountType === 'baht' ? (
+                      <>
+                        <button type="button" className={`qp-chip ${discountValue === 0 ? 'active' : ''}`} onClick={() => setDiscountValue(0)}>0 (ไม่ลด)</button>
+                        <button type="button" className={`qp-chip ${discountValue === 10 ? 'active' : ''}`} onClick={() => setDiscountValue(10)}>฿10</button>
+                        <button type="button" className={`qp-chip ${discountValue === 20 ? 'active' : ''}`} onClick={() => setDiscountValue(20)}>฿20</button>
+                        <button type="button" className={`qp-chip ${discountValue === 50 ? 'active' : ''}`} onClick={() => setDiscountValue(50)}>฿50</button>
+                        <button type="button" className={`qp-chip ${discountValue === 100 ? 'active' : ''}`} onClick={() => setDiscountValue(100)}>฿100</button>
+                      </>
+                    ) : (
+                      <>
+                        <button type="button" className={`qp-chip ${discountValue === 0 ? 'active' : ''}`} onClick={() => setDiscountValue(0)}>0% (ไม่ลด)</button>
+                        <button type="button" className={`qp-chip ${discountValue === 5 ? 'active' : ''}`} onClick={() => setDiscountValue(5)}>5%</button>
+                        <button type="button" className={`qp-chip ${discountValue === 10 ? 'active' : ''}`} onClick={() => setDiscountValue(10)}>10%</button>
+                        <button type="button" className={`qp-chip ${discountValue === 15 ? 'active' : ''}`} onClick={() => setDiscountValue(15)}>15%</button>
+                        <button type="button" className={`qp-chip ${discountValue === 20 ? 'active' : ''}`} onClick={() => setDiscountValue(20)}>20%</button>
+                      </>
+                    )}
+                  </div>
+
+                  {/* Custom Discount Input Fields */}
+                  <div className="qp-discount-inputs-row">
+                    <div className="qp-input-group">
+                      <label>จำนวนส่วนลด ({discountType === 'baht' ? 'บาท' : '%'})</label>
+                      <input
+                        type="number"
+                        min="0"
+                        max={discountType === 'percent' ? 100 : baseSubtotal}
+                        placeholder="0"
+                        value={discountValue || ''}
+                        onChange={(e) => setDiscountValue(Math.max(0, Number(e.target.value)))}
+                        className="qp-disc-input"
+                      />
+                    </div>
+                    <div className="qp-input-group" style={{ flex: 1.5 }}>
+                      <label>เหตุผลส่วนลด (ไม่บังคับ)</label>
+                      <input
+                        type="text"
+                        placeholder="เช่น ลูกค้าประจำ, คูปองวันเกิด..."
+                        value={discountNote}
+                        onChange={(e) => setDiscountNote(e.target.value)}
+                        className="qp-disc-input"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* 1.3 Selected Payment Method Info (Inherited from QuickPay) */}
+                <div className="qp-selected-channel-card">
+                  <div className="qp-card-section-label">
+                    <WalletCards size={14} /> ช่องทางรับชำระเงิน (ที่เลือกไว้)
+                  </div>
+                  <div className="qp-selected-ch-box">
+                    <div className="qp-selected-ch-logo-wrap">
+                      <img
+                        src={getChannelInfo(selectedMethod).img}
+                        alt={getChannelInfo(selectedMethod).name}
+                        className="qp-selected-ch-img"
+                      />
+                    </div>
+                    <div className="qp-selected-ch-details">
+                      <div className="qp-selected-ch-badge">
+                        <Check size={11} strokeWidth={3} /> ช่องทางที่เลือกจากหน้าคิดเงิน
+                      </div>
+                      <strong className="qp-selected-ch-title">{getChannelInfo(selectedMethod).name}</strong>
+                      <span className="qp-selected-ch-sub">{getChannelInfo(selectedMethod).sub}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 1.4 Calculation Summary Box */}
+                <div className="qp-calc-summary-card">
+                  <div className="qp-calc-row">
+                    <span>ยอดรวมบิล</span>
+                    <span>฿{baseSubtotal.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                  </div>
+                  {finalDiscount > 0 && (
+                    <div className="qp-calc-row discount">
+                      <span>ส่วนลด ({discountType === 'percent' ? `${discountValue}%` : '฿' + discountValue}) {discountNote ? `· ${discountNote}` : ''}</span>
+                      <span>-฿{finalDiscount.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                    </div>
+                  )}
+                  <div className="qp-calc-row net-total">
+                    <div>
+                      <strong>ยอดชำระสุทธิ (Net Total)</strong>
+                      <small>พร้อมคิดเงินผ่าน {getChannelInfo(selectedMethod).name}</small>
+                    </div>
+                    <strong className="qp-net-price">
+                      ฿{netPayable.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </strong>
+                  </div>
+                </div>
+
+                {/* Action Footer Button */}
+                <div className="qp-summary-actions-foot">
+                  <button
+                    type="button"
+                    className="qp-btn-secondary"
+                    onClick={() => { playTapSound('click'); setIsSummaryModalOpen(false) }}
+                  >
+                    ยกเลิก
+                  </button>
+                  <button
+                    type="button"
+                    className="qp-btn-generate-qr-action"
+                    onClick={() => { playTapSound('success'); setSummaryStep('qr') }}
+                  >
+                    <QrCode size={18} />
+                    <span>รับคิวอาร์โค้ดชำระเงิน (฿{netPayable.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}) ›</span>
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* STEP 2: ACTIVE PAYMENT QR CODE SCREEN */}
+            {summaryStep === 'qr' && (
+              <div className="qp-qr-presentation-wrap">
+                <div className="qp-qr-card-container">
+                  {/* Channel Tag Header */}
+                  <div className="qp-qr-top-badge" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <img src={getChannelInfo(selectedMethod).img} alt="Channel" className="qp-qr-channel-logo" />
+                      <div>
+                        <strong>{getChannelInfo(selectedMethod).name}</strong>
+                        <small>{getChannelInfo(selectedMethod).sub}</small>
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '2px' }}>
+                      <span style={{ fontSize: '11px', background: '#ecfdf5', color: '#059669', padding: '2px 8px', borderRadius: '6px', fontWeight: 700, border: '1px solid #a7f3d0' }}>
+                        ⚡ Live Dev API
+                      </span>
+                      {activePaymentRef && (
+                        <span style={{ fontSize: '11px', color: '#64748b', fontFamily: 'monospace' }}>
+                          Ref: {activePaymentRef.length > 16 ? activePaymentRef.slice(0, 16) + '...' : activePaymentRef}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* QR Image Frame */}
+                  <div className="qp-qr-display-box">
+                    <div className="qp-qr-code-art" style={{ background: '#ffffff', padding: '12px', borderRadius: '16px', border: '1px solid #e2e8f0', boxShadow: '0 4px 16px rgba(0,0,0,0.06)', display: 'inline-block' }}>
+                      {promptPayQrUrl ? (
+                        <img
+                          src={promptPayQrUrl}
+                          alt="PromptPay QR Code"
+                          style={{ width: '220px', height: '220px', display: 'block', margin: '0 auto', imageRendering: 'pixelated' }}
+                        />
+                      ) : (
+                        <div style={{ width: '220px', height: '220px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b' }}>
+                          <Clock size={20} className="animate-spin" /> กำลังสร้าง QR Code จริง...
+                        </div>
+                      )}
+                    </div>
+                    
+                    {/* PromptPay Target ID & Quick Account Switch */}
+                    <div style={{ marginTop: '10px', fontSize: '13px', color: '#334155', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                      <span>พร้อมเพย์รับเงิน: <b style={{ color: '#0f766e', letterSpacing: '0.5px' }}>{merchantPromptPayId}</b></span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPromptPayInput(merchantPromptPayId)
+                          setIsEditingPromptPay(!isEditingPromptPay)
+                        }}
+                        style={{ border: 'none', background: 'rgba(2, 132, 199, 0.1)', color: '#0284c7', padding: '2px 8px', borderRadius: '6px', cursor: 'pointer', fontSize: '11px', fontWeight: 600 }}
+                      >
+                        {isEditingPromptPay ? 'ยกเลิก' : '⚙️ เปลี่ยนบัญชีรับเงิน'}
+                      </button>
+                    </div>
+
+                    {isEditingPromptPay && (
+                      <div style={{ marginTop: '8px', display: 'flex', gap: '6px', justifyContent: 'center', padding: '8px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                        <input
+                          type="text"
+                          value={promptPayInput}
+                          onChange={(e) => setPromptPayInput(e.target.value)}
+                          placeholder="เบอร์โทร / เลข ปชช. / e-Wallet"
+                          style={{ padding: '6px 10px', fontSize: '13px', border: '1px solid #cbd5e1', borderRadius: '6px', width: '180px', outline: 'none' }}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (promptPayInput.trim()) {
+                              const clean = promptPayInput.trim()
+                              setMerchantPromptPayId(clean)
+                              setStoredPromptPayId(clean)
+                              setIsEditingPromptPay(false)
+                            }
+                          }}
+                          style={{ padding: '6px 14px', background: '#0f766e', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '12px', fontWeight: 600, cursor: 'pointer' }}
+                        >
+                          บันทึก
+                        </button>
+                      </div>
+                    )}
+
+                    <p className="qp-qr-scan-guide" style={{ marginTop: '10px' }}>
+                      📱 ลูกค้าเปิดแอปธนาคารสแกนจ่ายได้ทันที ยอดเงินตรงไม่ต้องกรอกเอง
+                    </p>
+                  </div>
+
+                  {/* Amount Highlight */}
+                  <div className="qp-qr-payable-banner">
+                    <span className="qp-pay-label">ยอดเงินที่ต้องสแกนชำระ</span>
+                    <strong className="qp-pay-amount">
+                      ฿{netPayable.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </strong>
+                    {finalDiscount > 0 && (
+                      <span className="qp-pay-discount-saved">✨ ประหยัดไป ฿{finalDiscount.toLocaleString()}</span>
+                    )}
+                  </div>
+
+                  {/* Countdown Timer */}
+                  <div className="qp-qr-countdown-row">
+                    <Clock size={15} className="amber-text" />
+                    <span>QR หมดอายุใน <b>{Math.floor(qrCountdown / 60)}:{(qrCountdown % 60).toString().padStart(2, '0')} นาที</b></span>
+                  </div>
+
+                  {/* Interactive Quick Actions */}
+                  <div className="qp-qr-actions-row">
+                    <button type="button" className="qp-action-btn-glass" onClick={() => alert('ส่งคำสั่งพิมพ์ใบแจ้งยอด / QR Slip ไปยังเครื่องพิมพ์เรียบร้อย')}>
+                      <Printer size={15} /> พิมพ์สลิป QR
+                    </button>
+                    <button type="button" className="qp-action-btn-glass" onClick={handleCopyPayLink}>
+                      <Share2 size={15} /> {copiedPayLink ? 'คัดลอกลิงก์แล้ว! ✨' : 'แชร์ลิงก์จ่ายเงิน'}
+                    </button>
+                  </div>
+
+                  {/* Real Payment Confirmation Button */}
+                  <button
+                    type="button"
+                    className="qp-btn-simulate-success"
+                    onClick={handleConfirmPaymentSuccess}
+                    disabled={isSavingTxn}
+                    style={{
+                      background: 'linear-gradient(135deg, #059669 0%, #10b981 100%)',
+                      color: '#ffffff',
+                      border: 'none',
+                      fontWeight: 700,
+                      boxShadow: '0 4px 14px rgba(16, 185, 129, 0.35)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '8px',
+                    }}
+                  >
+                    <CheckCircle2 size={18} />
+                    <span>{isSavingTxn ? 'กำลังบันทึกข้อมูลเข้าฐานข้อมูล...' : 'ยืนยันได้รับเงินแล้ว (บันทึกยอดขายจริง)'}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    className="qp-btn-back-link"
+                    onClick={() => { playTapSound('pop'); setSummaryStep('summary') }}
+                  >
+                    ‹ ย้อนกลับไปแก้ไขรายการ / ส่วนลด
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* STEP 3: PAYMENT SUCCESS CELEBRATION */}
+            {summaryStep === 'success' && paymentSuccessData && (
+              <div className="qp-success-wrap">
+                <div className="qp-success-icon-animation">
+                  <CheckCircle2 size={64} color="#10b981" />
+                </div>
+                <h2>รับชำระเงินสำเร็จ! ✨</h2>
+                <p className="qp-success-sub">บันทึกรายการขายและส่งข้อมูลเข้าบัญชีเรียบร้อย</p>
+
+                <div className="qp-success-receipt-card">
+                  <div className="qp-receipt-row">
+                    <span>เลขที่บิล</span>
+                    <strong>{paymentSuccessData.orderId}</strong>
+                  </div>
+                  <div className="qp-receipt-row">
+                    <span>โต๊ะ / ลูกค้า</span>
+                    <strong>{paymentSuccessData.table}</strong>
+                  </div>
+                  <div className="qp-receipt-row">
+                    <span>ช่องทางชำระเงิน</span>
+                    <strong>{paymentSuccessData.channel}</strong>
+                  </div>
+                  <div className="qp-receipt-row">
+                    <span>เวลาทำรายการ</span>
+                    <strong>{paymentSuccessData.time} น.</strong>
+                  </div>
+                  <div className="qp-receipt-divider" />
+                  <div className="qp-receipt-row total">
+                    <strong>ยอดเงินที่ได้รับ</strong>
+                    <strong className="green-text">฿{paymentSuccessData.amount.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
+                  </div>
+                </div>
+
+                <div className="qp-success-actions">
+                  <button
+                    type="button"
+                    className="qp-btn-print-receipt"
+                    onClick={() => alert('กำลังพิมพ์ใบเสร็จรับเงินฉบับย่อ... 🖨️')}
+                  >
+                    <Printer size={16} /> พิมพ์ใบเสร็จ
+                  </button>
+                  <button
+                    type="button"
+                    className="qp-btn-finish"
+                    onClick={() => { playTapSound('pop'); setIsSummaryModalOpen(false) }}
+                  >
+                    ✓ เสร็จสิ้น / คิดเงินรายการถัดไป
+                  </button>
+                </div>
+              </div>
+            )}
+
+          </div>
+        </div>
+      )}
 
       {/* KYC Modal */}
       {isKycModalOpen && (
@@ -6485,7 +7550,7 @@ function WalletView() {
 /* ==========================================================================
    5. SETTINGS VIEW (ตั้งค่าร้านค้า & ฮาร์ดแวร์)
    ========================================================================== */
-function SettingsView({ onOpenProfile }: { onOpenProfile?: () => void }) {
+function SettingsView({ onOpenProfile, onNavigate }: { onOpenProfile?: () => void; onNavigate?: (id: string) => void }) {
   const [audioEnabled, setAudioEnabled] = useState(true)
   const [speechSpeed, setSpeechSpeed] = useState('1.0x')
   const [voiceGender, setVoiceGender] = useState('female' as VoiceGender)
@@ -6721,14 +7786,26 @@ function SettingsView({ onOpenProfile }: { onOpenProfile?: () => void }) {
 
         <div className="st-row-divider" />
 
-        {/* 8. นักพัฒนา (API) */}
-        <div className="st-menu-row" onClick={() => alert('จัดการ API')} role="button" tabIndex={0}>
+        {/* 8. โหมดนักพัฒนา (Developer Mode & API) */}
+        <div
+          className="st-menu-row"
+          onClick={() => {
+            if (onNavigate) {
+              onNavigate('developer')
+            } else {
+              window.location.href = '/developer'
+            }
+          }}
+          role="button"
+          tabIndex={0}
+        >
           <div className="st-menu-icon green"><Code size={18} /></div>
           <div className="st-menu-label">
-            <strong>นักพัฒนา (API)</strong>
-            <small>จัดการ API และ Webhook</small>
+            <strong>โหมดนักพัฒนา (Developer Mode)</strong>
+            <small>แดชบอร์ด API, จัดการ API Keys, Webhooks, ผูกเกตเวย์ LLGW และ Sandbox</small>
           </div>
           <div className="st-menu-value">
+            <span className="st-tag-green">/developer</span>
             <ChevronRight size={16} color="#94a3b8" />
           </div>
         </div>

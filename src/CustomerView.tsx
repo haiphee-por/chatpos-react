@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { generatePromptPayQrDataUrl, getStoredPromptPayId } from './promptpay'
 import {
   Search,
   ShoppingCart,
@@ -153,6 +154,7 @@ export function CustomerView() {
   })
   const [isTrackerOpen, setIsTrackerOpen] = useState(false)
   const [, setCallStaffSuccess] = useState(false)
+  const [customerQrUrl, setCustomerQrUrl] = useState<string>('')
 
   // Listen to status changes updated by Merchant in real-time
   useEffect(() => {
@@ -279,6 +281,16 @@ export function CustomerView() {
   const cartSubtotal = cart.reduce((sum, item) => sum + item.totalPrice, 0)
   const vat = cartSubtotal * 0.07
   const cartTotal = cartSubtotal + vat
+
+  // Generate real PromptPay QR for Customer
+  useEffect(() => {
+    if (isQrModalOpen && paymentMethod === 'promptpay' && cartTotal > 0) {
+      const promptPayId = getStoredPromptPayId('0823456789')
+      generatePromptPayQrDataUrl(promptPayId, cartTotal, 260)
+        .then(setCustomerQrUrl)
+        .catch((err) => console.error('Failed to generate customer PromptPay QR:', err))
+    }
+  }, [isQrModalOpen, paymentMethod, cartTotal])
 
   // Submit Order & Sync to Merchant Live Orders!
   const finalizeOrderSubmission = (methodLabel: string) => {
@@ -786,12 +798,21 @@ export function CustomerView() {
 
             <div className="qs-modal-body text-center">
               <div className="cust-qr-display-card">
-                <img src="/payments/promptpay_front.png" alt="PromptPay QR" className="cust-qr-img" />
+                {customerQrUrl ? (
+                  <img
+                    src={customerQrUrl}
+                    alt="PromptPay QR"
+                    className="cust-qr-img"
+                    style={{ width: '220px', height: '220px', margin: '0 auto', display: 'block', imageRendering: 'pixelated', borderRadius: '12px', background: '#fff', padding: '8px' }}
+                  />
+                ) : (
+                  <img src="/payments/promptpay_front.png" alt="PromptPay QR" className="cust-qr-img" />
+                )}
                 <div className="cust-qr-price-badge">
                   ยอดชำระสุทธิ: <strong>฿{cartTotal.toFixed(2)}</strong>
                 </div>
                 <div className="cust-qr-merchant-name">
-                  POP CAFE (S072609429)
+                  ChatPOS Store (พร้อมเพย์: {getStoredPromptPayId('0823456789')})
                 </div>
               </div>
 

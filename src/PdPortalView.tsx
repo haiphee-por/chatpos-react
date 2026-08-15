@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   UsersRound,
   Store,
@@ -16,15 +16,37 @@ import {
 import { mockCases, mockPdAgents, mockPdTerritories } from './mockData'
 import type { MockCase, MockPdAgentItem } from './mockData'
 import { KycInspectorModal, WithdrawalModal } from './AdminModals'
+import { fetchDbAgents, fetchDbKycCases, fetchDbStats, type DbAgentRow, type DbStats } from './dbApi'
 
 export function PdPortalView() {
   const [selectedCase, setSelectedCase] = useState<MockCase | null>(null)
   const [withdrawalOpen, setWithdrawalOpen] = useState(false)
   const [selectedAgent, setSelectedAgent] = useState<MockPdAgentItem | null>(null)
   const [areaModalOpen, setAreaModalOpen] = useState(false)
+  const [liveKycCases, setLiveKycCases] = useState<MockCase[]>([])
+  const [liveAgents, setLiveAgents] = useState<DbAgentRow[]>([])
+  const [liveStats, setLiveStats] = useState<DbStats | null>(null)
+
+  useEffect(() => {
+    async function init() {
+      try {
+        const [kycRes, agents, stats] = await Promise.all([
+          fetchDbKycCases(),
+          fetchDbAgents(),
+          fetchDbStats(),
+        ])
+        if (kycRes.cases.length > 0) setLiveKycCases(kycRes.cases)
+        if (agents.length > 0) setLiveAgents(agents)
+        if (stats) setLiveStats(stats)
+      } catch (e) {
+        console.error('PD init error:', e)
+      }
+    }
+    init()
+  }, [])
 
   // Filter cases relevant to PD approval
-  const pdKycCases = mockCases.filter((c) => c.tone === 'review' || c.tone === 'pending')
+  const pdKycCases = liveKycCases.length > 0 ? liveKycCases : mockCases.filter((c) => c.tone === 'review' || c.tone === 'pending')
 
   return (
     <div className="pd-portal-wrap">
@@ -57,8 +79,8 @@ export function PdPortalView() {
             <span>Agent ในสายงาน</span>
             <UsersRound size={22} className="pd-icon-blue" />
           </div>
-          <strong>42 ราย</strong>
-          <small>🟢 Active 38 ราย | 🟡 ติดเคส 4 ราย</small>
+          <strong>{liveAgents.length > 0 ? `${liveAgents.length} ราย` : '42 ราย'}</strong>
+          <small>🟢 Active {liveAgents.length > 0 ? liveAgents.length : 38} ราย (ฐานข้อมูล)</small>
         </article>
 
         <article className="pd-metric-card green">
@@ -66,8 +88,8 @@ export function PdPortalView() {
             <span>ร้านค้าในความดูแล</span>
             <Store size={22} className="pd-icon-green" />
           </div>
-          <strong>318 ร้าน</strong>
-          <small>📈 เติบโต +14.2% จากเดือนที่แล้ว</small>
+          <strong>{liveStats?.total_stores ? `${liveStats.total_stores} ร้าน` : '318 ร้าน'}</strong>
+          <small>📈 เติบโตต่อเนื่อง (ตาราง Store)</small>
         </article>
 
         <article className="pd-metric-card amber">
@@ -75,7 +97,7 @@ export function PdPortalView() {
             <span>KYC รอ Sign-off</span>
             <FileCheck size={22} className="pd-icon-amber" />
           </div>
-          <strong>18 เคส</strong>
+          <strong>{liveStats?.pending_kyc ? `${liveStats.pending_kyc} เคส` : '18 เคส'}</strong>
           <small>⚡ ผ่าน Agent แล้ว รอ PD อนุมัติขั้นสุดท้าย</small>
         </article>
 
@@ -84,7 +106,7 @@ export function PdPortalView() {
             <span>ยอดถอนได้ (PD Royalty)</span>
             <WalletCards size={22} className="pd-icon-violet" />
           </div>
-          <strong>฿84,250</strong>
+          <strong>฿{Number(liveStats?.total_commission || 84250).toLocaleString('th-TH')}</strong>
           <small>💰 ค่าคอมมิชชันทีมสะสมในรอบนี้</small>
         </article>
       </section>

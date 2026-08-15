@@ -13,13 +13,28 @@ import {
   Upload,
   Users,
   AlertTriangle,
+  Sparkles,
 } from 'lucide-react'
 import './MerchantRegistrationView.css'
 import { useAgentT, type Lang } from './registrationI18n'
+import { registerAgent } from './dbApi'
 
 type TFn = (key: string) => string
 
 export function AgentRegistrationView() {
+  const [stage, setStage] = useState<'quick' | 'wizard'>('quick')
+  const [showDecisionModal, setShowDecisionModal] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [quickError, setQuickError] = useState('')
+
+  const [quickData, setQuickData] = useState({
+    name: '',
+    phone: '',
+    email: '',
+    password: '',
+    currentPdId: '',
+  })
+
   const [currentStep, setCurrentStep] = useState(0)
   const [lang, setLang] = useState<Lang>('TH')
   const t = useAgentT(lang)
@@ -39,12 +54,58 @@ export function AgentRegistrationView() {
     setter(n)
   }
 
+  const handleQuickSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setQuickError('')
+
+    if (!quickData.name.trim()) {
+      setQuickError('กรุณาระบุชื่อ-นามสกุล')
+      return
+    }
+    if (!quickData.phone.trim()) {
+      setQuickError('กรุณาระบุเบอร์โทรศัพท์')
+      return
+    }
+    if (!quickData.email.trim()) {
+      setQuickError('กรุณาระบุอีเมล')
+      return
+    }
+    if (!quickData.password || quickData.password.length < 6) {
+      setQuickError('กรุณากำหนดรหัสผ่านอย่างน้อย 6 ตัวอักษร')
+      return
+    }
+
+    setIsSubmitting(true)
+    try {
+      const res = await registerAgent({
+        name: quickData.name.trim(),
+        email: quickData.email.trim(),
+        password: quickData.password,
+        phone: quickData.phone.trim(),
+        tier: 'STANDARD',
+        currentPdId: quickData.currentPdId.trim() || undefined,
+      })
+
+      if (res.success) {
+        setShowDecisionModal(true)
+      } else {
+        setQuickError(res.error || 'ไม่สามารถลงทะเบียนได้ กรุณาลองใหม่อีกครั้ง')
+      }
+    } catch (err: any) {
+      setQuickError(err.message || 'เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์')
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
   return (
     <div className="reg-shell">
       <header className="reg-header">
         <div className="reg-header-inner">
-          <div className="reg-brand">
-            <img src="/logo.png" alt="ChatPOS Logo" />
+          <div className="reg-brand" onClick={() => (window.location.href = '/')}>
+            <div className="reg-logo-mark">
+              <Sparkles size={18} className="reg-logo-sparkle" />
+            </div>
             <div className="reg-brand-text"><strong>ChatPOS</strong><span>{t('headerSub')}</span></div>
           </div>
           <div className="reg-header-actions">
@@ -60,44 +121,219 @@ export function AgentRegistrationView() {
       </header>
 
       <main className="reg-main">
-        <div className="reg-card">
-          <h1 className="reg-title">{t('pageTitle')}</h1>
-          <div className="reg-stepper">
-            <div className="reg-stepper-line"><div className="reg-stepper-fill" style={{ width: `${stepperFill}%` }} /></div>
-            {agentSteps.map((label, i) => (
-              <div key={i} className={`reg-step ${i === currentStep ? 'active' : ''} ${i < currentStep ? 'completed' : ''}`}
-                onClick={() => i < currentStep && setCurrentStep(i)} style={{ cursor: i < currentStep ? 'pointer' : 'default' }}>
-                <div className="reg-step-circle">{i < currentStep ? <Check size={16} /> : i + 1}</div>
-                <span className="reg-step-label">{label}</span>
+        {/* PHASE 1: Quick Agent Sign-up */}
+        {stage === 'quick' ? (
+          <div className="reg-quick-card">
+            <div className="reg-quick-hero">
+              <div className="reg-stage-badge">
+                <Users size={15} /> สเต็ปที่ 1: สมัครเป็นตัวแทนขยายร้านค้า (1 นาที)
               </div>
-            ))}
-          </div>
-          <div className="reg-progress">
-            <div className="reg-progress-header">
-              <span className="reg-progress-step">{t('step')} {currentStep + 1}/{agentSteps.length}</span>
-              <span className="reg-progress-pct">{pct}%</span>
+              <h1>ร่วมทีมตัวแทน Agent ChatPOS</h1>
+              <p>กรอกข้อมูลเบื้องต้นเพื่อสร้างบัญชีตัวแทนและเริ่มแนะนำร้านค้ารับคอมมิชชั่นทันที</p>
             </div>
-            <div className="reg-progress-track"><div className="reg-progress-fill" style={{ width: `${pct}%` }} /></div>
-          </div>
 
-          <div className="reg-step-content" key={`${currentStep}-${lang}`}>
-            {currentStep === 0 && <AgentStep1Personal t={t} />}
-            {currentStep === 1 && <AgentStep2Experience t={t} skills={skills} toggleSkill={(i: number) => toggleSet(skills, i, setSkills)} workType={workType} setWorkType={setWorkType} />}
-            {currentStep === 2 && <AgentStep3Area t={t} regions={regions} toggleRegion={(i: number) => toggleSet(regions, i, setRegions)} />}
-            {currentStep === 3 && <AgentStep4Bank t={t} />}
-            {currentStep === 4 && <AgentStep5Confirm t={t} />}
-          </div>
-
-          <div className="reg-nav-buttons">
-            <button className="reg-btn-back" onClick={goBack} disabled={currentStep === 0} type="button"><ArrowLeft size={16} /> {t('back')}</button>
-            {currentStep < agentSteps.length - 1 ? (
-              <button className="reg-btn-next" onClick={goNext} type="button">{t('next')} <ArrowRight size={16} /></button>
-            ) : (
-              <button className="reg-btn-next" onClick={() => alert(t('submitAlert'))} type="button"><ShieldCheck size={16} /> {t('submitBtn')}</button>
+            {quickError && (
+              <div className="reg-notice" style={{ background: '#fef2f2', borderColor: '#fca5a5', marginBottom: '20px' }}>
+                <AlertTriangle className="reg-notice-icon" style={{ color: '#dc2626' }} size={20} />
+                <div style={{ color: '#b91c1c', fontWeight: 600, fontSize: '13px' }}>
+                  {quickError}
+                  {quickError.includes('อีเมลนี้ถูกใช้งานแล้ว') && (
+                    <span style={{ marginLeft: '6px' }}>
+                      👉 <a href="/agent/login" style={{ color: '#b91c1c', textDecoration: 'underline', fontWeight: 700 }}>คลิกที่นี่เพื่อเข้าสู่ระบบ</a>
+                    </span>
+                  )}
+                </div>
+              </div>
             )}
+
+            <form onSubmit={handleQuickSubmit} className="reg-quick-form">
+              <div className="reg-grid reg-grid-2">
+                <div className="reg-field reg-col-span-2">
+                  <span className="reg-label">ชื่อ-นามสกุล <span className="reg-required">*</span></span>
+                  <input
+                    className="reg-input"
+                    type="text"
+                    placeholder="เช่น นายพงศกร ขยายทรัพย์"
+                    value={quickData.name}
+                    onChange={(e) => setQuickData({ ...quickData, name: e.target.value })}
+                    required
+                  />
+                </div>
+
+                <div className="reg-field">
+                  <span className="reg-label">เบอร์โทรศัพท์มือถือ <span className="reg-required">*</span></span>
+                  <input
+                    className="reg-input"
+                    type="tel"
+                    placeholder="08X-XXX-XXXX"
+                    value={quickData.phone}
+                    onChange={(e) => setQuickData({ ...quickData, phone: e.target.value })}
+                    required
+                  />
+                </div>
+
+                <div className="reg-field">
+                  <span className="reg-label">อีเมลสำหรับเข้าสู่ระบบ <span className="reg-required">*</span></span>
+                  <input
+                    className="reg-input"
+                    type="email"
+                    placeholder="agent@yourcompany.com"
+                    value={quickData.email}
+                    onChange={(e) => setQuickData({ ...quickData, email: e.target.value })}
+                    required
+                  />
+                </div>
+
+                <div className="reg-field">
+                  <span className="reg-label">กำหนดรหัสผ่าน (อย่างน้อย 6 ตัวอักษร) <span className="reg-required">*</span></span>
+                  <input
+                    className="reg-input"
+                    type="password"
+                    placeholder="••••••••"
+                    value={quickData.password}
+                    onChange={(e) => setQuickData({ ...quickData, password: e.target.value })}
+                    required
+                  />
+                </div>
+
+                <div className="reg-field">
+                  <span className="reg-label">รหัส PD หรือพื้นที่สังกัด (ถ้ามี)</span>
+                  <input
+                    className="reg-input"
+                    type="text"
+                    placeholder="เช่น PD-001 หรือเว้นว่างไว้"
+                    value={quickData.currentPdId}
+                    onChange={(e) => setQuickData({ ...quickData, currentPdId: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              <button type="submit" className="reg-quick-submit-btn" disabled={isSubmitting}>
+                {isSubmitting ? (
+                  <span>กำลังสร้างบัญชี Agent...</span>
+                ) : (
+                  <>
+                    <ShieldCheck size={18} />
+                    <span>สมัครเป็นตัวแทนขยายร้านค้าทันที 🚀</span>
+                  </>
+                )}
+              </button>
+
+              <div className="reg-quick-footer-link">
+                มีบัญชี Agent อยู่แล้ว? <a href="/agent/login">เข้าสู่ระบบที่นี่</a>
+              </div>
+            </form>
+          </div>
+        ) : (
+          /* PHASE 2: Detailed Agent KYC Wizard */
+          <div className="reg-card">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <div className="reg-stage-badge">
+                <FileText size={14} /> สเต็ปที่ 2: กรอกประวัติการทำงาน & บัญชีรับคอมมิชชั่น (KYC)
+              </div>
+              <button
+                type="button"
+                onClick={() => (window.location.href = '/agent')}
+                style={{ background: 'transparent', border: '0', color: 'var(--reg-primary)', fontWeight: 600, fontSize: '13px', cursor: 'pointer' }}
+              >
+                ข้ามไปหน้าพอร์ทัลก่อน ➔
+              </button>
+            </div>
+
+            <h1 className="reg-title">{t('pageTitle')}</h1>
+            <div className="reg-stepper">
+              <div className="reg-stepper-line"><div className="reg-stepper-fill" style={{ width: `${stepperFill}%` }} /></div>
+              {agentSteps.map((label, i) => (
+                <div key={i} className={`reg-step ${i === currentStep ? 'active' : ''} ${i < currentStep ? 'completed' : ''}`}
+                  onClick={() => i < currentStep && setCurrentStep(i)} style={{ cursor: i < currentStep ? 'pointer' : 'default' }}>
+                  <div className="reg-step-circle">{i < currentStep ? <Check size={16} /> : i + 1}</div>
+                  <span className="reg-step-label">{label}</span>
+                </div>
+              ))}
+            </div>
+            <div className="reg-progress">
+              <div className="reg-progress-header">
+                <span className="reg-progress-step">{t('step')} {currentStep + 1}/{agentSteps.length}</span>
+                <span className="reg-progress-pct">{pct}%</span>
+              </div>
+              <div className="reg-progress-track"><div className="reg-progress-fill" style={{ width: `${pct}%` }} /></div>
+            </div>
+
+            <div className="reg-step-content" key={`${currentStep}-${lang}`}>
+              {currentStep === 0 && <AgentStep1Personal t={t} />}
+              {currentStep === 1 && <AgentStep2Experience t={t} skills={skills} toggleSkill={(i: number) => toggleSet(skills, i, setSkills)} workType={workType} setWorkType={setWorkType} />}
+              {currentStep === 2 && <AgentStep3Area t={t} regions={regions} toggleRegion={(i: number) => toggleSet(regions, i, setRegions)} />}
+              {currentStep === 3 && <AgentStep4Bank t={t} />}
+              {currentStep === 4 && <AgentStep5Confirm t={t} />}
+            </div>
+
+            <div className="reg-nav-buttons">
+              <button className="reg-btn-back" onClick={goBack} disabled={currentStep === 0} type="button"><ArrowLeft size={16} /> {t('back')}</button>
+              {currentStep < agentSteps.length - 1 ? (
+                <button className="reg-btn-next" onClick={goNext} type="button">{t('next')} <ArrowRight size={16} /></button>
+              ) : (
+                <button
+                  className="reg-btn-next"
+                  onClick={() => {
+                    alert('🎉 ส่งเอกสารยืนยันตัวตน Agent เรียบร้อยแล้ว!\n\nท่านสามารถเริ่มแนะนำร้านค้าและรับ QR รหัสตัวแทนได้ทันที')
+                    window.location.href = '/agent'
+                  }}
+                  type="button"
+                >
+                  <ShieldCheck size={16} /> {t('submitBtn')}
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+      </main>
+
+      {/* Decision Modal after Quick Agent Registration */}
+      {showDecisionModal && (
+        <div className="reg-modal-backdrop">
+          <div className="reg-decision-modal">
+            <img src="/mascot/nabtang_analytics.png" alt="Agent Mascot" className="reg-decision-mascot" />
+            <h2 className="reg-decision-title">🎉 สมัครเป็นตัวแทน Agent สำเร็จ!</h2>
+            <p className="reg-decision-desc">
+              บัญชีตัวแทนสำหรับคุณ <strong>"{quickData.name}"</strong> ถูกสร้างในระบบแล้ว คุณสามารถเลือกดำเนินการต่อได้ดังนี้:
+            </p>
+
+            <div className="reg-decision-options">
+              <div
+                className="reg-decision-card-btn primary"
+                onClick={() => {
+                  setShowDecisionModal(false)
+                  setStage('wizard')
+                  window.scrollTo({ top: 0, behavior: 'smooth' })
+                }}
+                role="button"
+                tabIndex={0}
+              >
+                <div className="reg-card-btn-text">
+                  <strong>📄 กรอกประวัติและผูกบัญชีรับคอมมิชชั่น (KYC)</strong>
+                  <span>อัปโหลดเอกสารเพื่อเปิดระบบถอนคอมมิชชั่นอัตโนมัติเข้าบัญชีธนาคาร</span>
+                </div>
+                <ArrowRight size={20} style={{ color: 'var(--reg-primary)' }} />
+              </div>
+
+              <div
+                className="reg-decision-card-btn secondary"
+                onClick={() => {
+                  window.location.href = '/agent'
+                }}
+                role="button"
+                tabIndex={0}
+              >
+                <div className="reg-card-btn-text">
+                  <strong>👥 เข้าสู่ Agent Portal ทันที</strong>
+                  <span>รับ QR Code เชิญร้านค้า และเริ่มขยายเครือข่าย (ส่งเอกสาร KYC ภายหลังได้)</span>
+                </div>
+                <ArrowRight size={20} style={{ color: 'var(--reg-muted)' }} />
+              </div>
+            </div>
           </div>
         </div>
-      </main>
+      )}
 
       <footer className="reg-footer">
         <div className="reg-footer-inner">

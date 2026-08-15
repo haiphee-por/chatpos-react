@@ -16,9 +16,11 @@ import {
   Trash2,
   AlertTriangle,
   Users,
+  Sparkles,
 } from 'lucide-react'
 import './MerchantRegistrationView.css'
 import { useMerchantT, type Lang } from './registrationI18n'
+import { registerMerchant } from './dbApi'
 
 type TFn = (key: string) => string
 
@@ -38,8 +40,23 @@ const initialSuppliers: Supplier[] = [
 
 const productOptions = ['QR Cash', 'QR Credit Card', 'EDC']
 
-/* ========== MAIN ========== */
 export function MerchantRegistrationView() {
+  // Registration Flow Stage: 'quick' (Simple Initial Sign-up) or 'wizard' (Detailed Business KYC)
+  const [stage, setStage] = useState<'quick' | 'wizard'>('quick')
+  const [showDecisionModal, setShowDecisionModal] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [quickError, setQuickError] = useState('')
+
+  // Quick Sign-up Form State
+  const [quickData, setQuickData] = useState({
+    storeName: '',
+    ownerName: '',
+    phone: '',
+    email: '',
+    password: '',
+    referralCode: '',
+  })
+
   const [currentStep, setCurrentStep] = useState(0)
   const [lang, setLang] = useState<Lang>('TH')
   const t = useMerchantT(lang)
@@ -61,12 +78,63 @@ export function MerchantRegistrationView() {
   const removeSupplier = (id: string) => setSuppliers(suppliers.filter(s => s.id !== id))
   const addSupplier = () => setSuppliers([...suppliers, { id: `s${Date.now()}`, name: '', taxId: '', bankName: '', bankAccount: '', accountHolder: '' }])
 
+  const handleQuickSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setQuickError('')
+
+    if (!quickData.storeName.trim()) {
+      setQuickError('กรุณาระบุชื่อร้านค้า')
+      return
+    }
+    if (!quickData.ownerName.trim()) {
+      setQuickError('กรุณาระบุชื่อ-นามสกุล เจ้าของร้าน')
+      return
+    }
+    if (!quickData.phone.trim()) {
+      setQuickError('กรุณาระบุเบอร์โทรศัพท์')
+      return
+    }
+    if (!quickData.email.trim()) {
+      setQuickError('กรุณาระบุอีเมล')
+      return
+    }
+    if (!quickData.password || quickData.password.length < 6) {
+      setQuickError('กรุณากำหนดรหัสผ่านอย่างน้อย 6 ตัวอักษร')
+      return
+    }
+
+    setIsSubmitting(true)
+    try {
+      const res = await registerMerchant({
+        name: quickData.ownerName.trim(),
+        email: quickData.email.trim(),
+        password: quickData.password,
+        phone: quickData.phone.trim(),
+        storeName: quickData.storeName.trim(),
+        referralCode: quickData.referralCode.trim() || undefined,
+        storeType: 'MAIN',
+      })
+
+      if (res.success) {
+        setShowDecisionModal(true)
+      } else {
+        setQuickError(res.error || 'ไม่สามารถลงทะเบียนได้ กรุณาลองใหม่อีกครั้ง')
+      }
+    } catch (err: any) {
+      setQuickError(err.message || 'เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์')
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
   return (
     <div className="reg-shell">
       <header className="reg-header">
         <div className="reg-header-inner">
-          <div className="reg-brand">
-            <img src="/logo.png" alt="ChatPOS Logo" />
+          <div className="reg-brand" onClick={() => (window.location.href = '/')}>
+            <div className="reg-logo-mark">
+              <Sparkles size={18} className="reg-logo-sparkle" />
+            </div>
             <div className="reg-brand-text"><strong>ChatPOS</strong><span>{t('headerSub')}</span></div>
           </div>
           <div className="reg-header-actions">
@@ -82,48 +150,241 @@ export function MerchantRegistrationView() {
       </header>
 
       <main className="reg-main">
-        <div className="reg-card">
-          <h1 className="reg-title">{t('pageTitle')}</h1>
-          <div className="reg-stepper">
-            <div className="reg-stepper-line"><div className="reg-stepper-fill" style={{ width: `${stepperFill}%` }} /></div>
-            {steps.map((label, i) => (
-              <div key={i} className={`reg-step ${i === currentStep ? 'active' : ''} ${i < currentStep ? 'completed' : ''}`}
-                onClick={() => i < currentStep && setCurrentStep(i)} style={{ cursor: i < currentStep ? 'pointer' : 'default' }}>
-                <div className="reg-step-circle">{i < currentStep ? <Check size={16} /> : i + 1}</div>
-                <span className="reg-step-label">{label}</span>
+        {/* PHASE 1: Quick & Easy Registration */}
+        {stage === 'quick' ? (
+          <div className="reg-quick-card">
+            <div className="reg-quick-hero">
+              <div className="reg-stage-badge">
+                <Store size={15} /> สเต็ปที่ 1: สมัครเปิดร้านค้าเริ่มต้น (1 นาที)
               </div>
-            ))}
-          </div>
-          <div className="reg-progress">
-            <div className="reg-progress-header">
-              <span className="reg-progress-step">{t('step')} {currentStep + 1}/{steps.length}</span>
-              <span className="reg-progress-pct">{pct}%</span>
+              <h1>เปิดร้านค้า ChatPOS ฟรี</h1>
+              <p>กรอกข้อมูลเบื้องต้นเพื่อสร้างบัญชีร้านค้าและเข้าใช้งานระบบ POS ได้ทันที</p>
             </div>
-            <div className="reg-progress-track"><div className="reg-progress-fill" style={{ width: `${pct}%` }} /></div>
-          </div>
 
-          <div className="reg-step-content" key={`${currentStep}-${lang}`}>
-            {currentStep === 0 && <Step1 t={t} bizType={bizType} setBizType={setBizType} channel={channel} setChannel={setChannel}
-              purposes={purposes} togglePurpose={(i: number) => toggleSet(purposes, i, setPurposes)}
-              products={products} toggleProduct={(i: number) => toggleSet(products, i, setProducts)}
-              restricted={restricted} toggleRestricted={(i: number) => toggleSet(restricted, i, setRestricted)}
-              sameAddress={sameAddress} setSameAddress={setSameAddress} />}
-            {currentStep === 1 && <Step2 t={t} />}
-            {currentStep === 2 && <Step3 t={t} />}
-            {currentStep === 3 && <Step4 t={t} />}
-            {currentStep === 4 && <Step5 t={t} suppliers={suppliers} onRemove={removeSupplier} onAdd={addSupplier} />}
-          </div>
-
-          <div className="reg-nav-buttons">
-            <button className="reg-btn-back" onClick={goBack} disabled={currentStep === 0} type="button"><ArrowLeft size={16} /> {t('back')}</button>
-            {currentStep < steps.length - 1 ? (
-              <button className="reg-btn-next" onClick={goNext} type="button">{t('next')} <ArrowRight size={16} /></button>
-            ) : (
-              <button className="reg-btn-next" onClick={() => alert(t('submitAlert'))} type="button"><ShieldCheck size={16} /> {t('submitBtn')}</button>
+            {quickError && (
+              <div className="reg-notice" style={{ background: '#fef2f2', borderColor: '#fca5a5', marginBottom: '20px' }}>
+                <AlertTriangle className="reg-notice-icon" style={{ color: '#dc2626' }} size={20} />
+                <div style={{ color: '#b91c1c', fontWeight: 600, fontSize: '13px' }}>
+                  {quickError}
+                  {quickError.includes('อีเมลนี้ถูกใช้งานแล้ว') && (
+                    <span style={{ marginLeft: '6px' }}>
+                      👉 <a href="/merchant/login" style={{ color: '#b91c1c', textDecoration: 'underline', fontWeight: 700 }}>คลิกที่นี่เพื่อเข้าสู่ระบบ</a>
+                    </span>
+                  )}
+                </div>
+              </div>
             )}
+
+            <form onSubmit={handleQuickSubmit} className="reg-quick-form">
+              <div className="reg-grid reg-grid-2">
+                <div className="reg-field reg-col-span-2">
+                  <span className="reg-label">ชื่อร้านค้า / ธุรกิจ <span className="reg-required">*</span></span>
+                  <input
+                    className="reg-input"
+                    type="text"
+                    placeholder="เช่น คาเฟ่อเมซอน สาขาลาดพร้าว หรือ ร้านตามสั่งป้าสมร"
+                    value={quickData.storeName}
+                    onChange={(e) => setQuickData({ ...quickData, storeName: e.target.value })}
+                    required
+                  />
+                </div>
+
+                <div className="reg-field">
+                  <span className="reg-label">ชื่อ-นามสกุล เจ้าของร้าน <span className="reg-required">*</span></span>
+                  <input
+                    className="reg-input"
+                    type="text"
+                    placeholder="เช่น สมศักดิ์ มีสุข"
+                    value={quickData.ownerName}
+                    onChange={(e) => setQuickData({ ...quickData, ownerName: e.target.value })}
+                    required
+                  />
+                </div>
+
+                <div className="reg-field">
+                  <span className="reg-label">เบอร์โทรศัพท์มือถือ <span className="reg-required">*</span></span>
+                  <input
+                    className="reg-input"
+                    type="tel"
+                    placeholder="08X-XXX-XXXX"
+                    value={quickData.phone}
+                    onChange={(e) => setQuickData({ ...quickData, phone: e.target.value })}
+                    required
+                  />
+                </div>
+
+                <div className="reg-field">
+                  <span className="reg-label">อีเมลสำหรับเข้าสู่ระบบ <span className="reg-required">*</span></span>
+                  <input
+                    className="reg-input"
+                    type="email"
+                    placeholder="owner@yourshop.com"
+                    value={quickData.email}
+                    onChange={(e) => setQuickData({ ...quickData, email: e.target.value })}
+                    required
+                  />
+                </div>
+
+                <div className="reg-field">
+                  <span className="reg-label">กำหนดรหัสผ่าน (อย่างน้อย 6 ตัวอักษร) <span className="reg-required">*</span></span>
+                  <input
+                    className="reg-input"
+                    type="password"
+                    placeholder="••••••••"
+                    value={quickData.password}
+                    onChange={(e) => setQuickData({ ...quickData, password: e.target.value })}
+                    required
+                  />
+                </div>
+
+                <div className="reg-field reg-col-span-2">
+                  <span className="reg-label">รหัสตัวแทนแนะนำ / Agent Code (ถ้ามี)</span>
+                  <input
+                    className="reg-input"
+                    type="text"
+                    placeholder="เช่น AG-001 หรือเว้นว่างไว้"
+                    value={quickData.referralCode}
+                    onChange={(e) => setQuickData({ ...quickData, referralCode: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              <button type="submit" className="reg-quick-submit-btn" disabled={isSubmitting}>
+                {isSubmitting ? (
+                  <span>กำลังสร้างบัญชีร้านค้า...</span>
+                ) : (
+                  <>
+                    <ShieldCheck size={18} />
+                    <span>สร้างบัญชีและเปิดร้านค้าทันที 🚀</span>
+                  </>
+                )}
+              </button>
+
+              <div className="reg-quick-footer-link">
+                มีบัญชีร้านค้าอยู่แล้ว? <a href="/merchant/login">เข้าสู่ระบบที่นี่</a>
+              </div>
+            </form>
+          </div>
+        ) : (
+          /* PHASE 2: Detailed Business KYC Wizard */
+          <div className="reg-card">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <div className="reg-stage-badge">
+                <FileText size={14} /> สเต็ปที่ 2: กรอกข้อมูลธุรกิจ & เอกสารยืนยันตัวตน (KYC)
+              </div>
+              <button
+                type="button"
+                onClick={() => (window.location.href = '/merchant')}
+                style={{ background: 'transparent', border: '0', color: 'var(--reg-primary)', fontWeight: 600, fontSize: '13px', cursor: 'pointer' }}
+              >
+                ข้ามไปหน้าร้านค้าก่อน ➔
+              </button>
+            </div>
+
+            <h1 className="reg-title">{t('pageTitle')}</h1>
+            <div className="reg-stepper">
+              <div className="reg-stepper-line"><div className="reg-stepper-fill" style={{ width: `${stepperFill}%` }} /></div>
+              {steps.map((label, i) => (
+                <div key={i} className={`reg-step ${i === currentStep ? 'active' : ''} ${i < currentStep ? 'completed' : ''}`}
+                  onClick={() => i < currentStep && setCurrentStep(i)} style={{ cursor: i < currentStep ? 'pointer' : 'default' }}>
+                  <div className="reg-step-circle">{i < currentStep ? <Check size={16} /> : i + 1}</div>
+                  <span className="reg-step-label">{label}</span>
+                </div>
+              ))}
+            </div>
+            <div className="reg-progress">
+              <div className="reg-progress-header">
+                <span className="reg-progress-step">{t('step')} {currentStep + 1}/{steps.length}</span>
+                <span className="reg-progress-pct">{pct}%</span>
+              </div>
+              <div className="reg-progress-track"><div className="reg-progress-fill" style={{ width: `${pct}%` }} /></div>
+            </div>
+
+            <div className="reg-step-content" key={`${currentStep}-${lang}`}>
+              {currentStep === 0 && <Step1 t={t} bizType={bizType} setBizType={setBizType} channel={channel} setChannel={setChannel}
+                purposes={purposes} togglePurpose={(i: number) => toggleSet(purposes, i, setPurposes)}
+                products={products} toggleProduct={(i: number) => toggleSet(products, i, setProducts)}
+                restricted={restricted} toggleRestricted={(i: number) => toggleSet(restricted, i, setRestricted)}
+                sameAddress={sameAddress} setSameAddress={setSameAddress} />}
+              {currentStep === 1 && <Step2 t={t} />}
+              {currentStep === 2 && <Step3 t={t} />}
+              {currentStep === 3 && <Step4 t={t} />}
+              {currentStep === 4 && <Step5 t={t} suppliers={suppliers} onRemove={removeSupplier} onAdd={addSupplier} />}
+            </div>
+
+            <div className="reg-nav-buttons">
+              <button className="reg-btn-back" onClick={goBack} disabled={currentStep === 0} type="button"><ArrowLeft size={16} /> {t('back')}</button>
+              {currentStep < steps.length - 1 ? (
+                <button className="reg-btn-next" onClick={goNext} type="button">{t('next')} <ArrowRight size={16} /></button>
+              ) : (
+                <button
+                  className="reg-btn-next"
+                  onClick={() => {
+                    try {
+                      localStorage.setItem('merchant_kyc_status', 'pending')
+                      localStorage.setItem('merchant_is_registered', 'true')
+                    } catch {}
+                    alert(lang === 'TH'
+                      ? '🎉 บันทึกเอกสาร KYC เข้าสู่ระบบเรียบร้อย!\n\nเจ้าหน้าที่จะดำเนินการตรวจสอบเอกสารภายใน 24 ชม. ระบบ POS และเมนูสินค้าพร้อมใช้งานทันที'
+                      : '🎉 KYC documents submitted successfully!\n\nOur compliance team will review within 24 hours. Your POS is ready for setup.')
+                    window.location.href = '/merchant'
+                  }}
+                  type="button"
+                >
+                  <ShieldCheck size={16} /> {t('submitBtn')}
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+      </main>
+
+      {/* Decision Modal after Quick Registration */}
+      {showDecisionModal && (
+        <div className="reg-modal-backdrop">
+          <div className="reg-decision-modal">
+            <img src="/mascot/nabtang_celebrating.png" alt="Success Mascot" className="reg-decision-mascot" />
+            <h2 className="reg-decision-title">🎉 สร้างบัญชีร้านค้าสำเร็จแล้ว!</h2>
+            <p className="reg-decision-desc">
+              ร้านค้า <strong>"{quickData.storeName}"</strong> ถูกบันทึกเข้าสู่ระบบฐานข้อมูล ChatPOS เรียบร้อยแล้ว คุณสามารถเลือกดำเนินการต่อได้ดังนี้:
+            </p>
+
+            <div className="reg-decision-options">
+              <div
+                className="reg-decision-card-btn primary"
+                onClick={() => {
+                  setShowDecisionModal(false)
+                  setStage('wizard')
+                  window.scrollTo({ top: 0, behavior: 'smooth' })
+                }}
+                role="button"
+                tabIndex={0}
+              >
+                <div className="reg-card-btn-text">
+                  <strong>📄 กรอกข้อมูลธุรกิจและยืนยันตัวตน KYC (แนะนำ)</strong>
+                  <span>อัปโหลดเอกสารเพื่อเปิดรับชำระเงิน QR PromptPay และ EDC เต็มรูปแบบ</span>
+                </div>
+                <ArrowRight size={20} style={{ color: 'var(--reg-primary)' }} />
+              </div>
+
+              <div
+                className="reg-decision-card-btn secondary"
+                onClick={() => {
+                  window.location.href = '/merchant'
+                }}
+                role="button"
+                tabIndex={0}
+              >
+                <div className="reg-card-btn-text">
+                  <strong>🏪 เข้าสู่ระบบจัดการร้านค้า POS ทันที</strong>
+                  <span>เริ่มตั้งค่าเมนูสินค้า จัดโต๊ะ และทดลองใช้งาน (สามารถยืนยัน KYC ภายหลังได้)</span>
+                </div>
+                <ArrowRight size={20} style={{ color: 'var(--reg-muted)' }} />
+              </div>
+            </div>
           </div>
         </div>
-      </main>
+      )}
 
       <footer className="reg-footer">
         <div className="reg-footer-inner">
