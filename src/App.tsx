@@ -29,12 +29,15 @@ import { MerchantRegistrationView } from './MerchantRegistrationView'
 import { PdRegistrationView } from './PdRegistrationView'
 import { AgentRegistrationView } from './AgentRegistrationView'
 import { CustomerView } from './CustomerView'
+import { QuickPayView } from './QuickPayView'
 import { ChatPosAiWidget } from './AdminModals'
 import { ProfileSettingsModal } from './ProfileSettingsModal'
 import { PdPortalView } from './PdPortalView'
 import { AgentPortalView } from './AgentPortalView'
 import { DeveloperConsoleView } from './DeveloperConsoleView'
 import { LandingPageView } from './LandingPageView'
+import { CatalogPageView } from './CatalogPageView'
+import { BookingPageView } from './BookingPageView'
 import { fetchDbHealth, fetchDbStats, fetchDbKycCases, getStoredUser, clearStoredUser, type DbHealth, type DbStats, type AuthUser } from './dbApi'
 import './App.css'
 import './PdAgentViews.css'
@@ -94,8 +97,75 @@ function App() {
     return () => clearInterval(timer)
   }, [])
 
-  if (pathname === '/customer' || pathname.startsWith('/c/') || pathname.startsWith('/t') || pathname.startsWith('/order')) {
+  // 1. Dedicated Service Booking Engine Route (/booking, /book, /services, /appointment)
+  if (
+    pathname === '/booking' ||
+    pathname === '/book' ||
+    pathname === '/services' ||
+    pathname === '/appointment' ||
+    pathname.startsWith('/booking') ||
+    pathname.startsWith('/appointment')
+  ) {
+    return <BookingPageView />
+  }
+
+  // 2. Dedicated Sales Pages & Digital Catalog Showcase (/catalog-page, /sales-page, custom sales page slugs)
+  const isCatalogOrSalesPageRoute = (() => {
+    if (
+      pathname === '/catalog-page' ||
+      pathname === '/catalog' ||
+      pathname === '/sales-page' ||
+      pathname === '/salespage' ||
+      pathname === '/showcase' ||
+      pathname.startsWith('/catalog') ||
+      pathname.startsWith('/sales') ||
+      pathname.startsWith('/page/') ||
+      pathname.startsWith('/sp/')
+    ) {
+      return true
+    }
+
+    try {
+      const savedSalesPages = localStorage.getItem('merchant_sales_pages')
+      if (savedSalesPages) {
+        const salesPages = JSON.parse(savedSalesPages)
+        if (Array.isArray(salesPages) && salesPages.some((p: any) => `/${p.slug}` === pathname || `/${p.slug}` === pathname.replace(/\/$/, ''))) {
+          return true
+        }
+      }
+    } catch (e) {}
+
+    return false
+  })()
+
+  if (isCatalogOrSalesPageRoute) {
+    return <CatalogPageView />
+  }
+
+  // 2. Customer In-Store / Table Dining & Order Route
+  if (
+    pathname === '/customer' ||
+    pathname === '/order' ||
+    pathname === '/delivery' ||
+    pathname === '/takeaway' ||
+    pathname.startsWith('/c/') ||
+    pathname.startsWith('/t') ||
+    pathname.startsWith('/order')
+  ) {
     return <CustomerView />
+  }
+
+  if (
+    pathname === '/shop' ||
+    pathname === '/quickpay' ||
+    pathname === '/pay' ||
+    pathname === '/kiosk' ||
+    pathname === '/display' ||
+    pathname.startsWith('/pay/') ||
+    pathname.startsWith('/s/') ||
+    pathname.startsWith('/shop')
+  ) {
+    return <QuickPayView />
   }
 
   if (pathname === '/developer' || pathname.startsWith('/developer')) {

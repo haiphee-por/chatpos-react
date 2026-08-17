@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { ProfileSettingsModal } from './ProfileSettingsModal'
 import { DeveloperConsoleView } from './DeveloperConsoleView'
 import { fetchDbProducts, fetchDbStores, getStoredUser, clearStoredUser, createDbTransaction, type AuthUser, type DbStoreRow } from './dbApi'
-import { generatePromptPayQrDataUrl, getStoredPromptPayId, setStoredPromptPayId } from './promptpay'
+import { generatePromptPayQrDataUrl, generateUrlQrDataUrl, getStoredPromptPayId, setStoredPromptPayId } from './promptpay'
 import { createPaymentQr, checkPaymentStatus, fetchChatPosApi } from './chatposApi'
 import {
   LogOut,
@@ -57,6 +57,8 @@ import {
   TrendingUp,
   ArrowUpRight,
   User,
+  Phone,
+  MessageCircle,
   ShieldCheck,
   Key,
   Fingerprint,
@@ -1543,6 +1545,81 @@ function ItemDetailsModal({
               <h5>📄 คำอธิบายแบบรายละเอียด (Full Detailed Description):</h5>
               <p>{getFullDesc()}</p>
             </div>
+
+            {/* Direct Booking Link Section */}
+            <div style={{ marginTop: '16px', background: '#f0fdf4', border: '1.5px solid #bbf7d0', borderRadius: '12px', padding: '12px 14px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                <strong style={{ fontSize: '13px', color: '#166534', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Globe size={15} color="#16a34a" /> ลิงก์หน้าร้านสำหรับจอง {item.type === 'service' ? 'บริการ' : 'สินค้า'} นี้:
+                </strong>
+                <span style={{ fontSize: '11px', color: '#15803d', background: '#dcfce7', padding: '2px 8px', borderRadius: '10px', fontWeight: 700 }}>
+                  Online Live
+                </span>
+              </div>
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                <input
+                  type="text"
+                  readOnly
+                  value={`${window.location.origin}/booking?service=${item.id}`}
+                  style={{
+                    flex: 1,
+                    padding: '8px 12px',
+                    borderRadius: '8px',
+                    border: '1px solid #86efac',
+                    background: '#ffffff',
+                    fontSize: '12px',
+                    color: '#0f172a',
+                    fontFamily: 'monospace'
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard?.writeText(`${window.location.origin}/booking?service=${item.id}`)
+                    playTapSound('success')
+                  }}
+                  style={{
+                    padding: '8px 14px',
+                    borderRadius: '8px',
+                    background: '#16a34a',
+                    color: '#ffffff',
+                    border: 'none',
+                    fontSize: '12px',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    whiteSpace: 'nowrap'
+                  }}
+                >
+                  <Copy size={13} /> คัดลอกลิงก์
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    playTapSound('nav')
+                    window.open(`/booking?service=${item.id}`, '_blank')
+                  }}
+                  style={{
+                    padding: '8px 14px',
+                    borderRadius: '8px',
+                    background: '#0f172a',
+                    color: '#ffffff',
+                    border: 'none',
+                    fontSize: '12px',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    whiteSpace: 'nowrap'
+                  }}
+                >
+                  <ArrowUpRight size={13} /> เปิดดูหน้าเว็บ
+                </button>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -1952,14 +2029,98 @@ function ServicesView() {
     return ['บริการคิว', 'นวดสปา', 'ความงาม / ซาลอน', 'ล้างรถ / คาร์แคร์', 'บริการซ่อม / ช่าง']
   })
 
-  const [activeTab, setActiveTab] = useState<'services' | 'paid'>('services')
+  // Online Bookings State (Synced with localStorage from /booking)
+  const [bookings, setBookings] = useState<any[]>(() => {
+    const saved = localStorage.getItem('merchant_service_bookings')
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved)
+        if (Array.isArray(parsed)) return parsed
+      } catch (e) {
+        console.error(e)
+      }
+    }
+    // Default initial mock bookings if none
+    return [
+      {
+        id: 'BK-89421',
+        serviceId: '2',
+        serviceName: 'บริการตัดผมชาย + สระเซ็ต',
+        servicePrice: 250,
+        customerName: 'คุณกิตติศักดิ์ ชัยมงคล',
+        customerPhone: '081-998-7766',
+        guestCount: 1,
+        bookingDate: new Date().toISOString().split('T')[0],
+        bookingTime: '14:00',
+        specialNotes: 'ขอช่างตัดสไตล์เกาหลี',
+        paymentMethod: 'promptpay',
+        isPaid: true,
+        status: 'confirmed',
+        createdAt: new Date().toISOString()
+      },
+      {
+        id: 'BK-89422',
+        serviceId: '4',
+        serviceName: 'บริการสปาเท้ารวมนวดกดจุด 45 นาที',
+        servicePrice: 350,
+        customerName: 'คุณวริศรา นภากุล',
+        customerPhone: '089-123-4567',
+        guestCount: 2,
+        bookingDate: new Date().toISOString().split('T')[0],
+        bookingTime: '16:30',
+        specialNotes: 'จองพร้อมกัน 2 ท่าน',
+        paymentMethod: 'store',
+        isPaid: false,
+        status: 'pending',
+        createdAt: new Date().toISOString()
+      }
+    ]
+  })
+
+  const [activeTab, setActiveTab] = useState<'services' | 'bookings' | 'paid'>('services')
   const [activeCategory, setActiveCategory] = useState<string>('all')
+  const [bookingFilterStatus, setBookingFilterStatus] = useState<string>('all')
   const [isQuickAddCatOpen, setIsQuickAddCatOpen] = useState(false)
   const [newCatInput, setNewCatInput] = useState('')
   const [paidList] = useState<PaidTransaction[]>(initialPaidList)
   const [searchQuery, setSearchQuery] = useState('')
   const [isAddModalOpen, setIsAddModalOpen] = useState(false)
   const [selectedItem, setSelectedItem] = useState<CatalogItem | null>(null)
+
+  // Booking Link & QR Code Modal States
+  const [copiedServiceId, setCopiedServiceId] = useState<string | null>(null)
+  const [serviceQrModal, setServiceQrModal] = useState<{ title: string; subtitle: string; url: string; qrDataUrl?: string } | null>(null)
+
+  // Listen to live booking additions from Customer /booking tab
+  useEffect(() => {
+    const handleSyncBookings = () => {
+      try {
+        const saved = localStorage.getItem('merchant_service_bookings')
+        if (saved) {
+          setBookings(JSON.parse(saved))
+        }
+      } catch (e) {
+        console.error(e)
+      }
+    }
+    window.addEventListener('storage', handleSyncBookings)
+    return () => window.removeEventListener('storage', handleSyncBookings)
+  }, [])
+
+  useEffect(() => {
+    if (serviceQrModal?.url) {
+      generateUrlQrDataUrl(serviceQrModal.url, 260)
+        .then((qr) => setServiceQrModal((prev) => prev ? { ...prev, qrDataUrl: qr } : null))
+        .catch(console.error)
+    }
+  }, [serviceQrModal?.url])
+
+  const handleCopyBookingLink = (url: string, id: string) => {
+    navigator.clipboard?.writeText(url)
+    setCopiedServiceId(id)
+    playTapSound('success')
+    setTimeout(() => setCopiedServiceId(null), 2000)
+  }
 
   const handleAddCategory = (newCat: string) => {
     const trimmed = newCat.trim()
@@ -1978,6 +2139,13 @@ function ServicesView() {
     }
   }
 
+  const handleUpdateBookingStatus = (bookingId: string, newStatus: 'pending' | 'confirmed' | 'in_service' | 'completed' | 'cancelled') => {
+    const updated = bookings.map(b => b.id === bookingId ? { ...b, status: newStatus } : b)
+    setBookings(updated)
+    localStorage.setItem('merchant_service_bookings', JSON.stringify(updated))
+    playTapSound('success')
+  }
+
   const filteredServices = catalog.filter((item) => {
     const matchesQuery =
       item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -1990,23 +2158,40 @@ function ServicesView() {
     return matchesQuery && matchesCategory
   })
 
+  const filteredBookings = bookings.filter((b) => {
+    const matchStatus = bookingFilterStatus === 'all' || b.status === bookingFilterStatus
+    const matchQuery =
+      b.customerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      b.customerPhone.includes(searchQuery) ||
+      b.serviceName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      b.id.toLowerCase().includes(searchQuery.toLowerCase())
+    return matchStatus && matchQuery
+  })
+
+  const pendingBookingsCount = bookings.filter(b => b.status === 'pending').length
+  const activeBookingsCount = bookings.filter(b => b.status === 'pending' || b.status === 'confirmed').length
+
   return (
     <div className="queue-services-page">
       {/* Hero Cards */}
       <section className="qs-hero-cards">
         <div
-          className={`qs-card qs-card-green ${activeTab === 'paid' ? 'active' : ''}`}
-          onClick={() => { playTapSound('nav'); setActiveTab('paid') }}
+          className={`qs-card qs-card-green ${activeTab === 'bookings' ? 'active' : ''}`}
+          onClick={() => { playTapSound('nav'); setActiveTab('bookings') }}
           role="button"
           tabIndex={0}
         >
-          <div className="qs-card-icon-wrap">
+          <div className="qs-card-icon-wrap" style={{ position: 'relative' }}>
             <Calendar size={22} />
+            {pendingBookingsCount > 0 && (
+              <span className="qs-hero-badge-pill">{pendingBookingsCount}</span>
+            )}
           </div>
           <div className="qs-card-text">
-            <h3>รายการชำระแล้ว</h3>
+            <h3>คิวจองออนไลน์</h3>
+            <p>{activeBookingsCount} คิวรอดำเนินการ</p>
           </div>
-          <img src="/mascot/pay_1_holding_coin.png" className="qs-card-mascot-img" alt="ชำระแล้ว" />
+          <img src="/mascot/nabtang_welcome.png" className="qs-card-mascot-img" alt="คิวจองออนไลน์" />
         </div>
 
         <div
@@ -2020,6 +2205,7 @@ function ServicesView() {
           </div>
           <div className="qs-card-text">
             <h3>จัดการบริการ</h3>
+            <p>{catalog.length} รายการบริการ</p>
           </div>
           <img src="/mascot/pos_5_inventory_check.png" className="qs-card-mascot-img" alt="จัดการบริการ" />
         </div>
@@ -2041,17 +2227,85 @@ function ServicesView() {
         </div>
       </section>
 
+      {/* Online Booking Portal Quick Banner */}
+      <div className="qs-booking-portal-bar">
+        <div className="qs-portal-left">
+          <div className="qs-portal-icon">
+            <Globe size={22} color="#0284c7" />
+          </div>
+          <div className="qs-portal-info">
+            <div className="qs-portal-badge-row">
+              <strong>🌐 ลิงก์หน้ารวมจองบริการออนไลน์ (Online Booking Portal)</strong>
+              <span className="qs-portal-live-pill">🟢 ลิงก์พร้อมใช้งาน</span>
+            </div>
+            <p className="qs-portal-url-text">{window.location.origin}/booking</p>
+          </div>
+        </div>
+        <div className="qs-portal-actions">
+          <button
+            type="button"
+            className="qs-portal-action-btn copy"
+            onClick={() => handleCopyBookingLink(`${window.location.origin}/booking`, 'portal-link')}
+          >
+            {copiedServiceId === 'portal-link' ? <Check size={14} /> : <Copy size={14} />}
+            <span>{copiedServiceId === 'portal-link' ? 'คัดลอกสำเร็จ!' : 'คัดลอกลิงก์จอง'}</span>
+          </button>
+          <button
+            type="button"
+            className="qs-portal-action-btn qr"
+            onClick={() => {
+              playTapSound('pop')
+              setServiceQrModal({
+                title: 'QR Code จองบริการทั้งหมด',
+                subtitle: 'สแกนเพื่อเปิดหน้ารวมบริการและจองคิวออนไลน์',
+                url: `${window.location.origin}/booking`
+              })
+            }}
+          >
+            <QrCode size={14} /> <span>QR Code</span>
+          </button>
+          <button
+            type="button"
+            className="qs-portal-action-btn open"
+            onClick={() => {
+              playTapSound('nav')
+              window.open('/booking', '_blank')
+            }}
+          >
+            <ArrowUpRight size={14} /> <span>เปิดดูหน้าจองจริง</span>
+          </button>
+        </div>
+      </div>
+
       {/* Main Section Header */}
       <section className="qs-section-header">
         <div className="qs-section-title-wrap">
-          <h2>{activeTab === 'paid' ? 'รายการชำระแล้ว' : 'รายการบริการร้านค้า (Services)'}</h2>
+          <h2>
+            {activeTab === 'bookings'
+              ? 'รายการคิวจองออนไลน์ (Online Bookings)'
+              : activeTab === 'paid'
+              ? 'รายการชำระแล้ว'
+              : 'รายการบริการร้านค้า (Services)'}
+          </h2>
           <span className="qs-count-badge">
             <Tag size={13} />
-            {activeTab === 'paid' ? `${paidList.length} รายการ` : `${filteredServices.length} รายการ`}
+            {activeTab === 'bookings'
+              ? `${filteredBookings.length} คิว`
+              : activeTab === 'paid'
+              ? `${paidList.length} รายการ`
+              : `${filteredServices.length} รายการ`}
           </span>
         </div>
 
         <div className="qs-tab-pills">
+          <button
+            className={activeTab === 'bookings' ? 'active' : ''}
+            onClick={() => { playTapSound('nav'); setActiveTab('bookings') }}
+            type="button"
+          >
+            📅 คิวจองออนไลน์ ({bookings.length})
+            {pendingBookingsCount > 0 && <span className="qs-tab-count-bubble">{pendingBookingsCount}</span>}
+          </button>
           <button
             className={activeTab === 'services' ? 'active' : ''}
             onClick={() => { playTapSound('nav'); setActiveTab('services') }}
@@ -2067,6 +2321,57 @@ function ServicesView() {
             รายการชำระแล้ว ({paidList.length})
           </button>
         </div>
+
+        {/* Status Filter for Bookings Tab */}
+        {activeTab === 'bookings' && (
+          <div className="qs-category-filter-bar">
+            <span className="qs-cat-filter-label">
+              <Clock size={13} /> สถานะคิว:
+            </span>
+            <button
+              type="button"
+              className={`qs-cat-filter-chip ${bookingFilterStatus === 'all' ? 'active' : ''}`}
+              onClick={() => { playTapSound('pop'); setBookingFilterStatus('all') }}
+            >
+              ทั้งหมด ({bookings.length})
+            </button>
+            <button
+              type="button"
+              className={`qs-cat-filter-chip ${bookingFilterStatus === 'pending' ? 'active' : ''}`}
+              onClick={() => { playTapSound('pop'); setBookingFilterStatus('pending') }}
+            >
+              🟡 รอรับบริการ ({bookings.filter(b => b.status === 'pending').length})
+            </button>
+            <button
+              type="button"
+              className={`qs-cat-filter-chip ${bookingFilterStatus === 'confirmed' ? 'active' : ''}`}
+              onClick={() => { playTapSound('pop'); setBookingFilterStatus('confirmed') }}
+            >
+              🟢 ยืนยันแล้ว ({bookings.filter(b => b.status === 'confirmed').length})
+            </button>
+            <button
+              type="button"
+              className={`qs-cat-filter-chip ${bookingFilterStatus === 'in_service' ? 'active' : ''}`}
+              onClick={() => { playTapSound('pop'); setBookingFilterStatus('in_service') }}
+            >
+              ⏳ กำลังให้บริการ ({bookings.filter(b => b.status === 'in_service').length})
+            </button>
+            <button
+              type="button"
+              className={`qs-cat-filter-chip ${bookingFilterStatus === 'completed' ? 'active' : ''}`}
+              onClick={() => { playTapSound('pop'); setBookingFilterStatus('completed') }}
+            >
+              ✅ เสร็จสิ้น ({bookings.filter(b => b.status === 'completed').length})
+            </button>
+            <button
+              type="button"
+              className={`qs-cat-filter-chip ${bookingFilterStatus === 'cancelled' ? 'active' : ''}`}
+              onClick={() => { playTapSound('pop'); setBookingFilterStatus('cancelled') }}
+            >
+              ❌ ยกเลิก ({bookings.filter(b => b.status === 'cancelled').length})
+            </button>
+          </div>
+        )}
 
         {/* Category Filter & Quick Add Row (Services Tab) */}
         {activeTab === 'services' && (
@@ -2156,7 +2461,174 @@ function ServicesView() {
         )}
       </section>
 
-      {activeTab === 'paid' ? (
+      {activeTab === 'bookings' ? (
+        /* ONLINE BOOKINGS QUEUE PANEL */
+        <section className="qs-catalog-panel">
+          <div className="qs-search-toolbar">
+            <div className="qs-search-box">
+              <Search size={16} />
+              <input
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="ค้นหาชื่อลูกค้า, เบอร์โทร, หรือรหัสการจอง..."
+                value={searchQuery}
+              />
+            </div>
+            <button
+              className="qs-filter-btn"
+              onClick={() => {
+                const url = `${window.location.origin}/booking`
+                window.open(url, '_blank')
+              }}
+              type="button"
+            >
+              <ArrowUpRight size={15} />
+              เปิดหน้าจองฝั่งลูกค้า
+            </button>
+          </div>
+
+          <div className="qs-bookings-grid-list">
+            {filteredBookings.map((b) => {
+              const statusLabels: Record<string, { label: string; color: string; bg: string; border: string }> = {
+                pending: { label: '🟡 รอรับบริการ', color: '#854d0e', bg: '#fef9c3', border: '#fef08a' },
+                confirmed: { label: '🟢 ยืนยันคิวแล้ว', color: '#15803d', bg: '#dcfce7', border: '#bbf7d0' },
+                in_service: { label: '⏳ กำลังให้บริการ', color: '#0369a1', bg: '#e0f2fe', border: '#bae6fd' },
+                completed: { label: '✅ เสร็จสิ้นแล้ว', color: '#475569', bg: '#f1f5f9', border: '#e2e8f0' },
+                cancelled: { label: '❌ ยกเลิกคิว', color: '#b91c1c', bg: '#fee2e2', border: '#fecaca' }
+              }
+              const st = statusLabels[b.status] || statusLabels.pending
+
+              return (
+                <div key={b.id} className="qs-booking-card">
+                  <div className="qs-booking-card-top">
+                    <div className="qs-bk-ref-group">
+                      <span className="qs-bk-ref-id">#{b.id}</span>
+                      <span className="qs-bk-time-badge">
+                        <Clock size={12} /> {b.bookingDate} เวลา {b.bookingTime} น.
+                      </span>
+                    </div>
+                    <span
+                      className="qs-bk-status-pill"
+                      style={{ color: st.color, background: st.bg, borderColor: st.border }}
+                    >
+                      {st.label}
+                    </span>
+                  </div>
+
+                  <div className="qs-booking-card-main">
+                    <div className="qs-bk-cust-info">
+                      <strong className="qs-bk-cust-name">{b.customerName}</strong>
+                      <div className="qs-bk-cust-meta">
+                        <span>📞 {b.customerPhone}</span>
+                        <span>👥 {b.guestCount || 1} ท่าน</span>
+                      </div>
+                    </div>
+
+                    <div className="qs-bk-service-info">
+                      <div className="qs-bk-srv-title">
+                        <strong>{b.serviceName}</strong>
+                        <span className="qs-bk-srv-price">฿{Number(b.servicePrice).toLocaleString()}</span>
+                      </div>
+                      <div className="qs-bk-pay-tag">
+                        {b.paymentMethod === 'promptpay' ? (
+                          <span className="qs-pay-tag-pill paid">🟢 จ่ายแล้ว (PromptPay QR)</span>
+                        ) : b.paymentMethod === 'truemoney' ? (
+                          <span className="qs-pay-tag-pill paid" style={{ background: '#ffedd5', color: '#c2410c', borderColor: '#fed7aa' }}>🟠 TrueMoney Wallet</span>
+                        ) : b.paymentMethod === 'credit_card' ? (
+                          <span className="qs-pay-tag-pill paid" style={{ background: '#f3e8ff', color: '#7e22ce', borderColor: '#e9d5ff' }}>💳 บัตรเครดิต/เดบิต</span>
+                        ) : b.paymentMethod === 'bank_transfer' ? (
+                          <span className="qs-pay-tag-pill unpaid" style={{ background: '#ecfdf5', color: '#047857', borderColor: '#a7f3d0' }}>🏦 โอนเงินธนาคาร</span>
+                        ) : (
+                          <span className="qs-pay-tag-pill unpaid">⚪ ชำระที่หน้าร้าน</span>
+                        )}
+                      </div>
+                    </div>
+
+                    {b.specialNotes && (
+                      <div className="qs-bk-notes-box">
+                        <small>หมายเหตุ:</small> <span>{b.specialNotes}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="qs-booking-card-footer">
+                    <div className="qs-bk-contact-btns">
+                      <a href={`tel:${b.customerPhone}`} className="qs-bk-contact-btn tel" title="โทรหาลูกค้า">
+                        <Phone size={13} /> โทร
+                      </a>
+                      <a
+                        href={`https://line.me/ti/p/~@chatpos?text=${encodeURIComponent(
+                          `สวัสดีครับ คุณ ${b.customerName} ทางร้านขอแจ้งความคืบหน้าการจองคิว #${b.id}`
+                        )}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="qs-bk-contact-btn line"
+                        title="ติดต่อผ่าน LINE"
+                      >
+                        <MessageCircle size={13} /> LINE
+                      </a>
+                    </div>
+
+                    <div className="qs-bk-status-action-btns">
+                      {b.status === 'pending' && (
+                        <button
+                          type="button"
+                          className="qs-bk-act-btn confirm"
+                          onClick={() => handleUpdateBookingStatus(b.id, 'confirmed')}
+                        >
+                          🟢 ยืนยันคิว
+                        </button>
+                      )}
+                      {b.status === 'confirmed' && (
+                        <button
+                          type="button"
+                          className="qs-bk-act-btn inservice"
+                          onClick={() => handleUpdateBookingStatus(b.id, 'in_service')}
+                        >
+                          ⏳ เริ่มบริการ
+                        </button>
+                      )}
+                      {b.status === 'in_service' && (
+                        <button
+                          type="button"
+                          className="qs-bk-act-btn complete"
+                          onClick={() => handleUpdateBookingStatus(b.id, 'completed')}
+                        >
+                          ✅ เสร็จสิ้น
+                        </button>
+                      )}
+                      {b.status !== 'completed' && b.status !== 'cancelled' && (
+                        <button
+                          type="button"
+                          className="qs-bk-act-btn cancel"
+                          onClick={() => handleUpdateBookingStatus(b.id, 'cancelled')}
+                        >
+                          ยกเลิก
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
+
+            {filteredBookings.length === 0 && (
+              <div className="qs-empty-bookings-box">
+                <Calendar size={40} color="#94a3b8" />
+                <h4>ยังไม่มีรายการคิวจองในสถานะนี้</h4>
+                <p>เมื่อลูกค้าจองคิวผ่านลิงก์ /booking รายการจะแสดงขึ้นที่นี่โดยอัตโนมัติ</p>
+                <button
+                  type="button"
+                  className="qs-btn-submit"
+                  onClick={() => window.open('/booking', '_blank')}
+                  style={{ marginTop: '10px' }}
+                >
+                  <ArrowUpRight size={14} /> ทดสอบเปิดหน้าจองออนไลน์
+                </button>
+              </div>
+            )}
+          </div>
+        </section>
+      ) : activeTab === 'paid' ? (
         <section className="qs-paid-transactions-list">
           {paidList.map((tx) => (
             <div className="qs-paid-card" key={tx.id} onClick={() => playTapSound('click')}>
@@ -2200,7 +2672,7 @@ function ServicesView() {
                   <th>ราคาบริการ</th>
                   <th>สถานะบริการ</th>
                   <th>ยอดขาย</th>
-                  <th>จัดการ</th>
+                  <th>ลิงก์ & การจัดการ</th>
                 </tr>
               </thead>
               <tbody>
@@ -2246,17 +2718,96 @@ function ServicesView() {
                     </td>
                     <td className="muted">{item.soldCount} ครั้ง</td>
                     <td>
-                      <button
-                        className="qs-edit-btn"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          playTapSound('pop')
-                          setSelectedItem(item)
-                        }}
-                        type="button"
-                      >
-                        ดูข้อมูล/แก้ไข
-                      </button>
+                      <div className="qs-action-btn-group" style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                        <button
+                          className="qs-portal-btn-inline open"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            playTapSound('nav')
+                            window.open(`/booking?service=${item.id}`, '_blank')
+                          }}
+                          title="เปิดหน้าจองบริการนี้ในแท็บใหม่"
+                          type="button"
+                          style={{
+                            padding: '5px 9px',
+                            borderRadius: '8px',
+                            background: '#0f172a',
+                            color: '#ffffff',
+                            border: 'none',
+                            fontSize: '11px',
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '4px'
+                          }}
+                        >
+                          <ArrowUpRight size={12} /> เปิดจอง
+                        </button>
+                        <button
+                          className="qs-portal-btn-inline copy"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleCopyBookingLink(`${window.location.origin}/booking?service=${item.id}`, item.id)
+                          }}
+                          title="คัดลอกลิงก์จองบริการนี้"
+                          type="button"
+                          style={{
+                            padding: '5px 9px',
+                            borderRadius: '8px',
+                            background: '#f0fdf4',
+                            border: '1px solid #86efac',
+                            color: '#166534',
+                            fontSize: '11px',
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '4px'
+                          }}
+                        >
+                          {copiedServiceId === item.id ? <Check size={12} /> : <Link size={12} />}
+                          <span>{copiedServiceId === item.id ? 'คัดลอกแล้ว' : 'ลิงก์'}</span>
+                        </button>
+                        <button
+                          className="qs-portal-btn-inline qr"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            playTapSound('pop')
+                            setServiceQrModal({
+                              title: `QR Code: ${item.name}`,
+                              subtitle: `ราคา ฿${item.price.toLocaleString()} · สแกนเพื่อเปิดหน้าจองทันที`,
+                              url: `${window.location.origin}/booking?service=${item.id}`
+                            })
+                          }}
+                          title="ดู QR Code สำหรับจองบริการนี้"
+                          type="button"
+                          style={{
+                            padding: '5px 8px',
+                            borderRadius: '8px',
+                            background: '#f1f5f9',
+                            border: '1px solid #cbd5e1',
+                            color: '#475569',
+                            fontSize: '11px',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center'
+                          }}
+                        >
+                          <QrCode size={12} />
+                        </button>
+                        <button
+                          className="qs-edit-btn"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            playTapSound('pop')
+                            setSelectedItem(item)
+                          }}
+                          type="button"
+                        >
+                          ดู/แก้ไข
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -2281,6 +2832,64 @@ function ServicesView() {
         item={selectedItem}
         onClose={() => setSelectedItem(null)}
       />
+
+      {/* Service Booking QR Code Modal */}
+      {serviceQrModal && (
+        <div className="qs-modal-overlay" style={{ zIndex: 100050 }}>
+          <div className="qs-modal" style={{ maxWidth: 400, textAlign: 'center' }}>
+            <div className="qs-modal-header">
+              <div>
+                <h3>{serviceQrModal.title}</h3>
+                <p>{serviceQrModal.subtitle}</p>
+              </div>
+              <button
+                type="button"
+                className="qs-modal-close"
+                onClick={() => setServiceQrModal(null)}
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="qs-modal-body" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '20px' }}>
+              <div style={{ background: '#ffffff', padding: '16px', borderRadius: '16px', border: '1px solid #e2e8f0', boxShadow: '0 4px 15px rgba(0,0,0,0.06)' }}>
+                {serviceQrModal.qrDataUrl ? (
+                  <img src={serviceQrModal.qrDataUrl} alt="Booking QR Code" style={{ width: '220px', height: '220px', display: 'block' }} />
+                ) : (
+                  <div style={{ width: '220px', height: '220px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b' }}>กำลังสร้าง QR Code...</div>
+                )}
+              </div>
+
+              <div style={{ margin: '16px 0 8px', width: '100%', wordBreak: 'break-all', fontSize: '12px', color: '#0284c7', background: '#f0f9ff', padding: '8px 12px', borderRadius: '8px', border: '1px solid #bae6fd' }}>
+                {serviceQrModal.url}
+              </div>
+            </div>
+
+            <div className="qs-modal-footer" style={{ justifyContent: 'center', gap: '10px' }}>
+              <button
+                type="button"
+                className="qs-btn-cancel"
+                onClick={() => {
+                  navigator.clipboard?.writeText(serviceQrModal.url)
+                  playTapSound('success')
+                }}
+              >
+                <Copy size={14} /> คัดลอกลิงก์
+              </button>
+              <button
+                type="button"
+                className="qs-btn-submit"
+                onClick={() => {
+                  playTapSound('nav')
+                  window.open(serviceQrModal.url, '_blank')
+                }}
+              >
+                <ArrowUpRight size={14} /> เปิดหน้าเว็บ ›
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -2328,6 +2937,7 @@ export type SalesPage = {
   enabled: boolean
   clicks: number
   sales: number
+  data?: WizardFormData
 }
 
 type WizardFormData = {
@@ -2394,17 +3004,46 @@ const STEP_LABELS = [
 const initialSalesPages: SalesPage[] = [
   {
     id: 'sp-1',
-    avatarText: 'J1',
-    title: 'J1',
+    avatarText: 'POP',
+    title: 'POP CAFE Official Catalog',
     slug: 'catalog-page',
     enabled: true,
     clicks: 1240,
-    sales: 24500
+    sales: 24500,
+    data: {
+      template: 'shopfront',
+      pageName: 'POP CAFE ✨ หน้าร้าน & แค็ตตาล็อกสินค้า',
+      domain: 'chatpos.link',
+      slug: 'catalog-page',
+      seoTitle: 'POP CAFE - Official Online Catalog & Menu Showcase',
+      seoDescription: 'ค้นพบเมนูเครื่องดื่ม ซิกเนเจอร์ และเบเกอรี่โฮมเมดอบใหม่ทุกวัน ณ POP CAFE',
+      seoKeywords: 'cafe, coffee, bakery, pop cafe, bangkok cafe',
+      ogImage: 'https://images.unsplash.com/photo-1554118811-1e0d58224f24?w=1200&auto=format&fit=crop&q=80',
+      products: [],
+      heroImage: 'https://images.unsplash.com/photo-1554118811-1e0d58224f24?w=1200&auto=format&fit=crop&q=80',
+      contentText: 'ยินดีต้อนรับสู่ POP CAFE พื้นที่พักผ่อนใจกลางเมืองที่เสิร์ฟกาแฟ Specialty คัดสรรเมล็ดพันธุ์ชั้นดีและเบเกอรี่เนยสดฝรั่งเศสอบสดใหม่ทุกเช้า',
+      paymentChannels: ['promptpay', 'truemoney', 'visa_th', 'wechat', 'linepay'],
+      shippingEnabled: true,
+      shippingCost: '40',
+      shippingProviders: ['Flash Express', 'GrabExpress', 'Lineman'],
+      bannerImage: 'https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?w=1200&auto=format&fit=crop&q=80',
+      bannerUrl: '#',
+      bannerText: '🎉 ต้อนรับเทศกาล Special Beans Month ชิมเมล็ดกาแฟนำเข้า Single Origin ฟรีเมื่อสั่งเมนูเซ็ต!'
+    }
   }
 ]
 
 function SalesPageView() {
-  const [pages, setPages] = useState<SalesPage[]>(initialSalesPages)
+  const [pages, setPages] = useState<SalesPage[]>(() => {
+    try {
+      const saved = localStorage.getItem('merchant_sales_pages')
+      if (saved) {
+        const parsed = JSON.parse(saved)
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed
+      }
+    } catch (e) {}
+    return initialSalesPages
+  })
   const [searchQuery, setSearchQuery] = useState('')
   const [copiedId, setCopiedId] = useState<string | null>(null)
 
@@ -2418,12 +3057,20 @@ function SalesPageView() {
   const [tempProductName, setTempProductName] = useState('')
   const [tempProductPrice, setTempProductPrice] = useState('')
 
+  // Modals & Social Meta state
+  const [showCustomerPreviewModal, setShowCustomerPreviewModal] = useState(false)
+  const [showOgMetaModal, setShowOgMetaModal] = useState(false)
+  const [ogTitle, setOgTitle] = useState('POP CAFE ✨ - สั่งอาหารออนไลน์')
+  const [ogDesc, setOgDesc] = useState('สั่งอาหารและเครื่องดื่มผ่าน LINE OA หรือสแกน QR Code รับส่วนลดพิเศษทันที')
+
   const handleToggle = (id: string) => {
-    setPages(pages.map((p) => (p.id === id ? { ...p, enabled: !p.enabled } : p)))
+    const updated = pages.map((p) => (p.id === id ? { ...p, enabled: !p.enabled } : p))
+    setPages(updated)
+    localStorage.setItem('merchant_sales_pages', JSON.stringify(updated))
   }
 
   const handleCopyLink = (page: SalesPage) => {
-    const fullUrl = `https://chatpos.link/${page.slug}`
+    const fullUrl = `${window.location.origin}/${page.slug}`
     navigator.clipboard?.writeText(fullUrl)
     setCopiedId(page.id)
     playTapSound('success')
@@ -2431,11 +3078,8 @@ function SalesPageView() {
   }
 
   const handleOpenLink = (page: SalesPage) => {
-    const fullUrl = `https://chatpos.link/${page.slug}`
-    navigator.clipboard?.writeText(fullUrl)
-    setCopiedId(page.id)
+    const fullUrl = `/${page.slug}`
     window.open(fullUrl, '_blank')
-    setTimeout(() => setCopiedId(null), 2000)
   }
 
   const handleOpenCreateWizard = () => {
@@ -2451,6 +3095,7 @@ function SalesPageView() {
     setEditingPage(page)
     setWizardData({
       ...defaultWizardData,
+      ...(page.data || {}),
       pageName: page.title,
       slug: page.slug
     })
@@ -2470,30 +3115,33 @@ function SalesPageView() {
 
   const handlePublish = () => {
     playTapSound('success')
+    let updatedPages: SalesPage[] = []
     if (editingPage) {
-      setPages(
-        pages.map((p) =>
-          p.id === editingPage.id
-            ? {
-                ...p,
-                title: wizardData.pageName || p.title,
-                slug: wizardData.slug || p.slug
-              }
-            : p
-        )
+      updatedPages = pages.map((p) =>
+        p.id === editingPage.id
+          ? {
+              ...p,
+              title: wizardData.pageName || p.title,
+              slug: wizardData.slug || p.slug,
+              data: { ...wizardData }
+            }
+          : p
       )
     } else {
       const newPage: SalesPage = {
         id: `sp-${Date.now()}`,
-        avatarText: (wizardData.pageName || 'SP').slice(0, 2).toUpperCase(),
+        avatarText: (wizardData.pageName || 'SP').slice(0, 3).toUpperCase(),
         title: wizardData.pageName || 'เซลเพจใหม่',
         slug: wizardData.slug || `page-${Date.now()}`,
         enabled: true,
         clicks: 0,
-        sales: 0
+        sales: 0,
+        data: { ...wizardData }
       }
-      setPages([newPage, ...pages])
+      updatedPages = [newPage, ...pages]
     }
+    setPages(updatedPages)
+    localStorage.setItem('merchant_sales_pages', JSON.stringify(updatedPages))
     setWizardStep(8)
   }
 
@@ -3113,11 +3761,6 @@ function SalesPageView() {
     )
   }
 
-  const [showCustomerPreviewModal, setShowCustomerPreviewModal] = useState(false)
-  const [showOgMetaModal, setShowOgMetaModal] = useState(false)
-  const [ogTitle, setOgTitle] = useState('POP CAFE ✨ - สั่งอาหารออนไลน์')
-  const [ogDesc, setOgDesc] = useState('สั่งอาหารและเครื่องดื่มผ่าน LINE OA หรือสแกน QR Code รับส่วนลดพิเศษทันที')
-
   return (
     <div className="salespage-container">
       {/* 1. Title & Subtitle */}
@@ -3474,6 +4117,31 @@ function OrdersView({ onNavigate }: { onNavigate?: (id: string) => void }) {
   const [activeFilter, setActiveFilter] = useState<'all' | 'pending' | 'processing' | 'completed' | 'cancelled'>('all')
   const [searchQuery, setSearchQuery] = useState('')
 
+  // Custom /xx Slugs State
+  const [qrSlugs, setQrSlugs] = useState<Record<string, string>>(() => {
+    const saved = localStorage.getItem('merchant_qr_slugs')
+    if (saved) {
+      try { return JSON.parse(saved) } catch (e) {}
+    }
+    return {
+      'channel-shop': 'shop',
+      'channel-table': 'table',
+      'channel-delivery': 'delivery',
+      'channel-booking': 'booking',
+      'channel-custom': 'custom',
+      'qr-salespage': 'shop',
+      'qr-table': 'table',
+      'qr-delivery': 'delivery',
+      'qr-booking': 'booking',
+      'qr-custom': 'custom',
+      'qr-promptpay': 'pay',
+      'qr-stoppay': 'stoppay',
+      'qr-truemoney': 'truemoney',
+      'qr-wechat': 'wechat',
+      'qr-card': 'card'
+    }
+  })
+
   // QR Code Center Modal State with refresh persistence
   const [isQrModalOpen, setIsQrModalOpen] = useState(() => {
     return localStorage.getItem('merchant_qr_modal_open') === 'true'
@@ -3482,6 +4150,28 @@ function OrdersView({ onNavigate }: { onNavigate?: (id: string) => void }) {
   const [customAmountInput, setCustomAmountInput] = useState('')
   const [generatedAmount, setGeneratedAmount] = useState<number | null>(null)
   const [copiedQrId, setCopiedQrId] = useState<string | null>(null)
+  const [realQrDataUrl, setRealQrDataUrl] = useState<string>('')
+
+  // Generate live scannable QR Code Data URL whenever selectedQr or generatedAmount changes
+  useEffect(() => {
+    if (!selectedQr) {
+      setRealQrDataUrl('')
+      return
+    }
+
+    const currentSlug = qrSlugs[selectedQr.id] || selectedQr.slug || 'shop'
+    const fullUrl = `${window.location.origin}/${currentSlug}`
+
+    if (generatedAmount && generatedAmount > 0) {
+      generatePromptPayQrDataUrl(getStoredPromptPayId(), generatedAmount, 320)
+        .then(setRealQrDataUrl)
+        .catch(() => {})
+    } else {
+      generateUrlQrDataUrl(fullUrl, 320)
+        .then(setRealQrDataUrl)
+        .catch(() => {})
+    }
+  }, [selectedQr, generatedAmount, qrSlugs])
   // Sub-QR Channel State
   const [selectedChannel, setSelectedChannel] = useState<any | null>(null)
   const [isAddSubModalOpen, setIsAddSubModalOpen] = useState(false)
@@ -3761,26 +4451,6 @@ function OrdersView({ onNavigate }: { onNavigate?: (id: string) => void }) {
     setIsAddSubModalOpen(false)
     playTapSound('success')
   }
-
-  // Custom /xx Slugs State
-  const [qrSlugs, setQrSlugs] = useState<Record<string, string>>(() => {
-    const saved = localStorage.getItem('merchant_qr_slugs')
-    if (saved) {
-      try { return JSON.parse(saved) } catch (e) {}
-    }
-    return {
-      'qr-salespage': 'shop',
-      'qr-table': 'table',
-      'qr-delivery': 'delivery',
-      'qr-booking': 'booking',
-      'qr-custom': 'custom',
-      'qr-promptpay': 'pay',
-      'qr-stoppay': 'stoppay',
-      'qr-truemoney': 'truemoney',
-      'qr-wechat': 'wechat',
-      'qr-card': 'card'
-    }
-  })
   const [editingSlugId, setEditingSlugId] = useState<string | null>(null)
   const [slugInputVal, setSlugInputVal] = useState('')
 
@@ -3819,7 +4489,7 @@ function OrdersView({ onNavigate }: { onNavigate?: (id: string) => void }) {
     if (isNaN(num) || num <= 0) return
     playTapSound('success')
     setGeneratedAmount(num)
-    setSelectedQr(item)
+    setSelectedQr({ ...item })
   }
 
   return (
@@ -4243,7 +4913,21 @@ function OrdersView({ onNavigate }: { onNavigate?: (id: string) => void }) {
                     {/* 1. หน้าร้านค้าออนไลน์ */}
                     <div
                       className="qrm-menu-card"
-                      onClick={() => { playTapSound('pop'); setSelectedChannel(channelGroups[0]) }}
+                      onClick={() => {
+                        playTapSound('pop')
+                        const currentSlug = qrSlugs['channel-shop'] || 'shop'
+                        setSelectedQr({
+                          id: 'channel-shop',
+                          title: 'หน้าร้านค้าออนไลน์',
+                          subtitle: 'สแกนเพื่อเปิดหน้าคิดเงินและชำระเงิน',
+                          slug: currentSlug,
+                          linkUrl: window.location.origin + '/' + currentSlug,
+                          qrImgUrl: '/payments/promptpay_front.png',
+                          canCustomAmount: true,
+                          badgeText: '🟢 พร้อมใช้งาน',
+                          badgeClass: 'green'
+                        })
+                      }}
                       role="button"
                       tabIndex={0}
                     >
@@ -4671,30 +5355,77 @@ function OrdersView({ onNavigate }: { onNavigate?: (id: string) => void }) {
               </button>
             </div>
 
-            <div className="qs-modal-body" style={{ textAlign: 'center' }}>
-              <div className="qrm-detail-qr-box">
-                <img src={selectedQr.qrImgUrl} alt={selectedQr.title} />
-              </div>
-              {generatedAmount && (
-                <div className="qrm-custom-amount-badge">
-                  ยอดเงินชำระ: <strong>฿{generatedAmount.toLocaleString('th-TH', { minimumFractionDigits: 2 })}</strong>
-                </div>
-              )}
-              <div className="qrm-detail-merchant">
-                <span>Merchant ID: <strong>S072609429</strong></span>
-                <br />
-                <span className="qrm-active-link-indicator">🔗 ลิงก์ตรง: <strong>https://chatpos.link/{qrSlugs[selectedQr.id] || 'shop'}</strong></span>
+            <div className="qs-modal-body" style={{ textAlign: 'center', padding: '16px 20px 20px' }}>
+              <div className="qrm-detail-qr-box" style={{ width: '210px', height: '210px', margin: '0 auto 12px', padding: '10px', background: '#ffffff', border: '1.5px solid #e2e8f0', borderRadius: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 16px rgba(0, 0, 0, 0.04)' }}>
+                {realQrDataUrl ? (
+                  <img
+                    src={realQrDataUrl}
+                    alt={selectedQr.title}
+                    style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block' }}
+                  />
+                ) : (
+                  <img src={selectedQr.qrImgUrl} alt={selectedQr.title} style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block' }} />
+                )}
               </div>
 
-              {/* Custom Amount Form */}
+              {generatedAmount && (
+                <div className="qrm-custom-amount-badge" style={{ margin: '0 0 10px', padding: '6px 14px', background: '#ecfdf5', border: '1px solid #a7f3d0', borderRadius: '12px', color: '#059669', fontSize: '13px', fontWeight: 700 }}>
+                  ยอดชำระ: <strong>฿{generatedAmount.toLocaleString('th-TH', { minimumFractionDigits: 2 })}</strong>
+                </div>
+              )}
+
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', marginBottom: '14px' }}>
+                <div style={{ fontSize: '12px', color: '#64748b' }}>
+                  Merchant ID: <strong>S072609429</strong> · 🔗 <strong>chatpos.link/{qrSlugs[selectedQr.id] || selectedQr.slug || 'shop'}</strong>
+                </div>
+
+                <a
+                  href={'/' + (qrSlugs[selectedQr.id] || selectedQr.slug || 'shop')}
+                  target="_blank"
+                  rel="noreferrer"
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '6px',
+                    width: '100%',
+                    maxWidth: '300px',
+                    padding: '11px 16px',
+                    background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                    color: '#ffffff',
+                    borderRadius: '12px',
+                    fontWeight: 800,
+                    fontSize: '14px',
+                    textDecoration: 'none',
+                    boxShadow: '0 4px 12px rgba(16, 185, 129, 0.25)',
+                    transition: 'transform 0.15s ease',
+                  }}
+                >
+                  🚀 เปิดหน้าร้านค้าออนไลน์ ➔
+                </a>
+
+                {selectedQr.id === 'channel-shop' && (
+                  <button
+                    type="button"
+                    onClick={() => { setSelectedQr(null); setSelectedChannel(channelGroups[0]) }}
+                    style={{ background: 'none', border: 'none', color: '#64748b', fontSize: '12px', fontWeight: 600, cursor: 'pointer', padding: '2px 6px', textDecoration: 'underline' }}
+                  >
+                    ⚙️ จัดการช่องทางย่อย (PromptPay / TrueMoney)
+                  </button>
+                )}
+              </div>
+
+              {/* Custom Amount Form (Concise) */}
               {selectedQr.canCustomAmount && (
-                <div className="qrm-custom-input-group">
-                  <label htmlFor="qrm-amount-in">ระบุยอดเงินสร้าง QR Code เฉพาะรายการ</label>
+                <div className="qrm-custom-input-group" style={{ background: '#f8fafc', padding: '12px 14px', borderRadius: '14px', border: '1px solid #e2e8f0', textAlign: 'left' }}>
+                  <label htmlFor="qrm-amount-in" style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
+                    ระบุยอดเงิน (บาท)
+                  </label>
                   <div className="qrm-input-btn-row">
                     <input
                       id="qrm-amount-in"
                       type="number"
-                      placeholder="ใส่ยอดเงิน เช่น 150"
+                      placeholder="เช่น 150"
                       value={customAmountInput}
                       onChange={(e) => setCustomAmountInput(e.target.value)}
                     />
@@ -4941,6 +5672,38 @@ function PosView({ onNavigate }: { onNavigate?: (tab: string) => void }) {
       clearInterval(timer)
     }
   }, [])
+
+  // Listen to Live Table Service Calls from Customers
+  const [liveServiceCalls, setLiveServiceCalls] = useState<any[]>(() => {
+    try {
+      return JSON.parse(localStorage.getItem('merchant_service_calls') || '[]')
+    } catch (e) {
+      return []
+    }
+  })
+
+  useEffect(() => {
+    const handleServiceSync = () => {
+      try {
+        const calls = JSON.parse(localStorage.getItem('merchant_service_calls') || '[]')
+        setLiveServiceCalls(calls)
+      } catch (e) {}
+    }
+    window.addEventListener('storage', handleServiceSync)
+    const timer = setInterval(handleServiceSync, 2000)
+    return () => {
+      window.removeEventListener('storage', handleServiceSync)
+      clearInterval(timer)
+    }
+  }, [])
+
+  const handleDismissServiceCall = (callId: string) => {
+    playTapSound('success')
+    const updated = liveServiceCalls.filter(c => c.id !== callId)
+    setLiveServiceCalls(updated)
+    localStorage.setItem('merchant_service_calls', JSON.stringify(updated))
+    window.dispatchEvent(new Event('storage'))
+  }
 
   const handleUpdateCustomerOrderStatus = (orderId: string, nextStatus: string) => {
     playTapSound('success')
@@ -5204,6 +5967,31 @@ function PosView({ onNavigate }: { onNavigate?: (tab: string) => void }) {
           </div>
         </div>
       </div>
+
+      {/* Live Table Service Call Alert Banner */}
+      {liveServiceCalls.length > 0 && (
+        <div className="pos-live-service-banner" style={{ background: '#fffbeb', border: '1.5px solid #fde68a', padding: '12px 16px', borderRadius: '14px', marginBottom: '14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <span style={{ fontSize: '20px' }}>🔔</span>
+            <div>
+              <strong style={{ fontSize: '13px', color: '#b45309' }}>
+                {liveServiceCalls[0].tableNo || 'โต๊ะ 01'} เรียกพนักงาน ({liveServiceCalls[0].timestamp} น.)
+              </strong>
+              <p style={{ margin: 0, fontSize: '12px', color: '#92400e', fontWeight: 600 }}>
+                คำขอ: {liveServiceCalls[0].reason}
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            className="pos-btn-resume"
+            style={{ background: '#f59e0b', color: '#fff', fontWeight: 800, padding: '8px 14px', borderRadius: '10px', border: 'none', cursor: 'pointer' }}
+            onClick={() => handleDismissServiceCall(liveServiceCalls[0].id)}
+          >
+            ✅ รับทราบ / ไปบริการแล้ว
+          </button>
+        </div>
+      )}
 
       {/* Live Customer Order Alert Banner */}
       {liveCustomerOrders.length > 0 && (

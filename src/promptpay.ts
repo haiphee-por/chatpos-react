@@ -88,6 +88,24 @@ export async function generatePromptPayQrDataUrl(
 }
 
 /**
+ * Generates a base64 Data URL for any URL or webpage link
+ */
+export async function generateUrlQrDataUrl(
+  urlOrText: string,
+  width: number = 320
+): Promise<string> {
+  return QRCode.toDataURL(urlOrText, {
+    errorCorrectionLevel: 'M',
+    margin: 1,
+    width,
+    color: {
+      dark: '#0f172a',
+      light: '#ffffff',
+    },
+  })
+}
+
+/**
  * Storage helpers for Merchant PromptPay ID
  */
 const STORAGE_KEY = 'chatpos_merchant_promptpay_id'

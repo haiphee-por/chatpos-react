@@ -1,0 +1,1030 @@
+/* ==========================================================================
+   ChatPOS Standalone QuickPay & Keypad Display View
+   Matches official MerchantView QuickPay design & aesthetics
+   ========================================================================== */
+
+.qp-standalone-shell {
+  min-height: 100vh;
+  background-color: #f8fafc;
+  background-image: 
+    radial-gradient(at 0% 0%, rgba(16, 185, 129, 0.04) 0px, transparent 50%),
+    radial-gradient(at 100% 100%, rgba(99, 102, 241, 0.04) 0px, transparent 50%);
+  display: flex;
+  flex-direction: column;
+  color: #0f172a;
+  font-family: -apple-system, BlinkMacSystemFont, 'Prompt', 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.qp-standalone-shell.fullscreen {
+  position: fixed;
+  inset: 0;
+  z-index: 999999;
+  background: #ffffff;
+}
+
+/* ── Top Header ──────────────────────────────────────────────────────────── */
+.qp-standalone-header {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 20px;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid #e2e8f0;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+}
+
+.qp-header-store-badge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+  border-radius: 9999px;
+  color: #065f46;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.qp-live-dot {
+  width: 8px;
+  height: 8px;
+  background: #10b981;
+  border-radius: 50%;
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.25);
+  animation: qpPulse 2s infinite ease-in-out;
+}
+
+@keyframes qpPulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.2); opacity: 0.7; }
+}
+
+.qp-header-actions-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.qp-header-tool-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 12px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  color: #475569;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.qp-header-tool-btn:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+  border-color: #cbd5e1;
+}
+
+/* ── Main Layout (Centered Container matching MerchantView) ─────────────── */
+.qp-standalone-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  padding: 16px 16px 40px;
+}
+
+.qp-full-container {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: 100%;
+  max-width: 580px;
+  margin: 0 auto;
+}
+
+/* ── 1. Amount Display Section ─────────────────────────────────────────── */
+.qp-amount-section {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px 20px 14px;
+  background: #ffffff;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 20px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03);
+}
+
+.qp-amount-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.qp-amount-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-top: 2px;
+}
+
+.qp-currency-prefix {
+  font-size: 28px;
+  font-weight: 800;
+  color: #059669;
+}
+
+.qp-amount-val {
+  font-size: 44px;
+  font-weight: 900;
+  color: #0f172a;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+  transition: font-size 0.2s ease;
+  word-break: break-all;
+}
+
+.qp-amount-shrink {
+  font-size: 32px;
+}
+
+.qp-amount-shrink-more {
+  font-size: 26px;
+}
+
+.qp-amount-currency {
+  font-size: 16px;
+  font-weight: 700;
+  color: #94a3b8;
+}
+
+.qp-mascot-peek {
+  position: absolute;
+  right: 14px;
+  top: 8px;
+  height: 64px;
+  width: auto;
+  object-fit: contain;
+  filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.06));
+  pointer-events: none;
+}
+
+/* ── Locked Table / Delivery Context Pill ──────────────────────────────── */
+.qp-locked-context-pill {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  margin-top: 4px;
+  animation: qpFadeIn 0.2s ease-out;
+}
+
+.qp-locked-context-pill.table-context {
+  background: #eff6ff;
+  border: 1.5px solid #bfdbfe;
+  color: #1e40af;
+}
+
+.qp-locked-context-pill.delivery-context {
+  background: #f0fdf4;
+  border: 1.5px solid #bbf7d0;
+  color: #166534;
+}
+
+.qp-lcp-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.qp-lcp-icon {
+  font-size: 20px;
+}
+
+.qp-lcp-text small {
+  display: block;
+  font-size: 11px;
+  opacity: 0.8;
+  font-weight: 600;
+}
+
+.qp-lcp-text strong {
+  display: block;
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+.qp-lcp-lock-tag {
+  padding: 3px 8px;
+  background: rgba(255, 255, 255, 0.8);
+  border-radius: 9999px;
+  font-size: 11px;
+  font-weight: 800;
+  white-space: nowrap;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.qp-preset-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 4px;
+  padding-top: 10px;
+  border-top: 1px dashed #e2e8f0;
+}
+
+.qp-preset-row button {
+  flex: 1;
+  min-width: 58px;
+  padding: 7px 8px;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  border-radius: 9999px;
+  color: #334155;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.qp-preset-row button:hover,
+.qp-preset-row button:active {
+  background: #ecfdf5;
+  border-color: #a7f3d0;
+  color: #059669;
+  transform: translateY(-1px);
+}
+
+/* ── 2. Payment Channels Section ───────────────────────────────────────── */
+.qp-channel-card {
+  padding: 14px 16px;
+  background: #ffffff;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 20px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03);
+}
+
+.qp-channel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.qp-channel-header span {
+  font-size: 13px;
+  font-weight: 800;
+  color: #334155;
+}
+
+.qp-channel-tags {
+  display: flex;
+  gap: 6px;
+}
+
+.qp-tag-badge {
+  padding: 3px 8px;
+  background: #f1f5f9;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #64748b;
+}
+
+.qp-channel-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+
+.qp-method-btn {
+  position: relative;
+  height: 58px;
+  padding: 6px;
+  background: #ffffff;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.qp-method-btn:hover {
+  border-color: #cbd5e1;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
+}
+
+.qp-method-btn.active {
+  border-color: #10b981;
+  background: #f0fdf4;
+  box-shadow: 0 4px 14px rgba(16, 185, 129, 0.18);
+}
+
+.qp-check-badge {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 16px;
+  height: 16px;
+  background: #10b981;
+  color: #ffffff;
+  border-radius: 50%;
+  font-size: 10px;
+  font-weight: 900;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.qp-logo-box {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.qp-logo-box img {
+  max-height: 38px;
+  max-width: 85%;
+  width: auto;
+  object-fit: contain;
+}
+
+/* ── 3. Calculator Numpad Grid (5x4) ───────────────────────────────────── */
+.qp-calc-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 8px;
+}
+
+.qp-calc-grid button {
+  height: 64px;
+  background: #ffffff;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 16px;
+  color: #0f172a;
+  font-size: 24px;
+  font-weight: 800;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.02);
+  transition: all 0.12s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.qp-calc-grid button:active {
+  transform: scale(0.95);
+  background: #f1f5f9;
+}
+
+.qp-calc-grid .qp-op-btn {
+  background: #f8fafc;
+  color: #64748b;
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.qp-calc-grid .qp-clear-btn {
+  background: #fef2f2;
+  border-color: #fecaca;
+  color: #dc2626;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.qp-calc-grid .qp-backspace-btn {
+  background: #fffbeb;
+  border-color: #fef08a;
+  color: #b45309;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.qp-calc-grid .qp-pay-active-btn {
+  grid-column: span 5;
+  height: 60px;
+  margin-top: 4px;
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  border: none;
+  border-radius: 16px;
+  color: #ffffff;
+  font-size: 17px;
+  font-weight: 800;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  box-shadow: 0 6px 20px rgba(16, 185, 129, 0.35);
+  cursor: pointer;
+}
+
+.qp-calc-grid .qp-pay-active-btn:disabled {
+  background: #cbd5e1;
+  box-shadow: none;
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.qp-calc-grid .qp-pay-active-btn:not(:disabled):hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(16, 185, 129, 0.45);
+}
+
+.qp-calc-grid .qp-pay-active-btn:not(:disabled):active {
+  transform: scale(0.98);
+}
+
+/* ── 4. Modal Styles (Bill Summary, Discount & Payment QR) ─────────────── */
+.qp-summary-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100000;
+  background: rgba(15, 23, 42, 0.75);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  animation: qpFadeIn 0.2s ease-out;
+}
+
+@keyframes qpFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.qp-summary-modal-card {
+  width: 100%;
+  max-width: 440px;
+  max-height: 90vh;
+  overflow-y: auto;
+  background: #ffffff;
+  border-radius: 24px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.25);
+  display: flex;
+  flex-direction: column;
+  animation: qpSlideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes qpSlideUp {
+  from { transform: translateY(20px) scale(0.97); opacity: 0; }
+  to { transform: translateY(0) scale(1); opacity: 1; }
+}
+
+.qp-summary-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.qp-summary-header-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.qp-header-icon-wrap {
+  width: 38px;
+  height: 38px;
+  background: #ecfdf5;
+  color: #059669;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.qp-header-icon-wrap.qr-active {
+  background: #eef2ff;
+  color: #4f46e5;
+}
+
+.qp-header-icon-wrap.success {
+  background: #ecfdf5;
+  color: #10b981;
+}
+
+.qp-summary-header-title h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.qp-summary-header-title p {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: #64748b;
+}
+
+.qp-summary-close-btn {
+  background: #f1f5f9;
+  border: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #64748b;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.qp-summary-close-btn:hover {
+  background: #e2e8f0;
+  color: #0f172a;
+}
+
+.qp-summary-body {
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* Bill Pricing Box */
+.qp-bill-pricing-card {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.qp-price-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 14px;
+  color: #475569;
+}
+
+.qp-price-line strong {
+  font-size: 16px;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.qp-discount-editor-box {
+  padding: 12px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.qp-discount-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
+  font-weight: 700;
+  color: #334155;
+}
+
+.qp-discount-toggle-group {
+  display: flex;
+  background: #f1f5f9;
+  padding: 2px;
+  border-radius: 8px;
+}
+
+.qp-discount-toggle-group button {
+  padding: 3px 8px;
+  border: none;
+  background: transparent;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #64748b;
+  cursor: pointer;
+}
+
+.qp-discount-toggle-group button.active {
+  background: #ffffff;
+  color: #059669;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.qp-discount-input-row {
+  display: flex;
+  gap: 8px;
+}
+
+.qp-disc-field {
+  position: relative;
+  width: 100px;
+}
+
+.qp-disc-field input {
+  width: 100%;
+  padding: 8px 24px 8px 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  outline: none;
+}
+
+.qp-disc-unit {
+  position: absolute;
+  right: 8px;
+  top: 8px;
+  font-size: 12px;
+  color: #94a3b8;
+  font-weight: 700;
+}
+
+.qp-disc-note-in {
+  flex: 1;
+  padding: 8px 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  font-size: 12px;
+  outline: none;
+}
+
+.qp-discount-applied-pill {
+  font-size: 12px;
+  color: #dc2626;
+  font-weight: 700;
+  text-align: right;
+}
+
+.qp-net-payable-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 12px;
+  border-top: 1px dashed #cbd5e1;
+}
+
+.qp-net-label {
+  display: block;
+  font-size: 14px;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.qp-net-tax-note {
+  display: block;
+  font-size: 11px;
+  color: #94a3b8;
+}
+
+.qp-net-amount-big {
+  font-size: 26px;
+  font-weight: 900;
+  color: #059669;
+}
+
+/* Footer Actions */
+.qp-summary-footer-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.qp-modal-btn-cancel {
+  padding: 12px 18px;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 700;
+  color: #475569;
+  cursor: pointer;
+}
+
+.qp-modal-btn-confirm {
+  flex: 1;
+  padding: 12px 18px;
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  border: none;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 800;
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(16, 185, 129, 0.35);
+}
+
+/* Dynamic QR Card Display */
+.qp-qr-card-display {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 14px;
+}
+
+.qp-qr-badge-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+}
+
+.qp-timer-badge {
+  padding: 4px 10px;
+  background: #fef3c7;
+  border-radius: 9999px;
+  font-size: 12px;
+  color: #b45309;
+  font-weight: 700;
+}
+
+.qp-channel-badge-name {
+  font-size: 12px;
+  font-weight: 800;
+  color: #4f46e5;
+}
+
+.qp-qr-large-frame {
+  position: relative;
+  width: 240px;
+  height: 240px;
+  padding: 12px;
+  background: #ffffff;
+  border: 2px solid #e2e8f0;
+  border-radius: 20px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.06);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.qp-qr-img-large {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  border-radius: 10px;
+}
+
+.qp-qr-generating-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  color: #64748b;
+  font-size: 13px;
+}
+
+.qp-spin {
+  animation: qpSpin 1.5s linear infinite;
+  color: #10b981;
+}
+
+@keyframes qpSpin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.qp-qr-brand-watermark {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.qp-qr-brand-watermark img {
+  width: 40px;
+  height: 40px;
+  object-fit: contain;
+  background: #ffffff;
+  padding: 3px;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.qp-qr-amount-confirm-box {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.qp-qr-amount-confirm-box span {
+  font-size: 12px;
+  color: #64748b;
+  font-weight: 700;
+}
+
+.qp-qr-amount-confirm-box strong {
+  font-size: 32px;
+  font-weight: 900;
+  color: #059669;
+}
+
+.qp-qr-merchant-info-pill {
+  display: flex;
+  gap: 12px;
+  padding: 6px 14px;
+  background: #f1f5f9;
+  border-radius: 9999px;
+  font-size: 11px;
+  color: #475569;
+}
+
+.qp-btn-simulate-success {
+  padding: 10px 16px;
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+  border-radius: 10px;
+  color: #059669;
+  font-size: 12px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.qp-btn-simulate-success:hover {
+  background: #d1fae5;
+  transform: translateY(-1px);
+}
+
+/* Success Celebration View */
+.qp-success-celebrate-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 12px;
+}
+
+.qp-success-ring-icon {
+  width: 72px;
+  height: 72px;
+  background: #ecfdf5;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: qpBounce 0.5s ease;
+}
+
+@keyframes qpBounce {
+  0% { transform: scale(0.5); }
+  60% { transform: scale(1.15); }
+  100% { transform: scale(1); }
+}
+
+.qp-success-celebrate-card h2 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 900;
+  color: #065f46;
+}
+
+.qp-success-celebrate-card p {
+  margin: 0;
+  font-size: 13px;
+  color: #64748b;
+}
+
+.qp-receipt-summary-ticket {
+  width: 100%;
+  background: #f8fafc;
+  border: 1px dashed #cbd5e1;
+  border-radius: 14px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.qp-rst-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #e2e8f0;
+  font-size: 13px;
+}
+
+.qp-rst-badge {
+  padding: 2px 8px;
+  background: #dcfce7;
+  color: #166534;
+  font-size: 11px;
+  font-weight: 800;
+  border-radius: 9999px;
+}
+
+.qp-rst-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: #475569;
+}
+
+.qp-rst-row.total-highlight {
+  padding-top: 8px;
+  border-top: 1px dashed #cbd5e1;
+}
+
+.qp-btn-next-customer-full {
+  width: 100%;
+  padding: 14px;
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  border: none;
+  border-radius: 14px;
+  color: #ffffff;
+  font-size: 15px;
+  font-weight: 800;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(16, 185, 129, 0.35);
+}
+
+/* ── Mobile Responsive Adjustments ─────────────────────────────────────── */
+@media (max-width: 640px) {
+  .qp-standalone-main {
+    padding: 10px 10px 30px;
+  }
+
+  .qp-amount-section {
+    padding: 14px 16px 12px;
+  }
+
+  .qp-amount-val {
+    font-size: 36px;
+  }
+
+  .qp-currency-prefix {
+    font-size: 24px;
+  }
+
+  .qp-mascot-peek {
+    height: 52px;
+    right: 8px;
+  }
+
+  .qp-channel-grid {
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6px;
+  }
+
+  .qp-method-btn {
+    height: 52px;
+  }
+
+  .qp-logo-box img {
+    max-height: 32px;
+  }
+
+  .qp-calc-grid {
+    gap: 6px;
+  }
+
+  .qp-calc-grid button {
+    height: 56px;
+    font-size: 20px;
+    border-radius: 12px;
+  }
+
+  .qp-calc-grid .qp-pay-active-btn {
+    height: 54px;
+    font-size: 15px;
+  }
+
+  .hide-sm {
+    display: none;
+  }
+}

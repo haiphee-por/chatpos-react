@@ -1,0 +1,2130 @@
+/* ==========================================================================
+   CATALOG PAGE VIEW & STOREFRONT SHOWCASE (PIXEL-PERFECT CLEAN DESIGN)
+   ========================================================================== */
+
+.cat-page-wrapper {
+  min-height: 100vh;
+  background-color: #fbf8f2;
+  font-family: -apple-system, BlinkMacSystemFont, 'Prompt', 'Noto Sans Thai', 'Segoe UI', Roboto, sans-serif;
+  color: #1e293b;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* 1. Hero Cover Section */
+.cat-hero-cover-section {
+  position: relative;
+  width: 100%;
+  height: 220px;
+  background: #111827;
+  overflow: hidden;
+}
+
+.cat-hero-bg-wrapper {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.cat-hero-bg-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 35%;
+  opacity: 0.85;
+  filter: brightness(0.9);
+}
+
+.cat-hero-gradient-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(180deg, rgba(15, 23, 42, 0.25) 0%, rgba(15, 23, 42, 0.7) 100%);
+}
+
+.cat-hero-top-bar {
+  position: relative;
+  z-index: 5;
+  max-width: 780px;
+  margin: 0 auto;
+  padding: 16px 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.cat-hero-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 14px;
+  background: rgba(15, 23, 42, 0.6);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 20px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #f8fafc;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.cat-green-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #10b981;
+  box-shadow: 0 0 6px #10b981;
+}
+
+.cat-hero-top-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.cat-circle-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #1e293b;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.cat-circle-btn:hover {
+  background: #ffffff;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.18);
+}
+
+.cat-circle-btn.active {
+  background: #ffffff;
+}
+
+/* 2. Main Responsive Container */
+.cat-center-container {
+  max-width: 780px;
+  margin: 0 auto;
+  padding: 0 16px 40px 16px;
+  width: 100%;
+  position: relative;
+  z-index: 10;
+  flex: 1;
+}
+
+/* Floating Store Profile Card */
+.cat-store-profile-card {
+  background: #ffffff;
+  border-radius: 22px;
+  padding: 20px 22px;
+  border: 1px solid #efeae1;
+  box-shadow: 0 10px 28px rgba(45, 30, 15, 0.06);
+  margin-top: -50px;
+  margin-bottom: 16px;
+}
+
+.cat-profile-header-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.cat-avatar-frame {
+  position: relative;
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  padding: 3px;
+  background: #ffffff;
+  border: 2px solid #059669;
+  box-shadow: 0 4px 12px rgba(5, 150, 105, 0.15);
+  flex-shrink: 0;
+}
+
+.cat-avatar-frame img {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.cat-avatar-label {
+  position: absolute;
+  bottom: -4px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #064e3b;
+  color: #ffffff;
+  font-size: 8.5px;
+  font-weight: 800;
+  padding: 2px 6px;
+  border-radius: 6px;
+  white-space: nowrap;
+  letter-spacing: 0.4px;
+  border: 1.5px solid #ffffff;
+}
+
+.cat-profile-details {
+  flex: 1;
+  min-width: 0;
+}
+
+.cat-title-rating-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 4px;
+}
+
+.cat-profile-title {
+  font-size: 18px;
+  font-weight: 900;
+  color: #0f172a;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.cat-branch-tag {
+  font-size: 13px;
+  font-weight: 600;
+  color: #64748b;
+}
+
+.cat-rating-pill {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #d97706;
+  background: #fffbeb;
+  border: 1px solid #fef3c7;
+  padding: 2px 8px;
+  border-radius: 12px;
+  white-space: nowrap;
+}
+
+.cat-profile-desc {
+  font-size: 12px;
+  color: #64748b;
+  margin: 2px 0 8px 0;
+  line-height: 1.4;
+}
+
+.cat-compact-meta-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.cat-meta-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: #475569;
+  background: #f8fafc;
+  padding: 3px 8px;
+  border-radius: 8px;
+  border: 1px solid #f1f5f9;
+}
+
+.cat-meta-icon {
+  color: #059669;
+  flex-shrink: 0;
+}
+
+/* 4 Action Pills */
+.cat-store-actions-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  padding-top: 14px;
+  border-top: 1px solid #f1f5f9;
+}
+
+.cat-store-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 9px 10px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  text-decoration: none;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.cat-store-btn.outline {
+  background: #ffffff;
+  color: #334155;
+  border: 1px solid #e2e8f0;
+}
+
+.cat-store-btn.outline:hover {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+  transform: translateY(-1px);
+}
+
+.cat-store-btn.line-solid {
+  background: #0d3826;
+  color: #ffffff;
+  border: 1px solid #0d3826;
+  box-shadow: 0 2px 8px rgba(13, 56, 38, 0.2);
+}
+
+.cat-store-btn.line-solid:hover {
+  background: #064e3b;
+  transform: translateY(-1px);
+}
+
+/* 3. Promotional Green Ribbon Banner */
+.cat-promo-ribbon-card {
+  background: linear-gradient(135deg, #0e3827 0%, #082a1c 100%);
+  border-radius: 18px;
+  padding: 14px 18px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  box-shadow: 0 6px 18px rgba(14, 56, 39, 0.18);
+  border: 1px solid rgba(251, 191, 36, 0.2);
+  cursor: pointer;
+  transition: transform 0.2s ease;
+}
+
+.cat-promo-ribbon-card:hover {
+  transform: translateY(-2px);
+}
+
+.cat-promo-left-col {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.cat-popper-icon {
+  font-size: 24px;
+  flex-shrink: 0;
+}
+
+.cat-promo-text-group h4 {
+  font-size: 13.5px;
+  font-weight: 800;
+  color: #fef08a;
+  margin: 0 0 2px 0;
+  letter-spacing: -0.2px;
+}
+
+.cat-promo-text-group p {
+  font-size: 11.5px;
+  color: #d1fae5;
+  margin: 0;
+  font-weight: 500;
+}
+
+.cat-promo-right-col {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.cat-gift-art {
+  font-size: 24px;
+}
+
+.cat-promo-arrow {
+  color: #fef08a;
+}
+
+/* 4. Menu Showcase Section */
+.cat-menu-showcase-section {
+  background: #ffffff;
+  border-radius: 24px;
+  padding: 22px;
+  border: 1px solid #efeae1;
+  box-shadow: 0 8px 24px rgba(45, 30, 15, 0.04);
+  margin-bottom: 20px;
+}
+
+.cat-menu-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.cat-menu-title-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.cat-title-coffee-icon {
+  color: #0f172a;
+}
+
+.cat-menu-title-left h3 {
+  font-size: 16px;
+  font-weight: 800;
+  color: #0f172a;
+  margin: 0;
+}
+
+.cat-view-all-link {
+  background: transparent;
+  border: none;
+  font-size: 12px;
+  font-weight: 700;
+  color: #64748b;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  cursor: pointer;
+}
+
+.cat-view-all-link:hover {
+  color: #0f172a;
+}
+
+/* Search Bar Pill */
+.cat-search-pill-box {
+  position: relative;
+  display: flex;
+  align-items: center;
+  background: #fdfbf7;
+  border: 1px solid #e8e2d8;
+  border-radius: 24px;
+  padding: 9px 16px;
+  margin-bottom: 14px;
+}
+
+.cat-search-glass-icon {
+  color: #94a3b8;
+  margin-right: 8px;
+  flex-shrink: 0;
+}
+
+.cat-search-pill-box input {
+  width: 100%;
+  border: none;
+  background: transparent;
+  outline: none;
+  font-size: 12.5px;
+  color: #1e293b;
+}
+
+.cat-search-pill-box input::placeholder {
+  color: #94a3b8;
+}
+
+.cat-search-clear-btn {
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  cursor: pointer;
+  padding: 0;
+}
+
+/* Category Filter Tabs with Hidden Scrollbar */
+.cat-tabs-pill-row {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 12px;
+  margin-bottom: 12px;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.cat-tabs-pill-row::-webkit-scrollbar {
+  display: none;
+}
+
+.cat-tab-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border-radius: 12px;
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+  background: #fdfbf7;
+  color: #475569;
+  border: 1px solid #e8e2d8;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+}
+
+.cat-tab-pill:hover {
+  background: #f1ede4;
+}
+
+.cat-tab-pill.active {
+  background: #0d3826;
+  color: #ffffff;
+  border-color: #0d3826;
+}
+
+/* 3-Column Responsive Products Grid */
+.cat-products-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+}
+
+.cat-product-show-card {
+  background: #ffffff;
+  border: 1px solid #efeae1;
+  border-radius: 16px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02);
+}
+
+.cat-product-show-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 20px rgba(45, 30, 15, 0.08);
+  border-color: #cbd5e1;
+}
+
+.cat-product-media-box {
+  position: relative;
+  width: 100%;
+  height: 140px;
+  background: #f8fafc;
+  overflow: hidden;
+}
+
+.cat-product-media-box img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.3s ease;
+}
+
+.cat-product-show-card:hover .cat-product-media-box img {
+  transform: scale(1.05);
+}
+
+.cat-item-fav-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.9);
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+  backdrop-filter: blur(4px);
+  transition: transform 0.15s ease;
+  z-index: 2;
+}
+
+.cat-item-fav-btn:hover {
+  transform: scale(1.1);
+}
+
+.cat-badge-service-tag {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  background: #0284c7;
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 800;
+  padding: 3px 7px;
+  border-radius: 6px;
+  z-index: 2;
+  box-shadow: 0 2px 6px rgba(2, 132, 199, 0.3);
+}
+
+.cat-product-info-box {
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+
+.cat-item-name {
+  font-size: 13px;
+  font-weight: 800;
+  color: #0f172a;
+  margin: 0;
+  line-height: 1.35;
+}
+
+.cat-item-sub {
+  font-size: 11px;
+  color: #94a3b8;
+  margin: 2px 0 6px 0;
+  display: block;
+}
+
+.cat-item-desc {
+  font-size: 11px;
+  color: #64748b;
+  line-height: 1.35;
+  margin: 0 0 10px 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  flex: 1;
+}
+
+.cat-item-bottom-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: auto;
+  padding-top: 8px;
+  border-top: 1px dashed #f1f5f9;
+}
+
+.cat-price-col {
+  display: flex;
+  flex-direction: column;
+}
+
+.cat-price-caption {
+  font-size: 9.5px;
+  color: #94a3b8;
+  font-weight: 600;
+}
+
+.cat-item-price {
+  font-size: 14px;
+  font-weight: 900;
+  color: #059669;
+}
+
+.cat-item-detail-pill {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #475569;
+  padding: 5px 9px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.cat-item-detail-pill:hover {
+  background: #0d3826;
+  color: #ffffff;
+  border-color: #0d3826;
+}
+
+/* Empty Search Results */
+.cat-empty-results-box {
+  text-align: center;
+  padding: 40px 20px;
+}
+
+.cat-empty-results-box h4 {
+  font-size: 15px;
+  font-weight: 800;
+  color: #334155;
+  margin: 10px 0 4px 0;
+}
+
+.cat-empty-results-box p {
+  font-size: 12px;
+  color: #64748b;
+  margin: 0 0 16px 0;
+}
+
+.cat-reset-search-btn {
+  background: #0d3826;
+  color: #ffffff;
+  border: none;
+  padding: 8px 18px;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+/* 5. Facilities & Services 4 Cards */
+.cat-facilities-section-card {
+  background: #ffffff;
+  border-radius: 24px;
+  padding: 22px;
+  border: 1px solid #efeae1;
+  box-shadow: 0 8px 24px rgba(45, 30, 15, 0.04);
+}
+
+.cat-facility-four-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+}
+
+.cat-facility-box {
+  background: #fdfbf7;
+  border: 1px solid #efeae1;
+  border-radius: 14px;
+  padding: 14px 10px;
+  text-align: center;
+}
+
+.cat-facility-icon-circle {
+  font-size: 22px;
+  margin-bottom: 6px;
+}
+
+.cat-facility-box h4 {
+  font-size: 12px;
+  font-weight: 800;
+  color: #0f172a;
+  margin: 0 0 4px 0;
+}
+
+.cat-facility-box p {
+  font-size: 10.5px;
+  color: #64748b;
+  line-height: 1.35;
+  margin: 0;
+}
+
+/* 6. Clean Minimal Footer */
+.cat-main-footer {
+  background: #062a1d;
+  color: #ffffff;
+  padding: 22px 20px 16px 20px;
+  margin-top: auto;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.cat-footer-inner-col {
+  max-width: 780px;
+  margin: 0 auto;
+}
+
+.cat-footer-simple-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 14px;
+  padding-bottom: 16px;
+}
+
+.cat-footer-brand-snippet {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.cat-footer-mini-avatar {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  border: 1.5px solid #10b981;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.cat-footer-mini-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.cat-footer-brand-snippet h4 {
+  font-size: 14px;
+  font-weight: 800;
+  margin: 0 0 2px 0;
+  color: #ffffff;
+}
+
+.cat-footer-brand-snippet small {
+  font-size: 11.5px;
+  color: #a7f3d0;
+  font-weight: 600;
+}
+
+.cat-footer-brand-snippet p {
+  font-size: 11.5px;
+  color: #a7f3d0;
+  margin: 0;
+  opacity: 0.9;
+}
+
+.cat-footer-brand-snippet a {
+  color: #34d399;
+  text-decoration: none;
+  font-weight: 700;
+}
+
+.cat-footer-quick-chips {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.cat-footer-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 12px;
+  border-radius: 20px;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  text-decoration: none;
+  transition: all 0.15s ease;
+}
+
+.cat-footer-chip:hover {
+  background: rgba(255, 255, 255, 0.18);
+  transform: translateY(-1px);
+}
+
+.cat-footer-bottom-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  padding-top: 14px;
+  font-size: 11px;
+  color: #6ee7b7;
+}
+
+.cat-footer-bottom-bar strong {
+  color: #ffffff;
+}
+
+/* 7. Product / Service Lightbox Modal */
+.cat-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.6);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  z-index: 99999;
+}
+
+.cat-modal-dialog {
+  background: #ffffff;
+  border-radius: 20px;
+  width: 100%;
+  max-width: 440px;
+  max-height: 90vh;
+  overflow-y: auto;
+  position: relative;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+  animation: catModalPop 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes catModalPop {
+  0% { transform: scale(0.95); opacity: 0; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+.cat-modal-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.5);
+  color: #ffffff;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 10;
+  transition: transform 0.15s ease;
+}
+
+.cat-modal-close:hover {
+  transform: scale(1.1);
+  background: rgba(0, 0, 0, 0.75);
+}
+
+.cat-modal-img-banner {
+  width: 100%;
+  height: 220px;
+  background: #f1f5f9;
+  position: relative;
+}
+
+.cat-modal-img-banner img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.cat-modal-content {
+  padding: 20px;
+}
+
+.cat-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.cat-modal-header h2 {
+  font-size: 18px;
+  font-weight: 800;
+  color: #0f172a;
+  margin: 0 0 2px 0;
+}
+
+.cat-modal-en {
+  font-size: 12px;
+  color: #94a3b8;
+  font-weight: 500;
+}
+
+.cat-modal-price {
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.cat-modal-price .price-caption {
+  font-size: 10px;
+  color: #94a3b8;
+  display: block;
+}
+
+.cat-modal-price strong {
+  font-size: 18px;
+  font-weight: 900;
+  color: #059669;
+}
+
+.cat-modal-desc {
+  font-size: 13px;
+  color: #475569;
+  line-height: 1.5;
+  margin: 0 0 14px 0;
+}
+
+.cat-modal-info-box {
+  background: #f8fafc;
+  border-radius: 12px;
+  padding: 12px;
+  border: 1px solid #f1f5f9;
+  margin-bottom: 12px;
+}
+
+.cat-modal-info-box strong {
+  display: block;
+  font-size: 12px;
+  color: #1e293b;
+  margin-bottom: 4px;
+}
+
+.cat-modal-info-box p {
+  font-size: 11.5px;
+  color: #64748b;
+  margin: 0;
+  line-height: 1.4;
+}
+
+.cat-modal-nutrition {
+  font-size: 11.5px;
+  color: #64748b;
+  margin-bottom: 18px;
+}
+
+.cat-modal-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.cat-modal-inquire-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px;
+  border-radius: 12px;
+  font-size: 13px;
+  font-weight: 800;
+  text-decoration: none;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.cat-modal-inquire-btn.line {
+  background: #0d3826;
+  color: #ffffff;
+}
+
+.cat-modal-inquire-btn.line:hover {
+  background: #064e3b;
+}
+
+.cat-modal-inquire-btn.tel {
+  background: #f0fdf4;
+  border: 1.5px solid #bbf7d0;
+  color: #166534;
+}
+
+.cat-modal-inquire-btn.tel:hover {
+  background: #dcfce7;
+}
+
+/* 8. Share QR Modal */
+.cat-modal-dialog.share-dialog {
+  max-width: 380px;
+  padding: 24px;
+  text-align: center;
+}
+
+.cat-share-modal-header h3 {
+  margin: 8px 0 4px 0;
+  font-size: 16px;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.cat-share-modal-header p {
+  margin: 0 0 16px 0;
+  font-size: 12px;
+  color: #64748b;
+}
+
+.cat-qr-display-box {
+  background: #ffffff;
+  padding: 16px;
+  border-radius: 16px;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+  display: inline-block;
+  margin-bottom: 16px;
+}
+
+.cat-qr-img {
+  width: 200px;
+  height: 200px;
+  display: block;
+}
+
+.cat-qr-loading {
+  width: 200px;
+  height: 200px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #94a3b8;
+  font-size: 12px;
+}
+
+.cat-share-url-box {
+  display: flex;
+  gap: 6px;
+}
+
+.cat-url-input {
+  flex: 1;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 8px 12px;
+  font-size: 12px;
+  color: #334155;
+  outline: none;
+}
+
+.cat-copy-url-btn {
+  background: #0d3826;
+  color: #ffffff;
+  border: none;
+  border-radius: 10px;
+  padding: 8px 14px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+.cat-copy-url-btn.copied {
+  background: #059669;
+}
+
+/* ==========================================================================
+   9. DEDICATED SERVICE BOOKING MODAL (PIXEL-PERFECT MOCKUP DESIGN)
+   ========================================================================== */
+.cat-modal-dialog.booking-modal-dialog {
+  max-width: 490px;
+  background: #ffffff;
+  border-radius: 28px;
+  box-shadow: 0 25px 50px rgba(0, 0, 0, 0.22);
+  overflow: hidden;
+  border: 1px solid rgba(0, 0, 0, 0.04);
+  padding: 0;
+}
+
+.cat-booking-form-wrap {
+  display: flex;
+  flex-direction: column;
+}
+
+.cat-booking-modal-header {
+  padding: 22px 24px 14px 24px;
+  background: #ffffff;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  position: relative;
+}
+
+.cat-booking-header-title-group {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.cat-booking-clover-icon {
+  color: #056839;
+  margin-top: 2px;
+  flex-shrink: 0;
+}
+
+.cat-booking-modal-header h3 {
+  font-size: 18px;
+  font-weight: 800;
+  color: #0d3826;
+  margin: 0 0 3px 0;
+  letter-spacing: -0.2px;
+}
+
+.cat-booking-modal-header p {
+  font-size: 12px;
+  color: #6b7280;
+  margin: 0;
+  line-height: 1.35;
+}
+
+.booking-modal-dialog .cat-modal-close {
+  top: 18px;
+  right: 18px;
+  background: #f3f4f6;
+  color: #4b5563;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  box-shadow: none;
+}
+
+.booking-modal-dialog .cat-modal-close:hover {
+  background: #e5e7eb;
+  color: #111827;
+}
+
+.cat-booking-modal-body {
+  padding: 0 24px 18px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-height: 68vh;
+  overflow-y: auto;
+}
+
+.cat-booking-sec {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.cat-booking-sec-title {
+  font-size: 13.5px;
+  font-weight: 800;
+  color: #0d3826;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.cat-sec-icon {
+  font-size: 15px;
+}
+
+/* Selected Service Banner */
+.cat-selected-service-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: #f6fbf7;
+  border: 1.5px solid #057a44;
+  box-shadow: 0 2px 8px rgba(5, 122, 68, 0.08);
+}
+
+.cat-srv-banner-thumb {
+  width: 52px;
+  height: 52px;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #ffffff;
+  flex-shrink: 0;
+  border: 1px solid #dcfce7;
+}
+
+.cat-srv-banner-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.cat-srv-banner-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.cat-srv-banner-info strong {
+  font-size: 13.5px;
+  font-weight: 800;
+  color: #111827;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cat-srv-banner-price {
+  font-size: 15px;
+  font-weight: 900;
+  color: #058e50;
+}
+
+.cat-srv-banner-check {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #00693e;
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.cat-switch-srv-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+
+.cat-switch-label {
+  font-size: 11px;
+  color: #64748b;
+  white-space: nowrap;
+}
+
+.cat-switch-chips {
+  display: flex;
+  gap: 5px;
+}
+
+.cat-switch-chip {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 8px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  color: #475569;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+
+.cat-switch-chip:hover {
+  background: #f1f5f9;
+}
+
+.cat-switch-chip.active {
+  background: #00693e;
+  border-color: #00693e;
+  color: #ffffff;
+}
+
+/* Date Selection */
+.cat-booking-date-pills-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.cat-date-pill-btn {
+  padding: 9px 6px;
+  border-radius: 12px;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  font-size: 12px;
+  font-weight: 700;
+  color: #374151;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  transition: all 0.15s ease;
+}
+
+.cat-date-pill-btn:hover {
+  background: #f9fafb;
+}
+
+.cat-date-pill-btn.active {
+  background: #0d4a30;
+  color: #ffffff;
+  border-color: #0d4a30;
+  font-weight: 800;
+}
+
+.cat-date-input-wrap {
+  margin-top: 2px;
+}
+
+.cat-date-display-box {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 12px;
+  border-radius: 12px;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  width: 58%;
+}
+
+.cat-date-calendar-icon {
+  color: #374151;
+  flex-shrink: 0;
+}
+
+.cat-native-date-input {
+  border: none;
+  background: transparent;
+  outline: none;
+  font-size: 12.5px;
+  color: #111827;
+  font-weight: 600;
+  width: 100%;
+}
+
+/* 5-Column Time Slots */
+.cat-time-slots-5col-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.cat-time-slot-btn {
+  padding: 8px 3px;
+  text-align: center;
+  border-radius: 10px;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #374151;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.cat-time-slot-btn:hover {
+  background: #f9fafb;
+}
+
+.cat-time-slot-btn.active {
+  background: #0d4a30;
+  color: #ffffff;
+  border-color: #0d4a30;
+  font-weight: 800;
+}
+
+/* Customer Inputs Grid */
+.cat-booking-inputs-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.cat-input-group {
+  display: flex;
+  flex-direction: column;
+}
+
+.cat-label-text {
+  font-size: 11px;
+  font-weight: 700;
+  color: #374151;
+  margin-bottom: 4px;
+}
+
+.cat-label-text .req {
+  color: #ef4444;
+}
+
+.cat-input-field,
+.cat-select-field {
+  width: 100%;
+  padding: 9px 12px;
+  border-radius: 10px;
+  border: 1px solid #e5e7eb;
+  background: #ffffff;
+  font-size: 12px;
+  color: #111827;
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+
+.cat-input-field::placeholder {
+  color: #9ca3af;
+}
+
+.cat-input-field:focus,
+.cat-select-field:focus {
+  border-color: #057a44;
+  box-shadow: 0 0 0 2px rgba(5, 122, 68, 0.1);
+}
+
+/* Step 2: Bill Summary & Payment Channels (เหมือน คิดเงินด่วน) */
+.cat-pay-summary-bill-card {
+  background: #f8fafc;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 18px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.cat-bill-item-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.cat-bill-item-left {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.cat-bill-badge-pill {
+  display: inline-block;
+  background: #dcfce7;
+  color: #166534;
+  font-size: 10px;
+  font-weight: 800;
+  padding: 2px 6px;
+  border-radius: 6px;
+  width: fit-content;
+  margin-bottom: 2px;
+}
+
+.cat-bill-item-left strong {
+  font-size: 14px;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.cat-bill-item-left small {
+  font-size: 11px;
+  color: #64748b;
+  line-height: 1.3;
+}
+
+.cat-bill-item-price {
+  font-size: 16px;
+  font-weight: 900;
+  color: #058e50;
+  white-space: nowrap;
+}
+
+.cat-bill-divider {
+  height: 1px;
+  border-bottom: 1px dashed #cbd5e1;
+  margin: 4px 0;
+}
+
+.cat-bill-line-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+  color: #64748b;
+}
+
+.cat-bill-line-row.discount {
+  color: #ea580c;
+  font-weight: 600;
+}
+
+.cat-bill-net-total-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #f0fdf4;
+  border: 1.5px solid #bbf7d0;
+  border-radius: 12px;
+  padding: 10px 14px;
+  margin-top: 4px;
+}
+
+.cat-net-label {
+  display: block;
+  font-size: 13px;
+  font-weight: 800;
+  color: #064e3b;
+}
+
+.cat-net-sub {
+  font-size: 10.5px;
+  color: #059669;
+  display: block;
+}
+
+.cat-net-price-large {
+  font-size: 22px;
+  font-weight: 900;
+  color: #058e50;
+}
+
+/* 5-Channel Payment Grid */
+.cat-pay-channel-5grid {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.cat-pay-chan-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  border-radius: 14px;
+  background: #ffffff;
+  border: 1.5px solid #e2e8f0;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.cat-pay-chan-card:hover {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+}
+
+.cat-pay-chan-card.active {
+  background: #f6fbf7;
+  border-color: #057a44;
+  box-shadow: 0 2px 8px rgba(5, 122, 68, 0.1);
+}
+
+.cat-chan-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-size: 15px;
+}
+
+.cat-chan-icon.pp {
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.cat-chan-icon.store {
+  background: #f0fdf4;
+  color: #059669;
+}
+
+.cat-chan-icon.tm {
+  background: #fff7ed;
+}
+
+.cat-chan-icon.card {
+  background: #faf5ff;
+  color: #7e22ce;
+}
+
+.cat-chan-icon.bank {
+  background: #f0fdf4;
+  color: #166534;
+}
+
+.cat-chan-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.cat-chan-info strong {
+  font-size: 12.5px;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.cat-chan-info small {
+  font-size: 10.5px;
+  color: #64748b;
+  line-height: 1.25;
+}
+
+/* PromptPay QR v2 Box */
+.cat-promptpay-box-v2 {
+  background: #f0fdf4;
+  border: 1.5px solid #86efac;
+  border-radius: 18px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  text-align: center;
+}
+
+.cat-pp-top-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.cat-pp-timer-badge {
+  background: #fef9c3;
+  color: #854d0e;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 20px;
+  border: 1px solid #fef08a;
+}
+
+.cat-pp-sec-tag {
+  font-size: 11px;
+  font-weight: 700;
+  color: #047857;
+}
+
+.cat-pp-qr-center {
+  display: flex;
+  justify-content: center;
+}
+
+.cat-pp-qr-frame {
+  width: 170px;
+  height: 170px;
+  background: #ffffff;
+  padding: 8px;
+  border-radius: 14px;
+  border: 1.5px solid #bbf7d0;
+  box-shadow: 0 4px 14px rgba(5, 150, 105, 0.12);
+}
+
+.cat-pp-qr-large {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.cat-pp-details-text p {
+  font-size: 12px;
+  color: #064e3b;
+  margin: 0 0 2px 0;
+}
+
+.cat-pp-details-text small {
+  font-size: 11px;
+  color: #047857;
+  font-weight: 600;
+}
+
+/* Guide Box & Bank Transfer */
+.cat-pay-guide-box {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px;
+  background: #f8fafc;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 16px;
+  font-size: 12px;
+}
+
+.cat-pay-guide-box.tm {
+  background: #fff7ed;
+  border-color: #fed7aa;
+}
+
+.cat-guide-icon {
+  font-size: 24px;
+  flex-shrink: 0;
+}
+
+.cat-pay-guide-box strong {
+  display: block;
+  font-size: 13px;
+  color: #0f172a;
+  margin-bottom: 2px;
+}
+
+.cat-pay-guide-box p {
+  margin: 0 0 2px 0;
+  color: #475569;
+  font-size: 11.5px;
+  line-height: 1.35;
+}
+
+.cat-card-pay-box {
+  background: #ffffff;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 16px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.cat-card-sec-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.cat-ssl-pill {
+  margin-left: auto;
+  font-size: 10px;
+  background: #f1f5f9;
+  color: #475569;
+  padding: 2px 6px;
+  border-radius: 6px;
+}
+
+.cat-card-inputs-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.cat-input-group.full {
+  grid-column: span 2;
+}
+
+.cat-bank-transfer-box {
+  background: #f0fdf4;
+  border: 1.5px solid #86efac;
+  border-radius: 16px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.cat-bank-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.cat-kbank-logo {
+  background: #166534;
+  color: #ffffff;
+  font-weight: 900;
+  font-size: 11px;
+  padding: 6px 8px;
+  border-radius: 8px;
+}
+
+.cat-bank-head strong {
+  font-size: 13px;
+  color: #064e3b;
+  display: block;
+}
+
+.cat-bank-head p {
+  font-size: 11px;
+  color: #047857;
+  margin: 0;
+}
+
+.cat-bank-acc-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #ffffff;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid #bbf7d0;
+  font-size: 12.5px;
+  color: #0f172a;
+}
+
+.cat-copy-acc-btn {
+  background: #059669;
+  color: #ffffff;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 11.5px;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.15s ease;
+}
+
+.cat-copy-acc-btn:hover {
+  background: #047857;
+}
+
+/* Sticky Bottom Footer */
+.cat-booking-sticky-footer {
+  padding: 14px 24px 18px 24px;
+  background: #ffffff;
+  border-top: 1px solid #f3f4f6;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-radius: 0 0 28px 28px;
+  gap: 10px;
+}
+
+.cat-booking-back-cta {
+  background: #ffffff;
+  border: 1.5px solid #cbd5e1;
+  color: #334155;
+  padding: 12px 18px;
+  border-radius: 16px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.15s ease;
+}
+
+.cat-booking-back-cta:hover {
+  background: #f8fafc;
+  border-color: #94a3b8;
+}
+
+.cat-booking-total-col {
+  display: flex;
+  flex-direction: column;
+}
+
+.cat-footer-caption {
+  font-size: 11px;
+  color: #6b7280;
+  font-weight: 500;
+}
+
+.cat-footer-amount {
+  font-size: 24px;
+  font-weight: 900;
+  color: #058e50;
+  line-height: 1.1;
+}
+
+.cat-booking-submit-cta {
+  background: #00693e;
+  color: #ffffff;
+  border: none;
+  padding: 12px 24px;
+  border-radius: 16px;
+  font-size: 13.5px;
+  font-weight: 800;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(0, 105, 62, 0.25);
+  transition: all 0.15s ease;
+}
+
+.cat-booking-submit-cta:hover {
+  background: #005a34;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(0, 105, 62, 0.35);
+}
+
+.cat-btn-price-tag {
+  color: #bbf7d0;
+  font-weight: 900;
+}
+
+/* Booking Success Ticket Pass */
+.cat-booking-success-wrap {
+  padding: 24px 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.cat-success-top-badge {
+  text-align: center;
+  margin-bottom: 16px;
+}
+
+.cat-success-top-badge h3 {
+  font-size: 18px;
+  font-weight: 800;
+  color: #064e3b;
+  margin: 8px 0 2px 0;
+}
+
+.cat-success-top-badge p {
+  font-size: 12px;
+  color: #64748b;
+  margin: 0;
+}
+
+.cat-booking-ticket-card {
+  width: 100%;
+  background: #ffffff;
+  border: 1.5px solid #bbf7d0;
+  border-radius: 18px;
+  box-shadow: 0 8px 24px rgba(5, 150, 105, 0.08);
+  overflow: hidden;
+  margin-bottom: 16px;
+}
+
+.cat-ticket-header {
+  background: #f0fdf4;
+  padding: 12px 16px;
+  border-bottom: 1px dashed #bbf7d0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.cat-ticket-ref span {
+  font-size: 10.5px;
+  color: #64748b;
+  display: block;
+}
+
+.cat-ticket-ref strong {
+  font-size: 15px;
+  color: #064e3b;
+  font-family: monospace;
+}
+
+.cat-ticket-status-pill {
+  font-size: 11px;
+  font-weight: 700;
+  background: #fef9c3;
+  color: #854d0e;
+  border: 1px solid #fef08a;
+  padding: 2px 8px;
+  border-radius: 12px;
+}
+
+.cat-ticket-body {
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.cat-ticket-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+}
+
+.cat-ticket-row .t-label {
+  color: #64748b;
+}
+
+.cat-ticket-row .t-val {
+  font-weight: 700;
+  color: #0f172a;
+  text-align: right;
+}
+
+.cat-ticket-row .t-val.highlight {
+  color: #059669;
+}
+
+.cat-ticket-row .t-val.muted {
+  color: #64748b;
+  font-weight: 500;
+}
+
+.cat-ticket-qr-section {
+  background: #f8fafc;
+  border-top: 1px dashed #e2e8f0;
+  padding: 12px;
+  text-align: center;
+}
+
+.cat-ticket-qr-img {
+  width: 120px;
+  height: 120px;
+  margin: 0 auto 6px auto;
+  display: block;
+}
+
+.cat-ticket-qr-section small {
+  font-size: 10.5px;
+  color: #64748b;
+  display: block;
+}
+
+.cat-success-actions-list {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.cat-ticket-btn {
+  width: 100%;
+  padding: 11px;
+  border-radius: 12px;
+  font-size: 12.5px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  cursor: pointer;
+  text-decoration: none;
+  transition: all 0.15s ease;
+}
+
+.cat-ticket-btn.line {
+  background: #0d3826;
+  color: #ffffff;
+  border: none;
+}
+
+.cat-ticket-btn.line:hover {
+  background: #064e3b;
+}
+
+.cat-ticket-btn.copy {
+  background: #f0fdf4;
+  border: 1px solid #86efac;
+  color: #166534;
+}
+
+.cat-ticket-btn.copy.copied {
+  background: #dcfce7;
+}
+
+.cat-ticket-btn.tel {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  color: #334155;
+}
+
+
+/* ==========================================================================
+   RESPONSIVE BREAKPOINTS (Mobile & Tablet)
+   ========================================================================== */
+@media (max-width: 640px) {
+  .cat-store-profile-card {
+    padding: 16px;
+    margin-top: -40px;
+  }
+
+  .cat-store-actions-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .cat-products-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+  }
+
+  .cat-product-media-box {
+    height: 120px;
+  }
+
+  .cat-facility-four-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .cat-footer-simple-card {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .cat-footer-bottom-bar {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+  }
+}
+
+@media (max-width: 380px) {
+  .cat-products-grid {
+    grid-template-columns: 1fr;
+  }
+}

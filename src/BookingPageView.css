@@ -1,0 +1,1588 @@
+/* ==========================================================================
+   DEDICATED BOOKING PAGE PORTAL & MODAL STYLES (/booking)
+   ========================================================================== */
+
+.bk-portal-page {
+  min-height: 100vh;
+  background: #fbf8f2;
+  color: #1e293b;
+  font-family: -apple-system, BlinkMacSystemFont, 'Prompt', 'Noto Sans Thai', sans-serif;
+  display: flex;
+  flex-direction: column;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* 1. Top Hero Banner (Matching Screenshot) */
+.bk-top-hero {
+  position: relative;
+  width: 100%;
+  height: 310px;
+  overflow: hidden;
+  background: #111827;
+}
+
+.bk-hero-bg-frame {
+  position: absolute;
+  inset: 0;
+}
+
+.bk-hero-bg-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 30%;
+  filter: brightness(0.85);
+}
+
+.bk-hero-dark-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.25) 0%, rgba(6, 36, 24, 0.75) 100%);
+}
+
+.bk-hero-header-text {
+  position: relative;
+  z-index: 5;
+  max-width: 500px;
+  margin: 0 auto;
+  padding: 34px 20px 0 20px;
+}
+
+.bk-welcome-caption {
+  font-size: 13.5px;
+  color: #f1f5f9;
+  font-weight: 500;
+  display: block;
+  margin-bottom: 2px;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+}
+
+.bk-hero-title-h1 {
+  font-size: 38px;
+  font-weight: 900;
+  color: #ffffff;
+  margin: 0;
+  line-height: 1.05;
+  letter-spacing: -0.5px;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+}
+
+.bk-hero-title-h2 {
+  font-size: 24px;
+  font-weight: 900;
+  color: #ffffff;
+  margin: 0 0 16px 0;
+  letter-spacing: -0.2px;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+}
+
+.bk-hero-pills-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.bk-time-badge-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: 20px;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  font-size: 11.5px;
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.bk-pill-icon {
+  color: #a7f3d0;
+}
+
+.bk-line-badge-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 14px;
+  border-radius: 20px;
+  background: #00b900;
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 800;
+  text-decoration: none;
+  box-shadow: 0 4px 14px rgba(0, 185, 0, 0.35);
+  transition: all 0.15s ease;
+}
+
+.bk-line-badge-pill:hover {
+  background: #009900;
+  transform: translateY(-1px);
+}
+
+.bk-line-icon-badge {
+  background: #ffffff;
+  color: #00b900;
+  font-size: 8px;
+  font-weight: 900;
+  padding: 2px 4px;
+  border-radius: 4px;
+  line-height: 1;
+}
+
+/* 2. Main Center Content & Floating Store Card */
+.bk-portal-main {
+  max-width: 500px;
+  margin: 0 auto;
+  padding: 0 16px 40px 16px;
+  width: 100%;
+  position: relative;
+  z-index: 10;
+  flex: 1;
+}
+
+.bk-float-store-card {
+  background: #ffffff;
+  border-radius: 28px;
+  padding: 22px 20px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.06);
+  border: 1px solid #efeae1;
+  margin-top: -65px;
+  margin-bottom: 24px;
+}
+
+.bk-store-top-info-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 14px;
+}
+
+.bk-avatar-wrapper {
+  position: relative;
+  width: 84px;
+  height: 84px;
+  border-radius: 50%;
+  padding: 3px;
+  background: #ffffff;
+  border: 2px solid #057a44;
+  box-shadow: 0 6px 16px rgba(5, 122, 68, 0.15);
+  flex-shrink: 0;
+}
+
+.bk-avatar-coffee-img {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.bk-avatar-verified-check {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #0d3826;
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 900;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2.5px solid #ffffff;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+}
+
+.bk-store-title-text-group {
+  flex: 1;
+  min-width: 0;
+}
+
+.bk-card-store-name {
+  font-size: 17px;
+  font-weight: 900;
+  color: #0f172a;
+  margin: 0 0 4px 0;
+}
+
+.bk-card-rating-pill {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 700;
+  color: #b45309;
+  background: #fef9c3;
+  border: 1px solid #fef08a;
+  padding: 3px 9px;
+  border-radius: 12px;
+  margin-bottom: 6px;
+}
+
+.bk-card-slogan-text {
+  font-size: 11.5px;
+  color: #64748b;
+  margin: 0;
+  line-height: 1.35;
+}
+
+/* Inset Address Box */
+.bk-inset-address-box {
+  background: #f8fafc;
+  border: 1px solid #f1f5f9;
+  border-radius: 16px;
+  padding: 10px 12px;
+  margin-bottom: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.bk-inset-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 11.5px;
+  color: #475569;
+  line-height: 1.35;
+}
+
+.bk-inset-icon {
+  color: #057a44;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+/* Giant Green Booking CTA */
+.bk-giant-book-now-btn {
+  width: 100%;
+  background: linear-gradient(135deg, #0d3826 0%, #062418 100%);
+  color: #ffffff;
+  border: none;
+  padding: 14px 20px;
+  border-radius: 18px;
+  font-size: 15px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  cursor: pointer;
+  box-shadow: 0 6px 18px rgba(13, 56, 38, 0.3);
+  transition: all 0.15s ease;
+}
+
+.bk-giant-book-now-btn:hover {
+  background: #064e3b;
+  transform: translateY(-1px);
+}
+
+.bk-btn-sparkle {
+  color: #fef08a;
+}
+
+/* 3. Services Section Header */
+.bk-services-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.bk-srv-sec-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.bk-crown-circle-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: #0d3826;
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-shadow: 0 2px 8px rgba(13, 56, 38, 0.25);
+}
+
+.bk-srv-sec-left h4 {
+  font-size: 14px;
+  font-weight: 900;
+  color: #0d3826;
+  margin: 0;
+}
+
+.bk-srv-total-badge {
+  font-size: 11px;
+  font-weight: 700;
+  color: #64748b;
+  background: #f1ede4;
+  padding: 3px 10px;
+  border-radius: 10px;
+  border: 1px solid #e7e0d3;
+}
+
+/* 4. Single Service Card (Matching Mockup) */
+.bk-services-cards-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.bk-single-service-card {
+  background: #ffffff;
+  border-radius: 24px;
+  border: 1px solid #efeae1;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.03);
+  padding: 14px;
+  display: flex;
+  gap: 14px;
+  align-items: stretch;
+  transition: all 0.2s ease;
+}
+
+.bk-single-service-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(45, 30, 15, 0.08);
+}
+
+.bk-srv-thumb-container {
+  width: 130px;
+  flex-shrink: 0;
+}
+
+.bk-srv-thumb-bg {
+  width: 100%;
+  height: 100%;
+  min-height: 130px;
+  border-radius: 18px;
+  background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #fef08a;
+}
+
+.bk-srv-mascot-img {
+  width: 88%;
+  height: 88%;
+  object-fit: contain;
+}
+
+.bk-srv-duration-tag {
+  position: absolute;
+  bottom: 6px;
+  left: 6px;
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(4px);
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.bk-srv-details-content {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.bk-srv-type-pill {
+  display: inline-block;
+  font-size: 9.5px;
+  font-weight: 800;
+  color: #475569;
+  background: #f1f5f9;
+  padding: 2px 6px;
+  border-radius: 6px;
+  width: fit-content;
+  margin-bottom: 4px;
+  letter-spacing: 0.5px;
+}
+
+.bk-srv-name-title {
+  font-size: 14.5px;
+  font-weight: 900;
+  color: #0f172a;
+  margin: 0 0 2px 0;
+  line-height: 1.3;
+}
+
+.bk-srv-desc-sub {
+  font-size: 11px;
+  color: #64748b;
+  margin: 0 0 6px 0;
+  line-height: 1.35;
+}
+
+.bk-srv-highlight-box {
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: 10px;
+  padding: 4px 8px;
+  font-size: 10.5px;
+  color: #166534;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.bk-srv-card-bottom-row {
+  margin-top: auto;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+}
+
+.bk-srv-price-stack {
+  display: flex;
+  flex-direction: column;
+}
+
+.bk-srv-price-caption {
+  font-size: 9.5px;
+  color: #94a3b8;
+  font-weight: 600;
+}
+
+.bk-srv-price-number {
+  font-size: 19px;
+  font-weight: 900;
+  color: #058e50;
+  line-height: 1.1;
+}
+
+.bk-srv-item-book-btn {
+  background: #0d3826;
+  color: #ffffff;
+  border: none;
+  padding: 8px 14px;
+  border-radius: 12px;
+  font-size: 11.5px;
+  font-weight: 800;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.bk-srv-item-book-btn:hover {
+  background: #064e3b;
+  transform: translateY(-1px);
+}
+
+/* ==========================================================================
+   3. PIXEL-PERFECT BOOKING MODAL (MATCHING SCREENSHOT)
+   ========================================================================== */
+.cat-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.65);
+  backdrop-filter: blur(6px);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.cat-modal-dialog.booking-modal-dialog {
+  background: #ffffff;
+  border-radius: 28px;
+  max-width: 490px;
+  width: 100%;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+  overflow: hidden;
+  position: relative;
+  border: 1px solid rgba(0, 0, 0, 0.04);
+}
+
+.cat-modal-close {
+  position: absolute;
+  top: 18px;
+  right: 18px;
+  background: #f3f4f6;
+  color: #4b5563;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: none;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+  transition: all 0.15s ease;
+}
+
+.cat-modal-close:hover {
+  background: #e5e7eb;
+  color: #111827;
+}
+
+.cat-booking-form-wrap {
+  display: flex;
+  flex-direction: column;
+}
+
+.cat-booking-modal-header {
+  padding: 22px 24px 14px 24px;
+  background: #ffffff;
+  display: flex;
+  align-items: flex-start;
+}
+
+.cat-booking-header-title-group {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.cat-booking-clover-icon {
+  margin-top: 2px;
+  flex-shrink: 0;
+}
+
+.cat-booking-modal-header h3 {
+  font-size: 18px;
+  font-weight: 800;
+  color: #0d3826;
+  margin: 0 0 3px 0;
+  letter-spacing: -0.2px;
+}
+
+.cat-booking-modal-header p {
+  font-size: 12px;
+  color: #6b7280;
+  margin: 0;
+  line-height: 1.35;
+}
+
+.cat-booking-modal-body {
+  padding: 0 24px 18px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-height: 68vh;
+  overflow-y: auto;
+}
+
+.cat-booking-sec {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.cat-booking-sec-title {
+  font-size: 13.5px;
+  font-weight: 800;
+  color: #0d3826;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.cat-sec-icon {
+  font-size: 15px;
+}
+
+/* Section 1: Selected Service Banner */
+.cat-selected-service-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: #f6fbf7;
+  border: 1.5px solid #057a44;
+  box-shadow: 0 2px 8px rgba(5, 122, 68, 0.08);
+}
+
+.cat-srv-banner-thumb {
+  width: 52px;
+  height: 52px;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #ffffff;
+  flex-shrink: 0;
+  border: 1px solid #dcfce7;
+}
+
+.cat-srv-banner-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.cat-srv-banner-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.cat-srv-banner-info strong {
+  font-size: 13.5px;
+  font-weight: 800;
+  color: #111827;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cat-srv-banner-price {
+  font-size: 15px;
+  font-weight: 900;
+  color: #058e50;
+}
+
+.cat-srv-banner-check {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #00693e;
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 900;
+  flex-shrink: 0;
+}
+
+.cat-switch-srv-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+
+.cat-switch-srv-label {
+  font-size: 11px;
+  color: #6b7280;
+  white-space: nowrap;
+}
+
+.cat-switch-chip {
+  background: #f3f4f6;
+  border: 1px solid #e5e7eb;
+  color: #4b5563;
+  padding: 4px 10px;
+  border-radius: 10px;
+  font-size: 11.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.cat-switch-chip.active {
+  background: #0d4a30;
+  color: #ffffff;
+  border-color: #0d4a30;
+  font-weight: 700;
+}
+
+/* Section 2: Date & Time */
+.cat-booking-date-pills-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.cat-date-pill-btn {
+  padding: 9px 6px;
+  border-radius: 12px;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  font-size: 12px;
+  font-weight: 700;
+  color: #374151;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  transition: all 0.15s ease;
+}
+
+.cat-date-pill-btn:hover {
+  background: #f9fafb;
+}
+
+.cat-date-pill-btn.active {
+  background: #0d4a30;
+  color: #ffffff;
+  border-color: #0d4a30;
+  font-weight: 800;
+}
+
+.cat-date-input-wrap {
+  margin-top: 2px;
+}
+
+.cat-date-display-box {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 12px;
+  border-radius: 12px;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  width: 58%;
+}
+
+.cat-date-calendar-icon {
+  color: #374151;
+  flex-shrink: 0;
+}
+
+.cat-native-date-input {
+  border: none;
+  background: transparent;
+  outline: none;
+  font-size: 12.5px;
+  color: #111827;
+  font-weight: 600;
+  width: 100%;
+}
+
+/* 5-Column Time Slots Grid */
+.cat-time-slots-5col-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.cat-time-slot-btn {
+  padding: 8px 3px;
+  text-align: center;
+  border-radius: 10px;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #374151;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.cat-time-slot-btn:hover {
+  background: #f9fafb;
+}
+
+.cat-time-slot-btn.active {
+  background: #0d4a30;
+  color: #ffffff;
+  border-color: #0d4a30;
+  font-weight: 800;
+}
+
+/* Section 3: Customer Inputs Grid */
+.cat-booking-inputs-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.cat-input-group {
+  display: flex;
+  flex-direction: column;
+}
+
+.cat-label-text {
+  font-size: 11px;
+  font-weight: 700;
+  color: #374151;
+  margin-bottom: 4px;
+}
+
+.cat-label-text .req {
+  color: #ef4444;
+}
+
+.cat-input-field {
+  width: 100%;
+  padding: 9px 12px;
+  border-radius: 10px;
+  border: 1px solid #e5e7eb;
+  background: #ffffff;
+  font-size: 12px;
+  color: #111827;
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+
+.cat-input-field::placeholder {
+  color: #9ca3af;
+}
+
+.cat-input-field:focus {
+  border-color: #057a44;
+  box-shadow: 0 0 0 2px rgba(5, 122, 68, 0.1);
+}
+
+.cat-select-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.cat-select-field {
+  width: 100%;
+  padding: 9px 28px 9px 12px;
+  border-radius: 10px;
+  border: 1px solid #e5e7eb;
+  background: #ffffff;
+  font-size: 12px;
+  color: #111827;
+  outline: none;
+  appearance: none;
+  cursor: pointer;
+}
+
+.cat-select-arrow {
+  position: absolute;
+  right: 10px;
+  color: #6b7280;
+  pointer-events: none;
+}
+
+/* Section 4: Payment Methods Grid (2 Cards) */
+.cat-pay-methods-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.cat-pay-method-card {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.cat-pay-method-card:hover {
+  background: #f9fafb;
+}
+
+.cat-pay-method-card.active {
+  background: #f6fbf7;
+  border: 1.5px solid #057a44;
+}
+
+.cat-pay-radio-circle {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 1.5px solid #d1d5db;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.cat-pay-method-card.active .cat-pay-radio-circle {
+  border-color: #057a44;
+}
+
+.cat-radio-inner-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #057a44;
+}
+
+.cat-pay-method-icon {
+  font-size: 18px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.cat-pay-method-text {
+  display: flex;
+  flex-direction: column;
+}
+
+.cat-pay-method-text strong {
+  font-size: 12.5px;
+  font-weight: 800;
+  color: #111827;
+}
+
+.cat-pay-method-text small {
+  font-size: 10px;
+  color: #6b7280;
+  line-height: 1.25;
+}
+
+/* Sticky Bottom Footer */
+.cat-booking-sticky-footer {
+  padding: 14px 24px 18px 24px;
+  background: #ffffff;
+  border-top: 1px solid #f3f4f6;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-radius: 0 0 28px 28px;
+}
+
+.cat-booking-total-col {
+  display: flex;
+  flex-direction: column;
+}
+
+.cat-footer-caption {
+  font-size: 11px;
+  color: #6b7280;
+  font-weight: 500;
+}
+
+.cat-footer-amount {
+  font-size: 24px;
+  font-weight: 900;
+  color: #058e50;
+  line-height: 1.1;
+}
+
+.cat-booking-submit-cta {
+  background: #00693e;
+  color: #ffffff;
+  border: none;
+  padding: 12px 26px;
+  border-radius: 16px;
+  font-size: 14px;
+  font-weight: 800;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(0, 105, 62, 0.25);
+  transition: all 0.15s ease;
+}
+
+.cat-booking-submit-cta:hover {
+  background: #005a34;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(0, 105, 62, 0.35);
+}
+
+/* Step 2: Bill Summary & Payment Channels (เหมือน คิดเงินด่วน) */
+.cat-pay-summary-bill-card {
+  background: #f8fafc;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 18px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.cat-bill-item-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.cat-bill-item-left {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.cat-bill-badge-pill {
+  display: inline-block;
+  background: #dcfce7;
+  color: #166534;
+  font-size: 10px;
+  font-weight: 800;
+  padding: 2px 6px;
+  border-radius: 6px;
+  width: fit-content;
+  margin-bottom: 2px;
+}
+
+.cat-bill-item-left strong {
+  font-size: 14px;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.cat-bill-item-left small {
+  font-size: 11px;
+  color: #64748b;
+  line-height: 1.3;
+}
+
+.cat-bill-item-price {
+  font-size: 16px;
+  font-weight: 900;
+  color: #058e50;
+  white-space: nowrap;
+}
+
+.cat-bill-divider {
+  height: 1px;
+  border-bottom: 1px dashed #cbd5e1;
+  margin: 4px 0;
+}
+
+.cat-bill-line-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+  color: #64748b;
+}
+
+.cat-bill-line-row.discount {
+  color: #ea580c;
+  font-weight: 600;
+}
+
+.cat-bill-net-total-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #f0fdf4;
+  border: 1.5px solid #bbf7d0;
+  border-radius: 12px;
+  padding: 10px 14px;
+  margin-top: 4px;
+}
+
+.cat-net-label {
+  display: block;
+  font-size: 13px;
+  font-weight: 800;
+  color: #064e3b;
+}
+
+.cat-net-sub {
+  font-size: 10.5px;
+  color: #059669;
+  display: block;
+}
+
+.cat-net-price-large {
+  font-size: 22px;
+  font-weight: 900;
+  color: #058e50;
+}
+
+/* 5-Channel Payment Grid */
+.cat-pay-channel-5grid {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.cat-pay-chan-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  border-radius: 14px;
+  background: #ffffff;
+  border: 1.5px solid #e2e8f0;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.cat-pay-chan-card:hover {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+}
+
+.cat-pay-chan-card.active {
+  background: #f6fbf7;
+  border-color: #057a44;
+  box-shadow: 0 2px 8px rgba(5, 122, 68, 0.1);
+}
+
+.cat-chan-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-size: 15px;
+}
+
+.cat-chan-icon.pp {
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.cat-chan-icon.store {
+  background: #f0fdf4;
+  color: #059669;
+}
+
+.cat-chan-icon.tm {
+  background: #fff7ed;
+}
+
+.cat-chan-icon.card {
+  background: #faf5ff;
+  color: #7e22ce;
+}
+
+.cat-chan-icon.bank {
+  background: #f0fdf4;
+  color: #166534;
+}
+
+.cat-chan-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.cat-chan-info strong {
+  font-size: 12.5px;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.cat-chan-info small {
+  font-size: 10.5px;
+  color: #64748b;
+  line-height: 1.25;
+}
+
+/* PromptPay Box */
+.cat-promptpay-box-v2 {
+  background: #f0fdf4;
+  border: 1.5px solid #86efac;
+  border-radius: 18px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  text-align: center;
+}
+
+.cat-pp-top-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.cat-pp-timer-badge {
+  background: #fef9c3;
+  color: #854d0e;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 20px;
+  border: 1px solid #fef08a;
+}
+
+.cat-pp-sec-tag {
+  font-size: 11px;
+  font-weight: 700;
+  color: #047857;
+}
+
+.cat-pp-qr-center {
+  display: flex;
+  justify-content: center;
+}
+
+.cat-pp-qr-frame {
+  width: 170px;
+  height: 170px;
+  background: #ffffff;
+  padding: 8px;
+  border-radius: 14px;
+  border: 1.5px solid #bbf7d0;
+  box-shadow: 0 4px 14px rgba(5, 150, 105, 0.12);
+}
+
+.cat-pp-qr-large {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.cat-pp-details-text p {
+  font-size: 12.5px;
+  color: #064e3b;
+  margin: 0 0 2px 0;
+}
+
+.cat-pp-details-text small {
+  font-size: 11px;
+  color: #047857;
+  font-weight: 600;
+}
+
+/* Guide Box & Bank Transfer */
+.cat-pay-guide-box {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px;
+  background: #f8fafc;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 16px;
+  font-size: 12px;
+}
+
+.cat-pay-guide-box.tm {
+  background: #fff7ed;
+  border-color: #fed7aa;
+}
+
+.cat-guide-icon {
+  font-size: 24px;
+  flex-shrink: 0;
+}
+
+.cat-pay-guide-box strong {
+  display: block;
+  font-size: 13px;
+  color: #0f172a;
+  margin-bottom: 2px;
+}
+
+.cat-pay-guide-box p {
+  margin: 0 0 2px 0;
+  color: #475569;
+  font-size: 11.5px;
+  line-height: 1.35;
+}
+
+.cat-card-pay-box {
+  background: #ffffff;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 16px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.cat-card-sec-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.cat-ssl-pill {
+  margin-left: auto;
+  font-size: 10px;
+  background: #f1f5f9;
+  color: #475569;
+  padding: 2px 6px;
+  border-radius: 6px;
+}
+
+.cat-card-inputs-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.cat-input-group.full {
+  grid-column: span 2;
+}
+
+.cat-bank-transfer-box {
+  background: #f0fdf4;
+  border: 1.5px solid #86efac;
+  border-radius: 16px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.cat-bank-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.cat-kbank-logo {
+  background: #166534;
+  color: #ffffff;
+  font-weight: 900;
+  font-size: 11px;
+  padding: 6px 8px;
+  border-radius: 8px;
+}
+
+.cat-bank-head strong {
+  font-size: 13px;
+  color: #064e3b;
+  display: block;
+}
+
+.cat-bank-head p {
+  font-size: 11px;
+  color: #047857;
+  margin: 0;
+}
+
+.cat-bank-acc-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #ffffff;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid #bbf7d0;
+  font-size: 12.5px;
+  color: #0f172a;
+}
+
+.cat-copy-acc-btn {
+  background: #059669;
+  color: #ffffff;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 11.5px;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.15s ease;
+}
+
+.cat-copy-acc-btn:hover {
+  background: #047857;
+}
+
+.cat-btn-price-tag {
+  color: #bbf7d0;
+  font-weight: 900;
+}
+
+/* Booking Success Ticket Pass */
+.cat-booking-success-wrap {
+  padding: 24px 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.cat-success-top-badge {
+  text-align: center;
+  margin-bottom: 16px;
+}
+
+.cat-success-top-badge h3 {
+  font-size: 18px;
+  font-weight: 800;
+  color: #064e3b;
+  margin: 8px 0 2px 0;
+}
+
+.cat-success-top-badge p {
+  font-size: 12px;
+  color: #64748b;
+  margin: 0;
+}
+
+.cat-booking-ticket-card {
+  width: 100%;
+  background: #ffffff;
+  border: 1.5px solid #bbf7d0;
+  border-radius: 18px;
+  box-shadow: 0 8px 24px rgba(5, 150, 105, 0.08);
+  overflow: hidden;
+  margin-bottom: 16px;
+}
+
+.cat-ticket-header {
+  background: #f0fdf4;
+  padding: 12px 16px;
+  border-bottom: 1px dashed #bbf7d0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.cat-ticket-ref {
+  display: flex;
+  flex-direction: column;
+}
+
+.cat-ticket-ref span {
+  font-size: 10px;
+  color: #64748b;
+  font-weight: 600;
+}
+
+.cat-ticket-ref strong {
+  font-size: 15px;
+  color: #064e3b;
+  font-family: monospace;
+}
+
+.cat-ticket-status-pill {
+  font-size: 11px;
+  font-weight: 700;
+  background: #fef9c3;
+  color: #854d0e;
+  border: 1px solid #fef08a;
+  padding: 2px 8px;
+  border-radius: 12px;
+}
+
+.cat-ticket-body {
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.cat-ticket-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+}
+
+.cat-ticket-row .t-label {
+  color: #64748b;
+  font-weight: 500;
+}
+
+.cat-ticket-row .t-val {
+  font-weight: 700;
+  color: #0f172a;
+  text-align: right;
+}
+
+.cat-ticket-row .t-val.highlight {
+  color: #059669;
+  font-weight: 800;
+}
+
+.cat-ticket-row .t-val.muted {
+  color: #64748b;
+  font-weight: 500;
+}
+
+.cat-ticket-qr-section {
+  background: #f8fafc;
+  border-top: 1px dashed #e2e8f0;
+  padding: 12px;
+  text-align: center;
+}
+
+.cat-ticket-qr-img {
+  width: 120px;
+  height: 120px;
+  margin: 0 auto 6px auto;
+  display: block;
+}
+
+.cat-ticket-qr-section small {
+  font-size: 10.5px;
+  color: #64748b;
+  display: block;
+}
+
+.cat-success-actions-list {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.cat-success-act-btn {
+  width: 100%;
+  padding: 11px;
+  border-radius: 12px;
+  font-size: 12.5px;
+  font-weight: 800;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  cursor: pointer;
+  text-decoration: none;
+  transition: all 0.15s ease;
+}
+
+.cat-success-act-btn.line {
+  background: #0d3826;
+  color: #ffffff;
+  border: none;
+}
+
+.cat-success-act-btn.copy {
+  background: #f0fdf4;
+  border: 1px solid #86efac;
+  color: #166534;
+}
+
+.cat-success-act-btn.tel {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  color: #334155;
+}
+
+.cat-success-act-btn.close {
+  background: transparent;
+  border: none;
+  color: #64748b;
+  margin-top: 4px;
+}
+
+@media (max-width: 640px) {
+  .bk-store-profile-card {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .bk-hero-book-cta-btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .bk-services-showcase-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .cat-time-slots-5col-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
