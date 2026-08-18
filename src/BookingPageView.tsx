@@ -101,22 +101,72 @@ export function BookingPageView() {
   const [bookingCheckinQr, setBookingCheckinQr] = useState('')
   const [copiedBookingRef, setCopiedBookingRef] = useState(false)
 
-  // Store metadata
-  const storeInfo = {
-    welcomeSub: 'ยินดีต้อนรับสู่',
-    namePrefix: 'POP CAFE',
-    nameSuffix: '& SERVICES ✨',
-    fullName: 'POP CAFE & SERVICES ✨',
-    description: 'ระบบนัดหมายออนไลน์ บริการสะดวกรวดเร็ว ยืนยันคิวทันที',
-    coverImg: 'https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?w=1600&auto=format&fit=crop&q=80',
-    logoImg: 'https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?w=400&auto=format&fit=crop&q=80',
-    openHours: 'เปิดบริการทุกวัน 08:00 - 20:00 น.',
-    phone: '082-345-6789',
-    lineUrl: 'https://line.me/ti/p/~@chatpos',
-    location: '128 ถ. สุขุมวิท ซอย 24 แขวงคลองตัน เขตคลองเตย กรุงเทพมหานคร 10110',
-    rating: '4.9',
-    reviews: '640+'
-  }
+  // Store metadata (Synced with merchant_booking_settings from /merchant#services)
+  const [storeInfo, setStoreInfo] = useState(() => {
+    try {
+      const saved = localStorage.getItem('merchant_booking_settings')
+      if (saved) {
+        const parsed = JSON.parse(saved)
+        return {
+          welcomeSub: parsed.welcomeSub || 'ยินดีต้อนรับสู่',
+          namePrefix: parsed.namePrefix || 'POP CAFE',
+          nameSuffix: parsed.nameSuffix || '& SERVICES ✨',
+          fullName: parsed.storeName || 'POP CAFE & SERVICES ✨',
+          description: parsed.slogan || 'ระบบนัดหมายออนไลน์ บริการสะดวกรวดเร็ว ยืนยันคิวทันที',
+          coverImg: parsed.coverImg || 'https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?w=1600&auto=format&fit=crop&q=80',
+          logoImg: parsed.logoImg || 'https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?w=400&auto=format&fit=crop&q=80',
+          openHours: parsed.openHours || 'เปิดบริการทุกวัน 08:00 - 20:00 น.',
+          phone: parsed.phone || '082-345-6789',
+          lineUrl: parsed.lineUrl || 'https://line.me/ti/p/~@chatpos',
+          location: parsed.location || '128 ถ. สุขุมวิท ซอย 24 แขวงคลองตัน เขตคลองเตย กรุงเทพมหานคร 10110',
+          rating: '4.9',
+          reviews: '640+'
+        }
+      }
+    } catch (e) {}
+    return {
+      welcomeSub: 'ยินดีต้อนรับสู่',
+      namePrefix: 'POP CAFE',
+      nameSuffix: '& SERVICES ✨',
+      fullName: 'POP CAFE & SERVICES ✨',
+      description: 'ระบบนัดหมายออนไลน์ บริการสะดวกรวดเร็ว ยืนยันคิวทันที',
+      coverImg: 'https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?w=1600&auto=format&fit=crop&q=80',
+      logoImg: 'https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?w=400&auto=format&fit=crop&q=80',
+      openHours: 'เปิดบริการทุกวัน 08:00 - 20:00 น.',
+      phone: '082-345-6789',
+      lineUrl: 'https://line.me/ti/p/~@chatpos',
+      location: '128 ถ. สุขุมวิท ซอย 24 แขวงคลองตัน เขตคลองเตย กรุงเทพมหานคร 10110',
+      rating: '4.9',
+      reviews: '640+'
+    }
+  })
+
+  useEffect(() => {
+    const handleSyncSettings = () => {
+      try {
+        const saved = localStorage.getItem('merchant_booking_settings')
+        if (saved) {
+          const parsed = JSON.parse(saved)
+          setStoreInfo(prev => ({
+            ...prev,
+            welcomeSub: parsed.welcomeSub || prev.welcomeSub,
+            namePrefix: parsed.namePrefix || prev.namePrefix,
+            nameSuffix: parsed.nameSuffix || prev.nameSuffix,
+            fullName: parsed.storeName || prev.fullName,
+            description: parsed.slogan || prev.description,
+            coverImg: parsed.coverImg || prev.coverImg,
+            logoImg: parsed.logoImg || prev.logoImg,
+            openHours: parsed.openHours || prev.openHours,
+            phone: parsed.phone || prev.phone,
+            lineUrl: parsed.lineUrl || prev.lineUrl,
+            location: parsed.location || prev.location
+          }))
+        }
+      } catch (e) {}
+    }
+    window.addEventListener('storage', handleSyncSettings)
+    return () => window.removeEventListener('storage', handleSyncSettings)
+  }, [])
 
   // Load custom services from merchant backend if configured
   const [servicesList] = useState<BookingServiceItem[]>(() => {

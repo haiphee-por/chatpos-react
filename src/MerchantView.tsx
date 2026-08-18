@@ -335,7 +335,7 @@ export function MerchantView() {
 
   const handleLogout = () => {
     clearStoredUser()
-    window.location.href = '/merchant/login'
+    window.location.href = '/'
   }
 
   useEffect(() => {
@@ -2091,6 +2091,11 @@ function ServicesView() {
   const [copiedServiceId, setCopiedServiceId] = useState<string | null>(null)
   const [serviceQrModal, setServiceQrModal] = useState<{ title: string; subtitle: string; url: string; qrDataUrl?: string } | null>(null)
 
+  // Management Form States
+  const [isManualBookingOpen, setIsManualBookingOpen] = useState(false)
+  const [editingBooking, setEditingBooking] = useState<any | null>(null)
+  const [isBookingSettingsOpen, setIsBookingSettingsOpen] = useState(false)
+
   // Listen to live booking additions from Customer /booking tab
   useEffect(() => {
     const handleSyncBookings = () => {
@@ -2139,10 +2144,37 @@ function ServicesView() {
     }
   }
 
+  const handleSaveManualBooking = (newRecord: any) => {
+    const updated = [newRecord, ...bookings]
+    setBookings(updated)
+    localStorage.setItem('merchant_service_bookings', JSON.stringify(updated))
+    window.dispatchEvent(new Event('storage'))
+    playTapSound('success')
+  }
+
+  const handleSaveEditBooking = (updatedRecord: any) => {
+    const updated = bookings.map(b => b.id === updatedRecord.id ? updatedRecord : b)
+    setBookings(updated)
+    localStorage.setItem('merchant_service_bookings', JSON.stringify(updated))
+    window.dispatchEvent(new Event('storage'))
+    playTapSound('success')
+  }
+
+  const handleDeleteBooking = (bookingId: string) => {
+    if (window.confirm(`ยืนยันการลบรายการจองคิว #${bookingId} ใช่หรือไม่?`)) {
+      const updated = bookings.filter(b => b.id !== bookingId)
+      setBookings(updated)
+      localStorage.setItem('merchant_service_bookings', JSON.stringify(updated))
+      window.dispatchEvent(new Event('storage'))
+      playTapSound('delete')
+    }
+  }
+
   const handleUpdateBookingStatus = (bookingId: string, newStatus: 'pending' | 'confirmed' | 'in_service' | 'completed' | 'cancelled') => {
     const updated = bookings.map(b => b.id === bookingId ? { ...b, status: newStatus } : b)
     setBookings(updated)
     localStorage.setItem('merchant_service_bookings', JSON.stringify(updated))
+    window.dispatchEvent(new Event('storage'))
     playTapSound('success')
   }
 
@@ -2211,6 +2243,23 @@ function ServicesView() {
         </div>
 
         <div
+          className="qs-card qs-card-emerald"
+          onClick={() => { playTapSound('pop'); setIsManualBookingOpen(true) }}
+          role="button"
+          tabIndex={0}
+          style={{ background: 'linear-gradient(135deg, #057a44 0%, #034b29 100%)', color: '#ffffff' }}
+        >
+          <div className="qs-card-icon-wrap qs-plus-icon" style={{ background: 'rgba(255,255,255,0.2)', color: '#ffffff' }}>
+            <Plus size={24} />
+          </div>
+          <div className="qs-card-text">
+            <h3 style={{ color: '#ffffff' }}>+ บันทึกคิวจอง</h3>
+            <p style={{ color: '#bbf7d0' }}>Walk-in / โทรจองหน้าร้าน</p>
+          </div>
+          <img src="/mascot/mascot_1_pos_terminal.png" className="qs-card-mascot-img" alt="บันทึกคิวจอง" />
+        </div>
+
+        <div
           className="qs-card qs-card-orange"
           onClick={() => { playTapSound('pop'); setIsAddModalOpen(true) }}
           role="button"
@@ -2242,6 +2291,17 @@ function ServicesView() {
           </div>
         </div>
         <div className="qs-portal-actions">
+          <button
+            type="button"
+            className="qs-portal-action-btn settings"
+            style={{ background: '#f8fafc', border: '1px solid #cbd5e1', color: '#334155' }}
+            onClick={() => {
+              playTapSound('pop')
+              setIsBookingSettingsOpen(true)
+            }}
+          >
+            <Settings size={14} /> <span>ตั้งค่าหน้าจอง</span>
+          </button>
           <button
             type="button"
             className="qs-portal-action-btn copy"
@@ -2569,6 +2629,19 @@ function ServicesView() {
                     </div>
 
                     <div className="qs-bk-status-action-btns">
+                      <button
+                        type="button"
+                        className="qs-bk-act-btn edit"
+                        style={{ background: '#f8fafc', border: '1px solid #cbd5e1', color: '#334155' }}
+                        onClick={() => {
+                          playTapSound('pop')
+                          setEditingBooking(b)
+                        }}
+                        title="แก้ไขข้อมูลการจอง"
+                      >
+                        ✏️ แก้ไข
+                      </button>
+
                       {b.status === 'pending' && (
                         <button
                           type="button"
@@ -2605,6 +2678,16 @@ function ServicesView() {
                           ยกเลิก
                         </button>
                       )}
+
+                      <button
+                        type="button"
+                        className="qs-bk-act-btn delete"
+                        style={{ background: '#fee2e2', border: '1px solid #fecaca', color: '#b91c1c', padding: '4px 8px' }}
+                        onClick={() => handleDeleteBooking(b.id)}
+                        title="ลบรายการจอง"
+                      >
+                        🗑️
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -2833,6 +2916,29 @@ function ServicesView() {
         onClose={() => setSelectedItem(null)}
       />
 
+      {/* Manual Booking Modal (Walk-in / Phone-in) */}
+      <ManualBookingModal
+        isOpen={isManualBookingOpen}
+        onClose={() => setIsManualBookingOpen(false)}
+        services={catalog}
+        onSave={handleSaveManualBooking}
+      />
+
+      {/* Edit Booking Modal */}
+      <EditBookingModal
+        booking={editingBooking}
+        services={catalog}
+        onClose={() => setEditingBooking(null)}
+        onSave={handleSaveEditBooking}
+        onDelete={handleDeleteBooking}
+      />
+
+      {/* Booking Portal Settings Modal */}
+      <BookingSettingsModal
+        isOpen={isBookingSettingsOpen}
+        onClose={() => setIsBookingSettingsOpen(false)}
+      />
+
       {/* Service Booking QR Code Modal */}
       {serviceQrModal && (
         <div className="qs-modal-overlay" style={{ zIndex: 100050 }}>
@@ -2890,6 +2996,591 @@ function ServicesView() {
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+/* ==========================================================================
+   MANUAL BOOKING MODAL (ฟอร์มบันทึกการจอง Walk-in / โทรจองหน้าร้าน)
+   ========================================================================== */
+function ManualBookingModal({
+  isOpen,
+  onClose,
+  services,
+  onSave
+}: {
+  isOpen: boolean
+  onClose: () => void
+  services: CatalogItem[]
+  onSave: (booking: any) => void
+}) {
+  const [customerName, setCustomerName] = useState('')
+  const [customerPhone, setCustomerPhone] = useState('')
+  const [selectedServiceId, setSelectedServiceId] = useState('')
+  const [bookingDate, setBookingDate] = useState(() => new Date().toISOString().split('T')[0])
+  const [bookingTime, setBookingTime] = useState('14:00')
+  const [guestCount, setGuestCount] = useState(1)
+  const [paymentMethod, setPaymentMethod] = useState('store')
+  const [isPaid, setIsPaid] = useState(false)
+  const [specialNotes, setSpecialNotes] = useState('')
+  const [status, setStatus] = useState<'pending' | 'confirmed' | 'in_service'>('confirmed')
+
+  useEffect(() => {
+    if (services.length > 0 && !selectedServiceId) {
+      setSelectedServiceId(services[0].id)
+    }
+  }, [services, selectedServiceId])
+
+  if (!isOpen) return null
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!customerName.trim()) {
+      alert('กรุณากรอกชื่อลูกค้า')
+      return
+    }
+    const targetService = services.find(s => s.id === selectedServiceId) || services[0] || { name: 'บริการทั่วไป', price: 500 }
+    const newRecord = {
+      id: `BK-${Math.floor(10000 + Math.random() * 90000)}`,
+      serviceId: targetService.id || 'custom',
+      serviceName: targetService.name,
+      servicePrice: targetService.price,
+      customerName: customerName.trim(),
+      customerPhone: customerPhone.trim() || '-',
+      guestCount,
+      bookingDate,
+      bookingTime,
+      specialNotes: specialNotes.trim(),
+      paymentMethod,
+      isPaid: isPaid || paymentMethod === 'promptpay',
+      status,
+      createdAt: new Date().toISOString()
+    }
+    onSave(newRecord)
+    onClose()
+  }
+
+  return (
+    <div className="qs-modal-overlay" style={{ zIndex: 100050 }}>
+      <div className="qs-modal qs-modal-large" style={{ maxWidth: 540 }}>
+        <div className="qs-modal-header">
+          <div className="qs-modal-header-left">
+            <div className="qs-modal-icon-badge emerald">
+              <Calendar size={20} />
+            </div>
+            <div>
+              <h3>+ บันทึกการจองคิวใหม่ (Walk-in / โทรจอง)</h3>
+              <p>สร้างรายการนัดหมายบริการจากหน้าร้านโดยตรง</p>
+            </div>
+          </div>
+          <button type="button" className="qs-modal-close" onClick={onClose}>
+            <X size={20} />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit}>
+          <div className="qs-modal-body" style={{ maxHeight: '70vh', overflowY: 'auto' }}>
+            <div className="qs-form-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
+              <div className="qs-form-group" style={{ gridColumn: 'span 2' }}>
+                <label>ชื่อ-นามสกุล ลูกค้า <span style={{ color: '#ef4444' }}>*</span></label>
+                <input
+                  type="text"
+                  placeholder="เช่น คุณสมศักดิ์ ชื่นใจ"
+                  value={customerName}
+                  onChange={(e) => setCustomerName(e.target.value)}
+                  required
+                />
+              </div>
+
+              <div className="qs-form-group">
+                <label>เบอร์โทรศัพท์ติดต่อ</label>
+                <input
+                  type="tel"
+                  placeholder="เช่น 081-234-5678"
+                  value={customerPhone}
+                  onChange={(e) => setCustomerPhone(e.target.value)}
+                />
+              </div>
+
+              <div className="qs-form-group">
+                <label>จำนวนผู้รับบริการ</label>
+                <select value={guestCount} onChange={(e) => setGuestCount(Number(e.target.value))}>
+                  <option value={1}>1 ท่าน</option>
+                  <option value={2}>2 ท่าน</option>
+                  <option value={3}>3 ท่าน</option>
+                  <option value={4}>4 ท่านขึ้นไป (กรุ๊ป)</option>
+                </select>
+              </div>
+
+              <div className="qs-form-group" style={{ gridColumn: 'span 2' }}>
+                <label>เลือกบริการ</label>
+                <select value={selectedServiceId} onChange={(e) => setSelectedServiceId(e.target.value)}>
+                  {services.map(s => (
+                    <option key={s.id} value={s.id}>
+                      {s.name} (฿{s.price.toLocaleString()})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="qs-form-group">
+                <label>วันที่นัดหมาย</label>
+                <input
+                  type="date"
+                  value={bookingDate}
+                  onChange={(e) => setBookingDate(e.target.value)}
+                  required
+                />
+              </div>
+
+              <div className="qs-form-group">
+                <label>เวลานัดหมาย</label>
+                <select value={bookingTime} onChange={(e) => setBookingTime(e.target.value)}>
+                  {['09:00', '10:00', '11:00', '11:30', '13:00', '14:00', '15:00', '16:00', '17:00', '18:00', '19:00'].map(t => (
+                    <option key={t} value={t}>{t} น.</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="qs-form-group">
+                <label>วิธีชำระเงิน</label>
+                <select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)}>
+                  <option value="store">ชำระที่หน้าร้าน</option>
+                  <option value="promptpay">พร้อมเพย์ QR</option>
+                  <option value="truemoney">TrueMoney Wallet</option>
+                  <option value="bank_transfer">โอนเงินธนาคาร</option>
+                  <option value="credit_card">บัตรเครดิต / เดบิต</option>
+                </select>
+              </div>
+
+              <div className="qs-form-group">
+                <label>สถานะเริ่มต้น</label>
+                <select value={status} onChange={(e) => setStatus(e.target.value as any)}>
+                  <option value="confirmed">🟢 ยืนยันคิวแล้ว</option>
+                  <option value="pending">🟡 รอรับบริการ</option>
+                  <option value="in_service">⏳ กำลังให้บริการ</option>
+                </select>
+              </div>
+
+              <div className="qs-form-group" style={{ gridColumn: 'span 2' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={isPaid}
+                    onChange={(e) => setIsPaid(e.target.checked)}
+                    style={{ width: '18px', height: '18px' }}
+                  />
+                  <span>ชำระเงินเรียบร้อยแล้ว (Paid)</span>
+                </label>
+              </div>
+
+              <div className="qs-form-group" style={{ gridColumn: 'span 2' }}>
+                <label>หมายเหตุ / ข้อมูลเพิ่มเติม</label>
+                <textarea
+                  placeholder="เช่น ลูกค้าขอโต๊ะติดหน้าต่าง, นัดหมายผ่านโทรศัพท์"
+                  value={specialNotes}
+                  onChange={(e) => setSpecialNotes(e.target.value)}
+                  rows={2}
+                  style={{ width: '100%', borderRadius: '10px', padding: '8px', border: '1px solid #cbd5e1' }}
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="qs-modal-footer">
+            <button type="button" className="qs-btn-cancel" onClick={onClose}>
+              ยกเลิก
+            </button>
+            <button type="submit" className="qs-btn-submit">
+              <Check size={16} /> บันทึกการจอง
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+/* ==========================================================================
+   EDIT BOOKING MODAL (ฟอร์มแก้ไขข้อมูลการจองคิว)
+   ========================================================================== */
+function EditBookingModal({
+  booking,
+  services,
+  onClose,
+  onSave,
+  onDelete
+}: {
+  booking: any | null
+  services: CatalogItem[]
+  onClose: () => void
+  onSave: (updated: any) => void
+  onDelete: (id: string) => void
+}) {
+  const [customerName, setCustomerName] = useState('')
+  const [customerPhone, setCustomerPhone] = useState('')
+  const [selectedServiceId, setSelectedServiceId] = useState('')
+  const [bookingDate, setBookingDate] = useState('')
+  const [bookingTime, setBookingTime] = useState('')
+  const [guestCount, setGuestCount] = useState(1)
+  const [paymentMethod, setPaymentMethod] = useState('store')
+  const [isPaid, setIsPaid] = useState(false)
+  const [specialNotes, setSpecialNotes] = useState('')
+  const [status, setStatus] = useState<string>('pending')
+
+  useEffect(() => {
+    if (booking) {
+      setCustomerName(booking.customerName || '')
+      setCustomerPhone(booking.customerPhone || '')
+      setSelectedServiceId(booking.serviceId || '')
+      setBookingDate(booking.bookingDate || new Date().toISOString().split('T')[0])
+      setBookingTime(booking.bookingTime || '14:00')
+      setGuestCount(booking.guestCount || 1)
+      setPaymentMethod(booking.paymentMethod || 'store')
+      setIsPaid(Boolean(booking.isPaid))
+      setSpecialNotes(booking.specialNotes || '')
+      setStatus(booking.status || 'pending')
+    }
+  }, [booking])
+
+  if (!booking) return null
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    const targetService = services.find(s => s.id === selectedServiceId)
+    const updated = {
+      ...booking,
+      customerName: customerName.trim(),
+      customerPhone: customerPhone.trim(),
+      serviceId: targetService?.id || booking.serviceId,
+      serviceName: targetService?.name || booking.serviceName,
+      servicePrice: targetService ? targetService.price : booking.servicePrice,
+      bookingDate,
+      bookingTime,
+      guestCount,
+      paymentMethod,
+      isPaid,
+      specialNotes: specialNotes.trim(),
+      status
+    }
+    onSave(updated)
+    onClose()
+  }
+
+  return (
+    <div className="qs-modal-overlay" style={{ zIndex: 100050 }}>
+      <div className="qs-modal qs-modal-large" style={{ maxWidth: 540 }}>
+        <div className="qs-modal-header">
+          <div className="qs-modal-header-left">
+            <div className="qs-modal-icon-badge orange">
+              <Calendar size={20} />
+            </div>
+            <div>
+              <h3>✏️ แก้ไขข้อมูลการจอง #{booking.id}</h3>
+              <p>ปรับปรุงวันเวลา รายละเอียดลูกค้า หรือสถานะคิว</p>
+            </div>
+          </div>
+          <button type="button" className="qs-modal-close" onClick={onClose}>
+            <X size={20} />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit}>
+          <div className="qs-modal-body" style={{ maxHeight: '70vh', overflowY: 'auto' }}>
+            <div className="qs-form-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
+              <div className="qs-form-group" style={{ gridColumn: 'span 2' }}>
+                <label>ชื่อลูกค้า</label>
+                <input
+                  type="text"
+                  value={customerName}
+                  onChange={(e) => setCustomerName(e.target.value)}
+                  required
+                />
+              </div>
+
+              <div className="qs-form-group">
+                <label>เบอร์โทร</label>
+                <input
+                  type="tel"
+                  value={customerPhone}
+                  onChange={(e) => setCustomerPhone(e.target.value)}
+                />
+              </div>
+
+              <div className="qs-form-group">
+                <label>จำนวนท่าน</label>
+                <select value={guestCount} onChange={(e) => setGuestCount(Number(e.target.value))}>
+                  <option value={1}>1 ท่าน</option>
+                  <option value={2}>2 ท่าน</option>
+                  <option value={3}>3 ท่าน</option>
+                  <option value={4}>4 ท่านขึ้นไป</option>
+                </select>
+              </div>
+
+              <div className="qs-form-group" style={{ gridColumn: 'span 2' }}>
+                <label>บริการที่จอง</label>
+                <select value={selectedServiceId} onChange={(e) => setSelectedServiceId(e.target.value)}>
+                  {services.map(s => (
+                    <option key={s.id} value={s.id}>
+                      {s.name} (฿{s.price.toLocaleString()})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="qs-form-group">
+                <label>วันที่</label>
+                <input
+                  type="date"
+                  value={bookingDate}
+                  onChange={(e) => setBookingDate(e.target.value)}
+                  required
+                />
+              </div>
+
+              <div className="qs-form-group">
+                <label>เวลา</label>
+                <select value={bookingTime} onChange={(e) => setBookingTime(e.target.value)}>
+                  {['09:00', '10:00', '11:00', '11:30', '13:00', '14:00', '15:00', '16:00', '17:00', '18:00', '19:00'].map(t => (
+                    <option key={t} value={t}>{t} น.</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="qs-form-group">
+                <label>สถานะคิว</label>
+                <select value={status} onChange={(e) => setStatus(e.target.value)}>
+                  <option value="pending">🟡 รอรับบริการ</option>
+                  <option value="confirmed">🟢 ยืนยันคิวแล้ว</option>
+                  <option value="in_service">⏳ กำลังให้บริการ</option>
+                  <option value="completed">✅ เสร็จสิ้นแล้ว</option>
+                  <option value="cancelled">❌ ยกเลิกคิว</option>
+                </select>
+              </div>
+
+              <div className="qs-form-group">
+                <label>วิธีชำระเงิน</label>
+                <select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)}>
+                  <option value="store">ชำระที่หน้าร้าน</option>
+                  <option value="promptpay">พร้อมเพย์ QR</option>
+                  <option value="truemoney">TrueMoney Wallet</option>
+                  <option value="bank_transfer">โอนเงินธนาคาร</option>
+                  <option value="credit_card">บัตรเครดิต / เดบิต</option>
+                </select>
+              </div>
+
+              <div className="qs-form-group" style={{ gridColumn: 'span 2' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={isPaid}
+                    onChange={(e) => setIsPaid(e.target.checked)}
+                    style={{ width: '18px', height: '18px' }}
+                  />
+                  <span>ชำระเงินเรียบร้อยแล้ว (Paid)</span>
+                </label>
+              </div>
+
+              <div className="qs-form-group" style={{ gridColumn: 'span 2' }}>
+                <label>หมายเหตุ</label>
+                <textarea
+                  value={specialNotes}
+                  onChange={(e) => setSpecialNotes(e.target.value)}
+                  rows={2}
+                  style={{ width: '100%', borderRadius: '10px', padding: '8px', border: '1px solid #cbd5e1' }}
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="qs-modal-footer" style={{ justifyContent: 'space-between' }}>
+            <button
+              type="button"
+              className="qs-btn-cancel"
+              style={{ color: '#b91c1c', borderColor: '#fecaca', background: '#fee2e2' }}
+              onClick={() => {
+                onDelete(booking.id)
+                onClose()
+              }}
+            >
+              🗑️ ลบรายการ
+            </button>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button type="button" className="qs-btn-cancel" onClick={onClose}>
+                ยกเลิก
+              </button>
+              <button type="submit" className="qs-btn-submit">
+                <Check size={16} /> บันทึกการแก้ไข
+              </button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+/* ==========================================================================
+   BOOKING SETTINGS MODAL (ฟอร์มตั้งค่าหน้าร้านจองออนไลน์ /booking)
+   ========================================================================== */
+function BookingSettingsModal({
+  isOpen,
+  onClose
+}: {
+  isOpen: boolean
+  onClose: () => void
+}) {
+  const [settings, setSettings] = useState(() => {
+    const saved = localStorage.getItem('merchant_booking_settings')
+    if (saved) {
+      try { return JSON.parse(saved) } catch (e) {}
+    }
+    return {
+      storeName: 'POP CAFE & SERVICES ✨',
+      welcomeSub: 'ยินดีต้อนรับสู่',
+      namePrefix: 'POP CAFE',
+      nameSuffix: '& SERVICES ✨',
+      slogan: 'ระบบนัดหมายออนไลน์ บริการสะดวกรวดเร็ว ยืนยันคิวทันที',
+      openHours: 'เปิดบริการทุกวัน 08:00 - 20:00 น.',
+      phone: '082-345-6789',
+      lineUrl: 'https://line.me/ti/p/~@chatpos',
+      location: '128 ถ. สุขุมวิท ซอย 24 แขวงคลองตัน เขตคลองเตย กรุงเทพมหานคร 10110',
+      coverImg: 'https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?w=1600&auto=format&fit=crop&q=80',
+      logoImg: 'https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?w=400&auto=format&fit=crop&q=80'
+    }
+  })
+
+  if (!isOpen) return null
+
+  const handleSave = (e: React.FormEvent) => {
+    e.preventDefault()
+    localStorage.setItem('merchant_booking_settings', JSON.stringify(settings))
+    window.dispatchEvent(new Event('storage'))
+    playTapSound('success')
+    onClose()
+  }
+
+  return (
+    <div className="qs-modal-overlay" style={{ zIndex: 100050 }}>
+      <div className="qs-modal qs-modal-large" style={{ maxWidth: 580 }}>
+        <div className="qs-modal-header">
+          <div className="qs-modal-header-left">
+            <div className="qs-modal-icon-badge emerald">
+              <Settings size={20} />
+            </div>
+            <div>
+              <h3>⚙️ ตั้งค่าหน้าร้านจองออนไลน์ (/booking)</h3>
+              <p>ปรับแต่งข้อมูลร้านค้า เวลาเปิด-ปิด และข้อมูลติดต่อที่แสดงบนหน้าจอง</p>
+            </div>
+          </div>
+          <button type="button" className="qs-modal-close" onClick={onClose}>
+            <X size={20} />
+          </button>
+        </div>
+
+        <form onSubmit={handleSave}>
+          <div className="qs-modal-body" style={{ maxHeight: '70vh', overflowY: 'auto' }}>
+            <div className="qs-form-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
+              <div className="qs-form-group" style={{ gridColumn: 'span 2' }}>
+                <label>ชื่อร้านค้า (Store Name) <span style={{ color: '#ef4444' }}>*</span></label>
+                <input
+                  type="text"
+                  value={settings.storeName}
+                  onChange={(e) => setSettings({ ...settings, storeName: e.target.value })}
+                  required
+                />
+              </div>
+
+              <div className="qs-form-group">
+                <label>คำโปรยต้อนรับ</label>
+                <input
+                  type="text"
+                  value={settings.welcomeSub}
+                  onChange={(e) => setSettings({ ...settings, welcomeSub: e.target.value })}
+                  placeholder="เช่น ยินดีต้อนรับสู่"
+                />
+              </div>
+
+              <div className="qs-form-group">
+                <label>เวลาเปิด-ปิดบริการ</label>
+                <input
+                  type="text"
+                  value={settings.openHours}
+                  onChange={(e) => setSettings({ ...settings, openHours: e.target.value })}
+                  placeholder="เช่น เปิดบริการทุกวัน 08:00 - 20:00 น."
+                />
+              </div>
+
+              <div className="qs-form-group" style={{ gridColumn: 'span 2' }}>
+                <label>สโลแกน / คำอธิบายบริการ</label>
+                <input
+                  type="text"
+                  value={settings.slogan}
+                  onChange={(e) => setSettings({ ...settings, slogan: e.target.value })}
+                  placeholder="เช่น ระบบนัดหมายออนไลน์ บริการสะดวกรวดเร็ว ยืนยันคิวทันที"
+                />
+              </div>
+
+              <div className="qs-form-group">
+                <label>เบอร์โทรศัพท์ติดต่อ</label>
+                <input
+                  type="tel"
+                  value={settings.phone}
+                  onChange={(e) => setSettings({ ...settings, phone: e.target.value })}
+                  placeholder="เช่น 082-345-6789"
+                />
+              </div>
+
+              <div className="qs-form-group">
+                <label>ลิงก์ LINE Official</label>
+                <input
+                  type="url"
+                  value={settings.lineUrl}
+                  onChange={(e) => setSettings({ ...settings, lineUrl: e.target.value })}
+                  placeholder="https://line.me/ti/p/~@chatpos"
+                />
+              </div>
+
+              <div className="qs-form-group" style={{ gridColumn: 'span 2' }}>
+                <label>ที่อยู่ร้านค้า / สถานที่ตั้ง</label>
+                <input
+                  type="text"
+                  value={settings.location}
+                  onChange={(e) => setSettings({ ...settings, location: e.target.value })}
+                  placeholder="เช่น 128 ถ. สุขุมวิท ซอย 24 แขวงคลองตัน เขตคลองเตย กรุงเทพมหานคร 10110"
+                />
+              </div>
+
+              <div className="qs-form-group" style={{ gridColumn: 'span 2' }}>
+                <label>URL รูปภาพปก (Cover Image)</label>
+                <input
+                  type="url"
+                  value={settings.coverImg}
+                  onChange={(e) => setSettings({ ...settings, coverImg: e.target.value })}
+                />
+              </div>
+
+              <div className="qs-form-group" style={{ gridColumn: 'span 2' }}>
+                <label>URL รูปภาพโลโก้ร้าน (Logo Image)</label>
+                <input
+                  type="url"
+                  value={settings.logoImg}
+                  onChange={(e) => setSettings({ ...settings, logoImg: e.target.value })}
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="qs-modal-footer">
+            <button type="button" className="qs-btn-cancel" onClick={onClose}>
+              ยกเลิก
+            </button>
+            <button type="submit" className="qs-btn-submit">
+              <Check size={16} /> บันทึกการตั้งค่า
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   )
 }

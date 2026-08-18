@@ -715,6 +715,10 @@
     margin-left: 0;
   }
 
+  .merchant-content {
+    padding-bottom: 90px !important;
+  }
+
   .merchant-menu-button {
     display: grid;
   }
@@ -724,6 +728,7 @@
   }
 
   .mh-global-bottom-bar {
+    display: flex;
     left: 0 !important;
   }
 }
@@ -775,12 +780,12 @@
   }
 }
 
-/* Global Bottom Menu Bar for Merchant View (Visible on Desktop & Mobile) */
+/* Global Bottom Menu Bar for Merchant View (Hidden on Desktop, Visible ONLY on Mobile & Tablet) */
 .mh-global-bottom-bar {
-  display: flex;
+  display: none;
   position: fixed;
   bottom: 0;
-  left: 252px;
+  left: 0;
   right: 0;
   z-index: 60;
   height: 68px;

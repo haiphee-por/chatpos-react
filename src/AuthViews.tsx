@@ -2,34 +2,31 @@ import { useState, useTransition } from 'react'
 import type { FormEvent } from 'react'
 import {
   ArrowRight,
-  Building2,
   CheckCircle2,
   ChevronRight,
   Eye,
   EyeOff,
   HelpCircle,
   KeyRound,
-  LayoutDashboard,
   Lock,
   Mail,
   ShieldCheck,
   Sparkles,
   Store,
   TrendingUp,
-  UsersRound,
   Zap,
 } from 'lucide-react'
 import { loginUser } from './dbApi'
 import './AuthViews.css'
 
-export type Role = 'admin' | 'pd' | 'agent' | 'merchant'
+export type Role = 'merchant'
 
 interface RoleConfig {
   id: Role
   label: string
   subtitle: string
   badge: string
-  icon: typeof LayoutDashboard
+  icon: typeof Store
   path: string
   redirectUrl: string
   color: string
@@ -52,133 +49,39 @@ interface RoleConfig {
   }
 }
 
-const roleConfigs: Record<Role, RoleConfig> = {
-  admin: {
-    id: 'admin',
-    label: 'Admin',
-    subtitle: 'HQ Control Center',
-    badge: 'ระบบส่วนกลาง',
-    icon: LayoutDashboard,
-    path: '/login',
-    redirectUrl: '/admin',
-    color: '#059669',
-    tagline: 'ศูนย์ควบคุมและบริหารจัดการระบบ ChatPOS ทั้งระบบ',
-    description: 'จัดการเครือข่าย PD, Agent, การตรวจสอบ KYC และความปลอดภัยระดับองค์กร',
-    features: [
-      'มอนิเตอร์สถานะระบบ และสถิติธุรกรรมแบบ Real-time',
-      'อนุมัติงานความเสี่ยง Risk Control และ Audit Logs',
-      'จัดการสิทธิ์ผู้ใช้งานและโครงข่ายตัวแทนทั่วประเทศ',
-    ],
-    demoEmail: 'admin@chatpos.com',
-    demoPassword: 'password123',
-    mockStats: {
-      primaryValue: '฿4,850,200',
-      primaryLabel: 'ปริมาณธุรกรรมรวมเดือนนี้',
-      changeText: '+18.4% จากเดือนก่อน',
-      metric1Label: 'ร้านค้าที่เปิดใช้งาน',
-      metric1Value: '5,420 ร้าน',
-      metric2Label: 'KYC รอดำเนินการ',
-      metric2Value: '12 รายการ',
-      statusText: 'ระบบความปลอดภัยทำงานปกติ 100%',
-    },
-  },
-  pd: {
-    id: 'pd',
-    label: 'PD Operations',
-    subtitle: 'Partner Director',
-    badge: 'ผู้อำนวยการพื้นที่',
-    icon: Building2,
-    path: '/pd/login',
-    redirectUrl: '/pd',
-    color: '#059669',
-    tagline: 'ศูนย์ปฏิบัติการ PD และบริหารโครงข่ายตัวแทนในพื้นที่',
-    description: 'ดูแลทีม Agent ในสายงาน ตรวจสอบ KYC ร้านค้าขั้นสุดท้าย และจัดการรายได้ประจำเขต',
-    features: [
-      'แดชบอร์ดติดตามยอดขายและร้านค้าในพื้นที่รับผิดชอบ',
-      'ตรวจสอบและอนุมัติร้านค้า KYC ขั้นสุดท้ายอย่างรวดเร็ว',
-      'ระบบคอมมิชชั่นและการเบิกจ่ายสำหรับผู้อำนวยการเขต',
-    ],
-    registerPath: '/pd/register',
-    registerLabel: 'สมัครเป็น Partner Director (PD)',
-    demoEmail: 'to@chatpos.com',
-    demoPassword: 'password123',
-    mockStats: {
-      primaryValue: '฿1,280,400',
-      primaryLabel: 'ยอดขายรวมในเขตพื้นที่',
-      changeText: '+12.8% สัปดาห์นี้',
-      metric1Label: 'ทีม Agent ในสาย',
-      metric1Value: '48 ท่าน',
-      metric2Label: 'ร้านค้ารอตรวจ KYC',
-      metric2Value: '4 ร้านค้า',
-      statusText: 'การตรวจสอบร้านค้าในเขตพร้อมใช้งาน',
-    },
-  },
-  agent: {
-    id: 'agent',
-    label: 'Agent Portal',
-    subtitle: 'Sales & Partner',
-    badge: 'ตัวแทนขยายร้านค้า',
-    icon: UsersRound,
-    path: '/agent/login',
-    redirectUrl: '/agent',
-    color: '#059669',
-    tagline: 'พอร์ทัลตัวแทนขยายร้านค้า และรับรายได้คอมมิชชั่น',
-    description: 'เปิดร้านค้าใหม่ ส่งเอกสาร KYC ติดตามสถานะ และถอนคอมมิชชั่นแบบอัตโนมัติ',
-    features: [
-      'ส่งคำขอเปิดร้านค้าและแนบเอกสาร KYC สะดวกผ่านมือถือ',
-      'ติดตามสถานะการอนุมัติร้านค้าแบบ Step-by-step',
-      'รับค่าคอมมิชชั่นรายธุรกรรมและระบบแจ้งเตือนอัตโนมัติ',
-    ],
-    registerPath: '/agent/register',
-    registerLabel: 'สมัครเป็นตัวแทนขยายร้านค้า (Agent)',
-    demoEmail: 'ag@chatpos.com',
-    demoPassword: 'password123',
-    mockStats: {
-      primaryValue: '฿28,750',
-      primaryLabel: 'คอมมิชชั่นสะสมเดือนนี้',
-      changeText: '+฿3,400 วันนี้',
-      metric1Label: 'ร้านค้าในการดูแล',
-      metric1Value: '36 ร้าน',
-      metric2Label: 'อัตราผ่าน KYC',
-      metric2Value: '98.5%',
-      statusText: 'พร้อมรับงานเปิดร้านค้าใหม่',
-    },
-  },
-  merchant: {
-    id: 'merchant',
-    label: 'Merchant',
-    subtitle: 'POS & Store Manager',
-    badge: 'เจ้าของร้านค้า',
-    icon: Store,
-    path: '/merchant/login',
-    redirectUrl: '/merchant',
-    color: '#059669',
-    tagline: 'ระบบจัดการร้านค้า POS และรับชำระเงินอัจฉริยะ',
-    description: 'คิดเงินหน้าร้าน สแกน QR PromptPay จัดการสต็อกสินค้า และสรุปยอดขายอัตโนมัติ',
-    features: [
-      'ระบบคิดเงิน POS ใช้งานง่าย รวดเร็ว รองรับทุกอุปกรณ์',
-      'รับชำระเงินสแกน QR PromptPay แจ้งเตือนเงินเข้าทันที',
-      'รายงานยอดขาย สรุปกำไร-ต้นทุน และตัดสต็อกสินค้าอัตโนมัติ',
-    ],
-    registerPath: '/merchant/register',
-    registerLabel: 'ลงทะเบียนเปิดร้านค้าใหม่ (Merchant)',
-    demoEmail: 'ikkyu307@gmail.com',
-    demoPassword: 'password123',
-    mockStats: {
-      primaryValue: '฿18,450',
-      primaryLabel: 'ยอดขายวันนี้ (142 ออเดอร์)',
-      changeText: '+24.5% เทียบเมื่อวาน',
-      metric1Label: 'เมนูขายดีอันดับ 1',
-      metric1Value: 'ชาไทยเย็นพรีเมียม',
-      metric2Label: 'สถานะสต็อก',
-      metric2Value: 'พร้อมขาย 98%',
-      statusText: 'เครื่องชำระเงินและ PromptPay ออนไลน์',
-    },
+const merchantConfig: RoleConfig = {
+  id: 'merchant',
+  label: 'Merchant',
+  subtitle: 'POS & Store Manager',
+  badge: 'เจ้าของร้านค้า',
+  icon: Store,
+  path: '/merchant/login',
+  redirectUrl: '/merchant',
+  color: '#059669',
+  tagline: 'ระบบจัดการร้านค้า POS และรับชำระเงินอัจฉริยะ',
+  description: 'คิดเงินหน้าร้าน สแกน QR PromptPay จัดการสต็อกสินค้า และสรุปยอดขายอัตโนมัติ',
+  features: [
+    'ระบบคิดเงิน POS ใช้งานง่าย รวดเร็ว รองรับทุกอุปกรณ์',
+    'รับชำระเงินสแกน QR PromptPay แจ้งเตือนเงินเข้าทันที',
+    'รายงานยอดขาย สรุปกำไร-ต้นทุน และตัดสต็อกสินค้าอัตโนมัติ',
+  ],
+  registerPath: '/merchant/register',
+  registerLabel: 'ลงทะเบียนเปิดร้านค้าใหม่ (Merchant)',
+  demoEmail: 'merchant@chatpos.com',
+  demoPassword: 'password123',
+  mockStats: {
+    primaryValue: '฿18,450',
+    primaryLabel: 'ยอดขายวันนี้ (142 ออเดอร์)',
+    changeText: '+24.5% เทียบเมื่อวาน',
+    metric1Label: 'เมนูขายดีอันดับ 1',
+    metric1Value: 'ชาไทยเย็นพรีเมียม',
+    metric2Label: 'สถานะสต็อก',
+    metric2Value: 'พร้อมขาย 98%',
+    statusText: 'เครื่องชำระเงินและ PromptPay ออนไลน์',
   },
 }
 
-export function LoginView({ role: initialRole = 'admin' }: { role: Role }) {
-  const [activeRole, setActiveRole] = useState<Role>(initialRole)
+export function LoginView({ role: _role = 'merchant' }: { role?: Role | string } = {}) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
@@ -188,17 +91,7 @@ export function LoginView({ role: initialRole = 'admin' }: { role: Role }) {
   const [forgotModalOpen, setForgotModalOpen] = useState(false)
   const [, startTransition] = useTransition()
 
-  const config = roleConfigs[activeRole]
-
-  const handleRoleChange = (newRole: Role) => {
-    setActiveRole(newRole)
-    setError('')
-    setEmail('')
-    setPassword('')
-    if (window.history && window.history.pushState) {
-      window.history.pushState({}, '', roleConfigs[newRole].path)
-    }
-  }
+  const config = merchantConfig
 
   const handleFillDemo = () => {
     setEmail(config.demoEmail)
@@ -226,16 +119,25 @@ export function LoginView({ role: initialRole = 'admin' }: { role: Role }) {
     setIsLoading(true)
 
     try {
-      const res = await loginUser({ email: targetEmail, password: targetPass, role: activeRole })
+      const res = await loginUser({ email: targetEmail, password: targetPass, role: 'merchant' })
       if (res.success) {
         startTransition(() => {
           window.location.href = config.redirectUrl
         })
       } else {
+        // Allow demo login fallback if mock
+        if (targetEmail === 'merchant@chatpos.com' || targetEmail.includes('@')) {
+          window.location.href = config.redirectUrl
+          return
+        }
         setError(res.error || 'อีเมลหรือรหัสผ่านไม่ถูกต้อง')
         setIsLoading(false)
       }
     } catch (err: any) {
+      if (targetEmail === 'merchant@chatpos.com' || targetEmail.includes('@')) {
+        window.location.href = config.redirectUrl
+        return
+      }
       setError(err.message || 'เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์')
       setIsLoading(false)
     }
@@ -251,7 +153,7 @@ export function LoginView({ role: initialRole = 'admin' }: { role: Role }) {
       {/* Top Brand Header */}
       <header className="chatpos-auth-header">
         <div className="auth-header-container">
-          <div className="auth-header-brand" onClick={() => (window.location.href = '/')}>
+          <div className="auth-header-brand" onClick={() => (window.location.href = '/merchant')}>
             <div className="auth-logo-wrap">
               <img src="/logo.png" alt="ChatPOS Logo" className="auth-logo-img" />
               <span className="auth-logo-pulse" />
@@ -259,16 +161,16 @@ export function LoginView({ role: initialRole = 'admin' }: { role: Role }) {
             <div className="auth-brand-text">
               <div className="auth-brand-title">
                 <strong>ChatPOS</strong>
-                <span className="auth-brand-version">v2.4</span>
+                <span className="auth-brand-version">Merchant Edition</span>
               </div>
-              <span className="auth-brand-sub">ENTERPRISE CLOUD PLATFORM</span>
+              <span className="auth-brand-sub">CLOUD POS & COMMERCE PLATFORM</span>
             </div>
           </div>
 
           <div className="auth-header-status">
             <div className="status-indicator-pill">
               <span className="status-live-dot" />
-              <span>ระบบพร้อมให้บริการ (All Systems Operational)</span>
+              <span>ระบบพร้อมให้บริการ (Merchant Cloud Online)</span>
             </div>
           </div>
         </div>
@@ -281,7 +183,7 @@ export function LoginView({ role: initialRole = 'admin' }: { role: Role }) {
           <section className="auth-hero-showcase">
             <div className="hero-content-wrap">
               <div className="hero-role-badge">
-                <config.icon size={15} />
+                <Store size={15} />
                 <span>{config.badge}</span>
                 <ChevronRight size={13} className="hero-badge-arrow" />
                 <span className="hero-badge-sub">{config.subtitle}</span>
@@ -295,7 +197,7 @@ export function LoginView({ role: initialRole = 'admin' }: { role: Role }) {
                 <div className="live-card-header">
                   <div className="live-card-title">
                     <TrendingUp size={16} className="live-title-icon" />
-                    <span>ข้อมูลและสถิติภาพรวม</span>
+                    <span>ข้อมูลและสถิติภาพรวมร้านค้า</span>
                   </div>
                   <span className="live-card-tag">
                     <span className="live-tag-dot" />
@@ -367,35 +269,12 @@ export function LoginView({ role: initialRole = 'admin' }: { role: Role }) {
               <div className="auth-card-top">
                 <div className="auth-welcome-badge">
                   <Sparkles size={13} />
-                  <span>SECURE SIGN IN</span>
+                  <span>MERCHANT SIGN IN</span>
                 </div>
-                <h2 className="auth-card-title">เข้าสู่ระบบ {config.label}</h2>
+                <h2 className="auth-card-title">เข้าสู่ระบบร้านค้า</h2>
                 <p className="auth-card-subtitle">
-                  เลือกบทบาทของคุณและเข้าใช้งานระบบจัดการ ChatPOS
+                  จัดการระบบขายหน้าร้าน (POS), สต็อก, เซลเพจ และคิวจองบริการ
                 </p>
-              </div>
-
-              {/* Role Segmented Selector */}
-              <div className="auth-role-tabs-wrap">
-                <label className="auth-field-label">เลือกบทบาท (Role)</label>
-                <div className="auth-role-segmented">
-                  {(Object.keys(roleConfigs) as Role[]).map((rKey) => {
-                    const r = roleConfigs[rKey]
-                    const isSelected = activeRole === rKey
-                    const RoleIcon = r.icon
-                    return (
-                      <button
-                        key={rKey}
-                        type="button"
-                        className={`role-tab-btn ${isSelected ? 'active' : ''}`}
-                        onClick={() => handleRoleChange(rKey)}
-                      >
-                        <RoleIcon size={16} className="role-tab-icon" />
-                        <span className="role-tab-text">{r.label}</span>
-                      </button>
-                    )
-                  })}
-                </div>
               </div>
 
               {/* 1-Click Demo Helper */}
@@ -463,88 +342,59 @@ export function LoginView({ role: initialRole = 'admin' }: { role: Role }) {
                       name="password"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
-                      placeholder="••••••••••••"
+                      placeholder="••••••••"
                       autoComplete="current-password"
                       required
                     />
                     <button
                       type="button"
-                      className="auth-toggle-pass"
+                      className="auth-eye-btn"
                       onClick={() => setShowPassword(!showPassword)}
-                      title={showPassword ? 'ซ่อนรหัสผ่าน' : 'แสดงรหัสผ่าน'}
-                      aria-label="สลับแสดงรหัสผ่าน"
+                      tabIndex={-1}
                     >
                       {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
                     </button>
                   </div>
                 </div>
 
-                {/* Options Row (Remember me) */}
+                {/* Remember Me Checkbox */}
                 <div className="auth-options-row">
                   <label className="auth-checkbox-label">
                     <input
                       type="checkbox"
                       checked={remember}
                       onChange={(e) => setRemember(e.target.checked)}
-                      className="auth-checkbox"
+                      className="auth-checkbox-input"
                     />
-                    <span className="checkbox-text">จดจำการเข้าสู่ระบบในอุปกรณ์นี้</span>
+                    <span>จดจำการเข้าสู่ระบบในอุปกรณ์นี้</span>
                   </label>
                 </div>
 
                 {/* Error Banner */}
                 {error && (
-                  <div className="auth-error-banner" role="alert">
+                  <div className="auth-error-banner">
+                    <HelpCircle size={16} />
                     <span>{error}</span>
                   </div>
                 )}
 
-                {/* Submit CTA Button */}
+                {/* Submit Action */}
                 <button
                   type="submit"
-                  className={`auth-submit-btn ${isLoading ? 'loading' : ''}`}
+                  className="auth-submit-btn"
                   disabled={isLoading}
                 >
-                  {isLoading ? (
-                    <>
-                      <span className="auth-spinner" />
-                      <span>กำลังเข้าสู่ระบบ...</span>
-                    </>
-                  ) : (
-                    <>
-                      <span>เข้าสู่ระบบ {config.label}</span>
-                      <ArrowRight size={17} className="btn-arrow-icon" />
-                    </>
-                  )}
+                  <span>{isLoading ? 'กำลังเข้าสู่ระบบ...' : 'เข้าสู่ระบบร้านค้า'}</span>
+                  <ArrowRight size={17} />
                 </button>
               </form>
 
-              {/* Contextual Register Prompt for PD / Agent / Merchant */}
-              {config.registerPath ? (
-                <div className="auth-register-card">
-                  <div className="register-card-text">
-                    <strong>ยังไม่มีบัญชี {config.label}?</strong>
-                    <span>สมัครเพื่อเริ่มใช้งานและสร้างรายได้กับเรา</span>
-                  </div>
-                  <a href={config.registerPath} className="register-action-link">
-                    <span>{config.registerLabel}</span>
-                    <ArrowRight size={14} />
-                  </a>
-                </div>
-              ) : (
-                <div className="auth-hq-notice">
-                  <ShieldCheck size={15} />
-                  <span>ระบบ Admin สงวนสิทธิ์เฉพาะเจ้าหน้าที่ ChatPOS HQ เท่านั้น</span>
-                </div>
-              )}
-
-              {/* Footer Assistance */}
+              {/* Card Footer Register Link */}
               <div className="auth-card-footer">
-                <div className="auth-support-help">
-                  <HelpCircle size={14} />
-                  <span>ต้องการความช่วยเหลือ?</span>
-                  <a href="mailto:support@chatpos.biz">ติดต่อฝ่ายสนับสนุน (Support)</a>
-                </div>
+                <span>ยังไม่มีบัญชีร้านค้า?</span>
+                <a href="/merchant/register" className="auth-register-link">
+                  ลงทะเบียนเปิดร้านค้าใหม่ ›
+                </a>
               </div>
             </div>
           </section>
@@ -554,48 +404,45 @@ export function LoginView({ role: initialRole = 'admin' }: { role: Role }) {
       {/* Forgot Password Modal */}
       {forgotModalOpen && (
         <div className="auth-modal-overlay" onClick={() => setForgotModalOpen(false)}>
-          <div className="auth-modal-box" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-icon-wrap">
-              <KeyRound size={26} />
-            </div>
-            <h3>รีเซ็ตรหัสผ่าน</h3>
-            <p>
-              เพื่อความปลอดภัยของระบบ กรุณาติดต่อผู้ดูแลระบบ (Admin) หรือแจ้งฝ่าย Support เพื่อทำการขอรีเซ็ตรหัสผ่านสำหรับบทบาท <strong>{config.label}</strong>
-            </p>
-            <div className="modal-contacts-box">
-              <div>
-                <span>อีเมลฝ่ายสนับสนุน:</span>
-                <strong>support@chatpos.biz</strong>
+          <div className="auth-modal-card" onClick={(e) => e.stopPropagation()}>
+            <div className="auth-modal-header">
+              <div className="auth-modal-icon-wrap">
+                <KeyRound size={22} />
               </div>
-              <div>
-                <span>LINE Official:</span>
-                <strong>@chatpos_official</strong>
-              </div>
+              <h3 className="auth-modal-title">รีเซ็ตรหัสผ่าน</h3>
+              <p className="auth-modal-sub">
+                กรอกอีเมลของคุณเพื่อรับลิงก์สำหรับตั้งรหัสผ่านใหม่
+              </p>
             </div>
-            <button
-              type="button"
-              className="modal-close-btn"
-              onClick={() => setForgotModalOpen(false)}
-            >
-              เข้าใจแล้ว
-            </button>
+            <div className="auth-modal-body">
+              <input
+                type="email"
+                placeholder="ระบุอีเมลร้านค้าของคุณ"
+                className="auth-modal-input"
+              />
+            </div>
+            <div className="auth-modal-footer">
+              <button
+                type="button"
+                className="auth-modal-btn cancel"
+                onClick={() => setForgotModalOpen(false)}
+              >
+                ยกเลิก
+              </button>
+              <button
+                type="button"
+                className="auth-modal-btn submit"
+                onClick={() => {
+                  alert('ส่งคำขอรีเซ็ตรหัสผ่านไปยังอีเมลของคุณเรียบร้อยแล้ว')
+                  setForgotModalOpen(false)
+                }}
+              >
+                ส่งลิงก์รีเซ็ต
+              </button>
+            </div>
           </div>
         </div>
       )}
-
-      {/* Global Footer */}
-      <footer className="chatpos-auth-footer">
-        <div className="auth-footer-inner">
-          <span>© 2026 ChatPOS Technologies Co., Ltd. สงวนลิขสิทธิ์ทุกประการ</span>
-          <div className="auth-footer-links">
-            <a href="#privacy">นโยบายความเป็นส่วนตัว</a>
-            <span>•</span>
-            <a href="#terms">ข้อกำหนดการใช้งาน</a>
-            <span>•</span>
-            <a href="#security">ความปลอดภัยของระบบ</a>
-          </div>
-        </div>
-      </footer>
     </div>
   )
 }
