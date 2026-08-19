@@ -71,11 +71,11 @@
 
 ## Phase 5: Security, authorization และ production readiness
 
-- [ ] **P0 / Security:** ย้าย session และ API authorization จาก localStorage-only ไป server-side session หรือ token ที่มีการตรวจสิทธิ์ฝั่ง API
-- [ ] **P0 / Security:** บังคับ authorization แยก Merchant, Agent, PD, Compliance และ Admin ที่ API พร้อม Store/Case ownership check
-- [ ] **P0 / Security:** เพิ่ม rate limiting, restricted CORS, secure headers, upload scanning, encryption at rest และ secret rotation/revoke
-- [ ] **P0 / Audit:** ทำ audit log สำหรับ login, เปิดดู, ดาวน์โหลด, แก้ไข, assignment, document, status, approval และ settlement โดยเก็บ before/after เท่าที่จำเป็น
-- [ ] **P1 / Reliability:** เพิ่ม outbox/dead-letter หรือ durable retry สำหรับ callback และ settlement event ที่ส่งไม่สำเร็จ
+- [~] **P0 / Security:** ย้าย session และ API authorization จาก localStorage-only ไป server-side HttpOnly session ที่ตรวจสิทธิ์ฝั่ง APIแล้ว; ยังต้องทดสอบ revoked/expired session และ staging cookie flow
+- [~] **P0 / Security:** บังคับ authorization แยก Merchant, Agent, PD, Compliance และ Admin ที่ API พร้อม Store/Case ownership check แล้ว; ยังต้องผ่าน PostgreSQL permission matrix และ Backoffice sign-off
+- [~] **P0 / Security:** เพิ่ม rate limiting, restricted CORS, secure headers, quarantine/scanner adapter และ secret rotation/revoke แล้ว; encryption at rest ต้องยืนยันจาก private storage/PostgreSQL deployment ก่อน Go-Live
+- [~] **P0 / Audit:** ทำ audit log สำหรับ login, เปิดดู, document, แก้ไข, assignment, status, approval, payment และ settlement พร้อม redaction แล้ว; ยังต้องตรวจ coverage ดาวน์โหลดและ retention กับ Compliance
+- [x] **P1 / Reliability:** เพิ่ม durable settlement retry ด้วย database claim, backoff, stale-lock recovery และ dead-letter status; callback staging failure/recovery ยังต้องทดสอบ
 - [ ] **P1 / Tests:** เพิ่ม integration/E2E tests บน PostgreSQL จริงสำหรับ permission matrix, idempotency, version conflict, webhook dedupe และ payment ownership
 - [ ] **P1 / Operations:** เพิ่ม health check, metrics, alert owner, runbook, backup/restore และ incident procedure ที่ redact PII
 - [ ] **เสร็จเมื่อ:** checklist ส่วน Go-Live ด้านล่างผ่านครบ และ Product/Compliance/Security/Backoffice sign-off แล้ว

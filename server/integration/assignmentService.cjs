@@ -232,6 +232,7 @@ function safeEqual(left, right) {
 
 function verifyAssignmentCallback({ rawBody, headers, callbackSecret, nowSeconds = Math.floor(Date.now() / 1000), timestampToleranceSeconds = DEFAULT_TIMESTAMP_TOLERANCE_SECONDS }) {
   if (!callbackSecret) throw new AssignmentError('Assignment callback secret is not configured', 'CALLBACK_SECRET_MISSING', 503);
+  const callbackSecrets = Array.isArray(callbackSecret) ? callbackSecret.filter(Boolean) : [callbackSecret];
   const eventId = getHeader(headers, 'x-chatpos-event-id');
   const timestamp = getHeader(headers, 'x-chatpos-timestamp');
   const signature = getHeader(headers, 'x-chatpos-signature');
@@ -242,8 +243,11 @@ function verifyAssignmentCallback({ rawBody, headers, callbackSecret, nowSeconds
   if (!/^v1=[a-f0-9]{64}$/.test(signature)) {
     throw new AssignmentError('Callback signature is invalid', 'INVALID_SIGNATURE', 401);
   }
-  const expected = `v1=${crypto.createHmac('sha256', callbackSecret).update(`${timestamp}.${rawBody}`, 'utf8').digest('hex')}`;
-  if (!safeEqual(signature, expected)) throw new AssignmentError('Callback signature is invalid', 'INVALID_SIGNATURE', 401);
+  const valid = callbackSecrets.some((secret) => {
+    const expected = `v1=${crypto.createHmac('sha256', secret).update(`${timestamp}.${rawBody}`, 'utf8').digest('hex')}`;
+    return safeEqual(signature, expected);
+  });
+  if (!valid) throw new AssignmentError('Callback signature is invalid', 'INVALID_SIGNATURE', 401);
   return { eventId, timestamp: Number(timestamp) };
 }
 

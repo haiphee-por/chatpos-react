@@ -28,7 +28,22 @@ const {
   getTransaction,
   processPaymentWebhook,
   verifyLlgwWebhook,
+  retryPendingSettlementEvents,
 } = require('./server/integration/transactionService.cjs');
+const {
+  SecurityError,
+  assertCaseAccess,
+  assertRole,
+  assertStoreAccess,
+  clientIp,
+  consumeRateLimit,
+  createSession,
+  getPrincipal,
+  normalizeRole,
+  revokeSession,
+  sessionCookie,
+  writeAudit,
+} = require('./server/security.cjs');
 
 dotenv.config();
 
@@ -77,6 +92,12 @@ const transactionBackofficeClient = createBackofficeClient({
     enabled: backofficeConfig.enabled && backofficeConfig.transactionRoutingEnabled,
   },
 });
+const metrics = {
+  startedAt: new Date().toISOString(),
+  requests: 0,
+  errors: 0,
+  rateLimited: 0,
+};
 
 function crc16(data) {
   let crc = 0xffff;
@@ -173,6 +194,59 @@ async function parseJsonBody(req, maxBytes = 1024 * 1024) {
   }
 }
 
+function isPublicApiRequest(requestPath, method) {
+  if (method === 'OPTIONS') return true;
+  if (requestPath === '/api/db/auth/login' && method === 'POST') return true;
+  if (requestPath === '/api/db/auth/session' && method === 'GET') return true;
+  if (/^\/api\/db\/auth\/register-(pd|agent|merchant)$/.test(requestPath) && method === 'POST') return true;
+  if (requestPath === '/api/db/health' && method === 'GET') return true;
+  if (requestPath === '/api/health/live' && method === 'GET') return true;
+  if (requestPath === '/api/health/ready' && method === 'GET') return true;
+  if (requestPath === '/api/webhooks/assignment-status' && method === 'POST') return true;
+  if (requestPath === '/api/webhooks/llgw/payment' && method === 'POST') return true;
+  return false;
+}
+
+function configuredOrigins() {
+  return String(process.env.ALLOWED_ORIGINS || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000')
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+}
+
+function setSecurityHeaders(req, res) {
+  const origin = String(req.headers.origin || '');
+  const origins = configuredOrigins();
+  if (origin && origins.includes(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+    res.setHeader('Vary', 'Origin');
+  }
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('Referrer-Policy', 'no-referrer');
+  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+  res.setHeader('Content-Security-Policy', "default-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'");
+  if (process.env.NODE_ENV === 'production') {
+    res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+  }
+}
+
+async function resolveAuthorizedStore({ principal, requestedStoreId, allowUnscoped = false }) {
+  const storeId = requestedStoreId || principal.storeId || null;
+  await assertStoreAccess({ pool, principal, storeId, allowUnscoped });
+  return storeId;
+}
+
+async function enforcePrincipalRateLimit({ principal, requestPath, limit = 60, windowSeconds = 60 }) {
+  return consumeRateLimit({
+    pool,
+    bucketKey: `api:${principal.id}:${requestPath}`,
+    limit,
+    windowSeconds,
+  });
+}
+
 const server = http.createServer(async (req, res) => {
   const url = req.url || '';
 
@@ -182,31 +256,94 @@ const server = http.createServer(async (req, res) => {
   if (
     url.startsWith('/api/db') ||
     url.startsWith('/api/v1') ||
+    url.startsWith('/api/health') ||
     requestPath === '/api/webhooks/assignment-status' ||
     requestPath === '/api/webhooks/llgw/payment'
   ) {
     res.setHeader('Content-Type', 'application/json');
-    res.setHeader('Access-Control-Allow-Origin', '*');
+    setSecurityHeaders(req, res);
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PATCH, PUT, DELETE, OPTIONS');
     res.setHeader(
       'Access-Control-Allow-Headers',
-      'Content-Type, Authorization, Idempotency-Key, X-Request-Id, X-Store-Id, X-Actor-Id, X-Actor-Role, X-ChatPOS-Event-Id, X-ChatPOS-Timestamp, X-ChatPOS-Signature, X-LLGW-Event-Id, X-LLGW-Timestamp, X-LLGW-Signature'
+      'Content-Type, Authorization, Idempotency-Key, X-Request-Id, X-ChatPOS-Event-Id, X-ChatPOS-Timestamp, X-ChatPOS-Signature, X-LLGW-Event-Id, X-LLGW-Timestamp, X-LLGW-Signature'
     );
 
     if (req.method === 'OPTIONS') {
+      const origin = String(req.headers.origin || '');
+      if (origin && !configuredOrigins().includes(origin)) {
+        res.statusCode = 403;
+        res.end(JSON.stringify({ success: false, error: { code: 'CORS_ORIGIN_FORBIDDEN', message: 'Origin is not allowed' } }));
+        return;
+      }
       res.statusCode = 204;
       res.end();
       return;
     }
 
+    metrics.requests += 1;
     try {
+      let principal = null;
+      if (!isPublicApiRequest(requestPath, req.method)) {
+        principal = await getPrincipal({ pool, req });
+      }
+
+      if (requestPath === '/api/health/live' && req.method === 'GET') {
+        res.statusCode = 200;
+        res.end(JSON.stringify({ success: true, status: 'alive' }));
+        return;
+      }
+
+      if (requestPath === '/api/health/ready' && req.method === 'GET') {
+        try {
+          await pool.query('SELECT 1');
+          res.statusCode = 200;
+          res.end(JSON.stringify({ success: true, status: 'ready' }));
+        } catch (error) {
+          res.statusCode = 503;
+          res.end(JSON.stringify({ success: false, status: 'not_ready', code: 'DATABASE_UNAVAILABLE' }));
+        }
+        return;
+      }
+
+      if (requestPath === '/api/health/metrics' && req.method === 'GET') {
+        assertRole(principal, ['admin', 'compliance']);
+        res.statusCode = 200;
+        res.end(JSON.stringify({ success: true, metrics: { ...metrics, uptimeSeconds: Math.floor(process.uptime()) } }));
+        return;
+      }
+
+      if (requestPath === '/api/db/auth/logout' && req.method === 'POST') {
+        await writeAudit({ poolOrClient: pool, principal, action: 'LOGOUT', targetType: 'auth_session', targetId: principal.sessionId, requestId: req.headers['x-request-id'] || null });
+        await revokeSession({ pool, req });
+        res.setHeader('Set-Cookie', sessionCookie('', 0));
+        res.statusCode = 200;
+        res.end(JSON.stringify({ success: true }));
+        return;
+      }
+
+      if (requestPath === '/api/db/auth/session' && req.method === 'GET') {
+        try {
+          const sessionPrincipal = await getPrincipal({ pool, req });
+          res.statusCode = 200;
+          res.end(JSON.stringify({ success: true, user: sessionPrincipal }));
+        } catch (error) {
+          if (error instanceof SecurityError) {
+            res.statusCode = 200;
+            res.end(JSON.stringify({ success: false, user: null }));
+            return;
+          }
+          throw error;
+        }
+        return;
+      }
+
       if (requestPath === '/api/webhooks/assignment-status' && req.method === 'POST') {
         const rawBody = await readRawBody(req);
         const callbackResult = await processAssignmentCallback({
           pool,
           rawBody,
           headers: req.headers,
-          callbackSecret: backofficeConfig.callbackSecret,
+          callbackSecret: backofficeConfig.callbackSecrets?.length ? backofficeConfig.callbackSecrets : backofficeConfig.callbackSecret,
         });
         res.statusCode = callbackResult.statusCode || 200;
         res.end(JSON.stringify({
@@ -219,6 +356,8 @@ const server = http.createServer(async (req, res) => {
       }
 
       if (requestPath === '/api/v1/assignments/requests' && req.method === 'POST') {
+        assertRole(principal, ['merchant']);
+        await enforcePrincipalRateLimit({ principal, requestPath, limit: 10, windowSeconds: 300 });
         if (!backofficeConfig.enabled || !backofficeConfig.assignmentEnabled) {
           res.statusCode = 503;
           res.end(JSON.stringify({ success: false, code: 'ASSIGNMENT_INTEGRATION_DISABLED', error: 'Assignment integration is disabled' }));
@@ -226,7 +365,7 @@ const server = http.createServer(async (req, res) => {
         }
 
         const body = await parseJsonBody(req);
-        const storeId = backofficeConfig.storeId || req.headers['x-store-id'] || body.storeId;
+        const storeId = await resolveAuthorizedStore({ principal, requestedStoreId: body.storeId });
         const requestId = String(req.headers['x-request-id'] || crypto.randomUUID());
         const assignmentResult = await createAssignmentRequest({
           pool,
@@ -236,19 +375,31 @@ const server = http.createServer(async (req, res) => {
           agentPhone: body.agentPhone,
           requestId,
         });
+        await writeAudit({
+          poolOrClient: pool,
+          principal,
+          action: 'ASSIGNMENT_REQUESTED',
+          targetType: 'store',
+          targetId: storeId,
+          after: { sourceRequestId: body.sourceRequestId, status: assignmentResult.data?.status || null },
+          requestId,
+        });
         res.statusCode = assignmentResult.statusCode;
         res.end(JSON.stringify({ success: true, data: assignmentResult.data }));
         return;
       }
 
       if (requestPath === '/api/v1/stores/profile' && req.method === 'PATCH') {
+        assertRole(principal, ['merchant']);
+        await enforcePrincipalRateLimit({ principal, requestPath, limit: 20, windowSeconds: 300 });
         if (!backofficeConfig.enabled || !backofficeConfig.profileUpdateEnabled) {
           res.statusCode = 503;
           res.end(JSON.stringify({ success: false, code: 'PROFILE_UPDATE_DISABLED', error: 'Merchant profile integration is disabled' }));
           return;
         }
         const body = await parseJsonBody(req);
-        const storeId = backofficeConfig.storeId || req.headers['x-store-id'];
+        const storeId = await resolveAuthorizedStore({ principal, requestedStoreId: body.storeId });
+        delete body.storeId;
         const idempotencyKey = req.headers['idempotency-key'];
         const requestId = String(req.headers['x-request-id'] || crypto.randomUUID());
         const profileResult = await updateStoreProfile({
@@ -259,6 +410,15 @@ const server = http.createServer(async (req, res) => {
           idempotencyKey,
           requestId,
         });
+        await writeAudit({
+          poolOrClient: pool,
+          principal,
+          action: 'STORE_PROFILE_UPDATED',
+          targetType: 'store',
+          targetId: storeId,
+          after: body,
+          requestId,
+        });
         res.statusCode = 200;
         res.end(JSON.stringify({ success: true, data: profileResult }));
         return;
@@ -266,13 +426,15 @@ const server = http.createServer(async (req, res) => {
 
       const documentRoute = requestPath.match(/^\/api\/v1\/kyc\/cases\/([^/]+)\/documents$/);
       if (documentRoute && req.method === 'POST') {
+        await enforcePrincipalRateLimit({ principal, requestPath: '/api/v1/kyc/documents', limit: 20, windowSeconds: 300 });
+        const caseStoreId = await assertCaseAccess({ pool, principal, caseId: documentRoute[1] });
         if (!backofficeConfig.enabled || !backofficeConfig.kycDocumentEnabled) {
           res.statusCode = 503;
           res.end(JSON.stringify({ success: false, code: 'KYC_DOCUMENT_INTEGRATION_DISABLED', error: 'KYC document integration is disabled' }));
           return;
         }
         const body = await parseJsonBody(req, 16 * 1024 * 1024);
-        const storeId = backofficeConfig.storeId || req.headers['x-store-id'];
+        const storeId = caseStoreId;
         const idempotencyKey = req.headers['idempotency-key'];
         const requestId = String(req.headers['x-request-id'] || crypto.randomUUID());
         const documentResult = await intakeKycDocument({
@@ -282,6 +444,15 @@ const server = http.createServer(async (req, res) => {
           caseId: documentRoute[1],
           body,
           idempotencyKey,
+          requestId,
+        });
+        await writeAudit({
+          poolOrClient: pool,
+          principal,
+          action: 'KYC_DOCUMENT_SUBMITTED',
+          targetType: 'kyc_case',
+          targetId: documentRoute[1],
+          after: { documentId: documentResult.document?.id || documentResult.id || null, status: documentResult.status || null },
           requestId,
         });
         res.statusCode = documentResult.replayed ? 200 : 201;
@@ -294,7 +465,25 @@ const server = http.createServer(async (req, res) => {
         const body = await parseJsonBody(req);
         const { email, password, role } = body;
 
+        try {
+          await consumeRateLimit({
+            pool,
+            bucketKey: `auth-login:${clientIp(req)}:${String(email || '').trim().toLowerCase()}`,
+            limit: Number(process.env.AUTH_LOGIN_RATE_LIMIT || 8),
+            windowSeconds: Number(process.env.AUTH_LOGIN_RATE_WINDOW_SECONDS || 300),
+          });
+        } catch (error) {
+          if (error instanceof SecurityError) {
+            if (error.retryAfterSeconds) res.setHeader('Retry-After', String(error.retryAfterSeconds));
+            res.statusCode = error.statusCode;
+            res.end(JSON.stringify({ success: false, error: { code: error.code, message: error.message } }));
+            return;
+          }
+          throw error;
+        }
+
         if (!email || !password) {
+          await writeAudit({ poolOrClient: pool, action: 'LOGIN_FAILED', targetType: 'auth', targetId: null, reason: 'MISSING_CREDENTIALS', requestId: req.headers['x-request-id'] || null });
           res.statusCode = 400;
           res.end(JSON.stringify({ success: false, error: 'กรุณากรอกอีเมลและรหัสผ่าน' }));
           return;
@@ -328,12 +517,21 @@ const server = http.createServer(async (req, res) => {
         }
 
         if (!user) {
+          await writeAudit({ poolOrClient: pool, action: 'LOGIN_FAILED', targetType: 'auth', targetId: null, reason: 'ACCOUNT_NOT_FOUND', requestId: req.headers['x-request-id'] || null });
           res.statusCode = 401;
           res.end(JSON.stringify({ success: false, error: 'ไม่พบบัญชีผู้ใช้งานนี้ในระบบ' }));
           return;
         }
 
+        if (role && normalizeRole(role) !== normalizeRole(user.role)) {
+          await writeAudit({ poolOrClient: pool, actorId: user.id, actorRole: user.role, action: 'LOGIN_FAILED', targetType: 'auth', targetId: user.id, reason: 'ROLE_MISMATCH', requestId: req.headers['x-request-id'] || null });
+          res.statusCode = 403;
+          res.end(JSON.stringify({ success: false, error: 'บทบาทของบัญชีไม่ตรงกับช่องทางเข้าสู่ระบบ' }));
+          return;
+        }
+
         if (user.isActive === false) {
+          await writeAudit({ poolOrClient: pool, actorId: user.id, actorRole: user.role, action: 'LOGIN_FAILED', targetType: 'auth', targetId: user.id, reason: 'ACCOUNT_INACTIVE', requestId: req.headers['x-request-id'] || null });
           res.statusCode = 403;
           res.end(JSON.stringify({ success: false, error: 'บัญชีผู้ใช้งานนี้ถูกระงับการใช้งานชั่วคราว' }));
           return;
@@ -352,6 +550,7 @@ const server = http.createServer(async (req, res) => {
         }
 
         if (!isMatch) {
+          await writeAudit({ poolOrClient: pool, actorId: user.id, actorRole: user.role, action: 'LOGIN_FAILED', targetType: 'auth', targetId: user.id, reason: 'INVALID_PASSWORD', requestId: req.headers['x-request-id'] || null });
           res.statusCode = 401;
           res.end(JSON.stringify({ success: false, error: 'รหัสผ่านไม่ถูกต้อง กรุณาตรวจสอบอีกครั้ง' }));
           return;
@@ -381,13 +580,24 @@ const server = http.createServer(async (req, res) => {
           pool.query(`UPDATE "AdminAccount" SET "lastLoginAt" = NOW(), "updatedAt" = NOW() WHERE id = $1`, [user.id]).catch(() => {});
         }
 
-        const token = crypto.randomBytes(32).toString('hex');
+        const session = await createSession({ pool, user, storeId: storeInfo?.id || null, req });
+        await writeAudit({
+          poolOrClient: pool,
+          actorId: user.id,
+          actorRole: user.role,
+          action: 'LOGIN_SUCCEEDED',
+          targetType: 'auth_session',
+          targetId: session.sessionId,
+          after: { role: user.role, storeId: storeInfo?.id || null },
+          requestId: req.headers['x-request-id'] || null,
+        });
+        res.setHeader('Set-Cookie', sessionCookie(session.token));
 
         res.statusCode = 200;
         res.end(
           JSON.stringify({
             success: true,
-            token,
+            sessionExpiresAt: session.expiresAt.toISOString(),
             user: {
               id: user.id,
               name: user.name,
@@ -679,6 +889,7 @@ const server = http.createServer(async (req, res) => {
 
       // ── 6. GET /api/db/stats ────────────────────────────────────────
       if (url === '/api/db/stats' || url.startsWith('/api/db/stats?')) {
+        assertRole(principal, ['admin', 'compliance']);
         const stats = await pool.query(`
           SELECT 
             (SELECT count(*) FROM "Store") as total_stores,
@@ -701,7 +912,11 @@ const server = http.createServer(async (req, res) => {
       // ── 7. GET /api/db/assignments ────────────────────────────────
       if (requestPath === '/api/db/assignments' && req.method === 'GET') {
         const query = new URL(`http://127.0.0.1${url}`).searchParams;
-        const requestedStoreId = query.get('storeId') || backofficeConfig.storeId || null;
+        const requestedStoreId = await resolveAuthorizedStore({
+          principal,
+          requestedStoreId: query.get('storeId'),
+          allowUnscoped: ['admin', 'compliance'].includes(principal.role),
+        });
         if (requestedStoreId && !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(requestedStoreId)) {
           res.statusCode = 400;
           res.end(JSON.stringify({ success: false, code: 'INVALID_STORE_ID', error: 'storeId must be a UUID' }));
@@ -764,8 +979,9 @@ const server = http.createServer(async (req, res) => {
 
       if (requestPath === '/api/db/kyc/workspace' && req.method === 'GET') {
         const query = new URL(url, 'http://localhost').searchParams;
-        const storeId = query.get('storeId') || req.headers['x-store-id'];
+        const storeId = await resolveAuthorizedStore({ principal, requestedStoreId: query.get('storeId') });
         const workspace = await getKycWorkspace({ pool, storeId });
+        await writeAudit({ poolOrClient: pool, principal, action: 'KYC_WORKSPACE_VIEWED', targetType: 'store', targetId: storeId, requestId: req.headers['x-request-id'] || null });
         res.statusCode = 200;
         res.end(JSON.stringify({ success: true, data: workspace }));
         return;
@@ -774,7 +990,8 @@ const server = http.createServer(async (req, res) => {
       const kycMessageRoute = requestPath.match(/^\/api\/db\/kyc\/cases\/([^/]+)\/messages$/);
       if (kycMessageRoute && req.method === 'GET') {
         const query = new URL(url, 'http://localhost').searchParams;
-        const storeId = query.get('storeId') || req.headers['x-store-id'];
+        const storeId = await resolveAuthorizedStore({ principal, requestedStoreId: query.get('storeId') });
+        await assertCaseAccess({ pool, principal, caseId: kycMessageRoute[1] });
         const workspace = await getKycWorkspace({ pool, storeId });
         const messages = workspace.case.id === kycMessageRoute[1] ? workspace.messages : [];
         if (!messages.length && workspace.case.id !== kycMessageRoute[1]) {
@@ -786,8 +1003,9 @@ const server = http.createServer(async (req, res) => {
       }
 
       if (kycMessageRoute && req.method === 'POST') {
+        await enforcePrincipalRateLimit({ principal, requestPath: '/api/db/kyc/messages', limit: 60, windowSeconds: 60 });
         const body = await parseJsonBody(req);
-        const storeId = req.headers['x-store-id'] || body.storeId;
+        const storeId = await assertCaseAccess({ pool, principal, caseId: kycMessageRoute[1] });
         if (Object.prototype.hasOwnProperty.call(body, 'storeId') || Object.prototype.hasOwnProperty.call(body, 'senderId') || Object.prototype.hasOwnProperty.call(body, 'senderRole')) {
           throw new ProfileKycError('Message ownership fields must come from request context', 'MESSAGE_CONTEXT_FORBIDDEN', 422);
         }
@@ -796,9 +1014,10 @@ const server = http.createServer(async (req, res) => {
           storeId,
           caseId: kycMessageRoute[1],
           body,
-          actorId: req.headers['x-actor-id'] || 'merchant-session',
-          actorRole: req.headers['x-actor-role'] || 'merchant',
+          actorId: principal.id,
+          actorRole: principal.role,
         });
+        await writeAudit({ poolOrClient: pool, principal, action: 'KYC_MESSAGE_SENT', targetType: 'kyc_case', targetId: kycMessageRoute[1], after: { messageId: message.id }, requestId: req.headers['x-request-id'] || null });
         res.statusCode = 201;
         res.end(JSON.stringify({ success: true, data: message }));
         return;
@@ -807,8 +1026,9 @@ const server = http.createServer(async (req, res) => {
       const readMessageRoute = requestPath.match(/^\/api\/db\/kyc\/cases\/([^/]+)\/messages\/([^/]+)\/read$/);
       if (readMessageRoute && req.method === 'PATCH') {
         const query = new URL(url, 'http://localhost').searchParams;
-        const storeId = query.get('storeId') || req.headers['x-store-id'];
+        const storeId = await assertCaseAccess({ pool, principal, caseId: readMessageRoute[1] });
         const message = await markKycMessageRead({ pool, storeId, caseId: readMessageRoute[1], messageId: readMessageRoute[2] });
+        await writeAudit({ poolOrClient: pool, principal, action: 'KYC_MESSAGE_READ', targetType: 'kyc_message', targetId: readMessageRoute[2], requestId: req.headers['x-request-id'] || null });
         res.statusCode = 200;
         res.end(JSON.stringify({ success: true, data: message }));
         return;
@@ -817,8 +1037,9 @@ const server = http.createServer(async (req, res) => {
       const documentAccessRoute = requestPath.match(/^\/api\/db\/kyc\/documents\/([^/]+)\/access$/);
       if (documentAccessRoute && req.method === 'GET') {
         const query = new URL(url, 'http://localhost').searchParams;
-        const storeId = query.get('storeId') || req.headers['x-store-id'];
+        const storeId = await resolveAuthorizedStore({ principal, requestedStoreId: query.get('storeId') });
         const document = await getDocumentAccess({ pool, storeId, versionId: documentAccessRoute[1] });
+        await writeAudit({ poolOrClient: pool, principal, action: 'KYC_DOCUMENT_ACCESSED', targetType: 'document_version', targetId: documentAccessRoute[1], requestId: req.headers['x-request-id'] || null });
         res.statusCode = 200;
         res.end(JSON.stringify({ success: true, data: document }));
         return;
@@ -826,6 +1047,28 @@ const server = http.createServer(async (req, res) => {
 
       // ── 8. GET /api/db/kyc ──────────────────────────────────────────
       if (url === '/api/db/kyc' || url.startsWith('/api/db/kyc?')) {
+        const kycQuery = new URL(`http://127.0.0.1${url}`).searchParams;
+        const requestedStoreId = kycQuery.get('storeId');
+        const storeId = requestedStoreId
+          ? await resolveAuthorizedStore({ principal, requestedStoreId })
+          : null;
+        let scopeClause = '';
+        const scopeValues = [];
+        if (storeId) {
+          scopeValues.push(storeId);
+          scopeClause = 'WHERE s.id = $1';
+        } else if (principal.role === 'merchant') {
+          scopeValues.push(principal.id);
+          scopeClause = 'WHERE s."userId" = $1';
+        } else if (principal.role === 'agent') {
+          scopeValues.push(principal.id);
+          scopeClause = 'WHERE s."currentAgentId" IN (SELECT id FROM "Agent" WHERE "userId" = $1)';
+        } else if (principal.role === 'pd') {
+          scopeValues.push(principal.id);
+          scopeClause = 'WHERE s."currentPdId" IN (SELECT id FROM "ProvincialDirector" WHERE "userId" = $1)';
+        } else {
+          assertRole(principal, ['admin', 'compliance']);
+        }
         const result = await pool.query(`
           SELECT 
             k.id,
@@ -851,9 +1094,11 @@ const server = http.createServer(async (req, res) => {
             u.name as user_name
           FROM "KycVerification" k
           LEFT JOIN "User" u ON k."userId" = u.id
+          LEFT JOIN "Store" s ON s."userId" = k."userId"
+          ${scopeClause}
           ORDER BY k."createdAt" DESC
           LIMIT 100;
-        `);
+        `, scopeValues);
         res.statusCode = 200;
         res.end(JSON.stringify({ success: true, count: result.rows.length, data: result.rows }));
         return;
@@ -861,6 +1106,26 @@ const server = http.createServer(async (req, res) => {
 
       // ── 9. GET /api/db/stores ──────────────────────────────────────
       if (url === '/api/db/stores' || url.startsWith('/api/db/stores?')) {
+        const storesQuery = new URL(`http://127.0.0.1${url}`).searchParams;
+        const requestedStoreId = storesQuery.get('storeId');
+        let storeScopeClause = '';
+        const storeScopeValues = [];
+        if (requestedStoreId) {
+          const storeId = await resolveAuthorizedStore({ principal, requestedStoreId });
+          storeScopeValues.push(storeId);
+          storeScopeClause = 'WHERE s.id = $1';
+        } else if (principal.role === 'merchant') {
+          storeScopeValues.push(principal.id);
+          storeScopeClause = 'WHERE s."userId" = $1';
+        } else if (principal.role === 'agent') {
+          storeScopeValues.push(principal.id);
+          storeScopeClause = 'WHERE s."currentAgentId" IN (SELECT id FROM "Agent" WHERE "userId" = $1)';
+        } else if (principal.role === 'pd') {
+          storeScopeValues.push(principal.id);
+          storeScopeClause = 'WHERE s."currentPdId" IN (SELECT id FROM "ProvincialDirector" WHERE "userId" = $1)';
+        } else {
+          assertRole(principal, ['admin', 'compliance']);
+        }
         const result = await pool.query(`
           SELECT 
             s.id,
@@ -890,9 +1155,10 @@ const server = http.createServer(async (req, res) => {
           LEFT JOIN "User" u ON s."userId" = u.id
           LEFT JOIN "Agent" a ON s."currentAgentId" = a.id
           LEFT JOIN "ProvincialDirector" pd ON s."currentPdId" = pd.id
+          ${storeScopeClause}
           ORDER BY s."createdAt" DESC
           LIMIT 100;
-        `);
+        `, storeScopeValues);
         res.statusCode = 200;
         res.end(JSON.stringify({ success: true, count: result.rows.length, data: result.rows }));
         return;
@@ -900,6 +1166,7 @@ const server = http.createServer(async (req, res) => {
 
       // ── 10. GET /api/db/agents ─────────────────────────────────────
       if (url === '/api/db/agents' || url.startsWith('/api/db/agents?')) {
+        assertRole(principal, ['admin', 'compliance', 'pd']);
         const result = await pool.query(`
           SELECT 
             a.id,
@@ -929,6 +1196,7 @@ const server = http.createServer(async (req, res) => {
 
       // ── 10. GET /api/db/pds ────────────────────────────────────────
       if (url === '/api/db/pds' || url.startsWith('/api/db/pds?')) {
+        assertRole(principal, ['admin', 'compliance']);
         const result = await pool.query(`
           SELECT 
             pd.id,
@@ -955,6 +1223,20 @@ const server = http.createServer(async (req, res) => {
 
       // ── 11. GET /api/db/transactions ───────────────────────────────
       if (url === '/api/db/transactions' || url.startsWith('/api/db/transactions?')) {
+        const transactionScopeValues = [];
+        let transactionScopeClause = '';
+        if (principal.role === 'merchant') {
+          transactionScopeValues.push(principal.id);
+          transactionScopeClause = 'WHERE s."userId" = $1';
+        } else if (principal.role === 'agent') {
+          transactionScopeValues.push(principal.id);
+          transactionScopeClause = 'WHERE s."currentAgentId" IN (SELECT id FROM "Agent" WHERE "userId" = $1)';
+        } else if (principal.role === 'pd') {
+          transactionScopeValues.push(principal.id);
+          transactionScopeClause = 'WHERE s."currentPdId" IN (SELECT id FROM "ProvincialDirector" WHERE "userId" = $1)';
+        } else {
+          assertRole(principal, ['admin', 'compliance']);
+        }
         const result = await pool.query(`
           SELECT 
             t.id,
@@ -973,9 +1255,10 @@ const server = http.createServer(async (req, res) => {
             s.name as store_name
           FROM "Transaction" t
           LEFT JOIN "Store" s ON t."storeId" = s.id
+          ${transactionScopeClause}
           ORDER BY t."createdAt" DESC
           LIMIT 100;
-        `);
+        `, transactionScopeValues);
         res.statusCode = 200;
         res.end(JSON.stringify({ success: true, count: result.rows.length, data: result.rows }));
         return;
@@ -983,12 +1266,13 @@ const server = http.createServer(async (req, res) => {
 
       // ── 11.1 POST /api/db/transactions/create ───────────────────────
       if (req.method === 'POST' && url === '/api/db/transactions/create') {
+        assertRole(principal, ['merchant']);
+        await enforcePrincipalRateLimit({ principal, requestPath, limit: 30, windowSeconds: 60 });
         try {
           const body = await parseJsonBody(req);
           const {
             amount,
             storeId,
-            userId,
             channel = 'promptpay',
             paymentMethod = 'PromptPay พร้อมเพย์ QR',
             customerName = 'ลูกค้าหน้าร้าน',
@@ -1005,11 +1289,7 @@ const server = http.createServer(async (req, res) => {
           const netAmount = parsedAmount;
 
           // Find a target storeId if not provided
-          let targetStoreId = storeId;
-          if (!targetStoreId) {
-            const storeRes = await pool.query('SELECT id FROM "Store" ORDER BY "createdAt" DESC LIMIT 1;');
-            targetStoreId = storeRes.rows[0]?.id;
-          }
+          const targetStoreId = await resolveAuthorizedStore({ principal, requestedStoreId: storeId });
 
           const insertRes = await pool.query(
             `
@@ -1035,7 +1315,7 @@ const server = http.createServer(async (req, res) => {
               channel,
               'completed',
               targetStoreId,
-              userId || null,
+              principal.id,
               'THB',
               'SERVED',
               origin,
@@ -1088,6 +1368,20 @@ const server = http.createServer(async (req, res) => {
 
       // ── 13. GET /api/db/commissions ────────────────────────────────
       if (url === '/api/db/commissions' || url.startsWith('/api/db/commissions?')) {
+        const commissionScopeValues = [];
+        let commissionScopeClause = '';
+        if (principal.role === 'merchant') {
+          commissionScopeValues.push(principal.id);
+          commissionScopeClause = 'WHERE s."userId" = $1';
+        } else if (principal.role === 'agent') {
+          commissionScopeValues.push(principal.id);
+          commissionScopeClause = 'WHERE c."agentId" IN (SELECT id FROM "Agent" WHERE "userId" = $1)';
+        } else if (principal.role === 'pd') {
+          commissionScopeValues.push(principal.id);
+          commissionScopeClause = 'WHERE c."pdId" IN (SELECT id FROM "ProvincialDirector" WHERE "userId" = $1)';
+        } else {
+          assertRole(principal, ['admin', 'compliance']);
+        }
         const result = await pool.query(`
           SELECT 
             c.id,
@@ -1108,9 +1402,10 @@ const server = http.createServer(async (req, res) => {
           LEFT JOIN "Agent" a ON c."agentId" = a.id
           LEFT JOIN "ProvincialDirector" pd ON c."pdId" = pd.id
           LEFT JOIN "Store" s ON c."storeId" = s.id
+          ${commissionScopeClause}
           ORDER BY c."createdAt" DESC
           LIMIT 100;
-        `);
+        `, commissionScopeValues);
         res.statusCode = 200;
         res.end(JSON.stringify({ success: true, count: result.rows.length, data: result.rows }));
         return;
@@ -1118,6 +1413,8 @@ const server = http.createServer(async (req, res) => {
 
       // ── 14. POST /api/db/kyc/update-status ─────────────────────────
       if (url === '/api/db/kyc/update-status' && req.method === 'POST') {
+        assertRole(principal, ['admin', 'compliance']);
+        await enforcePrincipalRateLimit({ principal, requestPath, limit: 60, windowSeconds: 60 });
         const body = await parseJsonBody(req);
         const { id, status, reviewNotes } = body;
         if (!id || !status) {
@@ -1126,12 +1423,19 @@ const server = http.createServer(async (req, res) => {
           return;
         }
 
+        const beforeResult = await pool.query('SELECT id, status, "reviewNotes" FROM "KycVerification" WHERE id = $1', [id]);
+        if (beforeResult.rowCount === 0) {
+          res.statusCode = 404;
+          res.end(JSON.stringify({ success: false, error: 'KYC record not found' }));
+          return;
+        }
         await pool.query(
           `UPDATE "KycVerification" 
            SET "status" = $1, "reviewNotes" = $2, "reviewedAt" = NOW(), "updatedAt" = NOW() 
            WHERE id = $3;`,
           [status, reviewNotes || null, id]
         );
+        await writeAudit({ poolOrClient: pool, principal, action: 'KYC_STATUS_UPDATED', targetType: 'kyc_verification', targetId: id, before: beforeResult.rows[0], after: { status, reviewNotes: reviewNotes || null }, requestId: req.headers['x-request-id'] || null });
 
         res.statusCode = 200;
         res.end(JSON.stringify({ success: true, message: 'KYC status updated successfully' }));
@@ -1145,7 +1449,7 @@ const server = http.createServer(async (req, res) => {
           const verified = verifyLlgwWebhook({
             rawBody,
             headers: req.headers,
-            secret: backofficeConfig.llgwPaymentWebhookSecret,
+            secret: backofficeConfig.llgwPaymentWebhookSecrets?.length ? backofficeConfig.llgwPaymentWebhookSecrets : backofficeConfig.llgwPaymentWebhookSecret,
             toleranceSeconds: backofficeConfig.llgwTimestampToleranceSeconds,
           });
           let body;
@@ -1166,6 +1470,16 @@ const server = http.createServer(async (req, res) => {
               grossBenefitField: backofficeConfig.commissionGrossBenefitField,
             },
           });
+          await writeAudit({
+            poolOrClient: pool,
+            actorId: null,
+            actorRole: 'llgw',
+            action: 'PAYMENT_WEBHOOK_PROCESSED',
+            targetType: 'transaction',
+            targetId: result.transaction?.id || body.paymentReference || body.clientReference,
+            after: { status: result.transaction?.status || null, duplicate: Boolean(result.duplicate), late: Boolean(result.late) },
+            requestId: verified.eventId,
+          });
           let settlement = null;
           if (result.settlementEvent) {
             try {
@@ -1178,7 +1492,9 @@ const server = http.createServer(async (req, res) => {
                   webhookSecret: backofficeConfig.commissionWebhookSecret,
                 },
               });
+              await writeAudit({ poolOrClient: pool, actorRole: 'system', action: 'SETTLEMENT_SENT', targetType: 'settlement_event', targetId: result.settlementEvent.eventId, after: { sent: Boolean(settlement.sent) }, requestId: verified.eventId });
             } catch (settlementError) {
+              await writeAudit({ poolOrClient: pool, actorRole: 'system', action: 'SETTLEMENT_SEND_FAILED', targetType: 'settlement_event', targetId: result.settlementEvent.eventId, after: { code: settlementError.code || 'SETTLEMENT_SEND_FAILED' }, requestId: verified.eventId });
               settlement = { sent: false, pending: true, code: settlementError.code || 'SETTLEMENT_SEND_FAILED' };
             }
           }
@@ -1200,6 +1516,8 @@ const server = http.createServer(async (req, res) => {
 
       // ── PHASE 4: signed transaction command ─────────────────────────
       if (req.method === 'POST' && requestPath === '/api/v1/transactions') {
+        assertRole(principal, ['merchant']);
+        await enforcePrincipalRateLimit({ principal, requestPath, limit: 30, windowSeconds: 60 });
         if (!backofficeConfig.transactionRoutingEnabled) {
           res.statusCode = 503;
           res.end(JSON.stringify({ success: false, error: { code: 'TRANSACTION_ROUTING_DISABLED', message: 'Transaction routing is disabled' } }));
@@ -1215,11 +1533,8 @@ const server = http.createServer(async (req, res) => {
           return;
         }
         try {
-          let storeId = body.storeId || req.headers['x-store-id'] || null;
-          if (!storeId) {
-            const storeResult = await pool.query('SELECT id FROM "Store" ORDER BY "createdAt" DESC LIMIT 1');
-            storeId = storeResult.rows[0]?.id || null;
-          }
+          const storeId = await resolveAuthorizedStore({ principal, requestedStoreId: body.storeId });
+          delete body.storeId;
           const result = await createTransactionCommand({
             pool,
             backofficeClient: transactionBackofficeClient,
@@ -1228,6 +1543,7 @@ const server = http.createServer(async (req, res) => {
             idempotencyKey: req.headers['idempotency-key'],
             requestId: req.headers['x-request-id'] || undefined,
           });
+          await writeAudit({ poolOrClient: pool, principal, action: 'TRANSACTION_CREATED', targetType: 'transaction', targetId: result.transaction?.id || result.transaction?.reference, after: { storeId, status: result.transaction?.status || null }, requestId: req.headers['x-request-id'] || null });
           res.statusCode = result.idempotentReplay ? 200 : 201;
           res.end(JSON.stringify({ success: true, idempotentReplay: result.idempotentReplay, transaction: result.transaction }));
         } catch (error) {
@@ -1243,6 +1559,8 @@ const server = http.createServer(async (req, res) => {
         try {
           const reference = decodeURIComponent(requestPath.replace('/api/v1/transactions/', ''));
           const transaction = await getTransaction({ pool, reference });
+          await assertStoreAccess({ pool, principal, storeId: transaction.storeId });
+          await writeAudit({ poolOrClient: pool, principal, action: 'TRANSACTION_VIEWED', targetType: 'transaction', targetId: transaction.id, requestId: req.headers['x-request-id'] || null });
           res.statusCode = 200;
           res.end(JSON.stringify({ success: true, transaction }));
         } catch (error) {
@@ -1254,6 +1572,8 @@ const server = http.createServer(async (req, res) => {
 
       // ── DEVELOPER API: 15. POST /api/v1/payments/qr ──────────────────
       if (req.method === 'POST' && (url === '/api/v1/payments/qr' || url.startsWith('/api/v1/payments/qr?'))) {
+        assertRole(principal, ['merchant']);
+        await enforcePrincipalRateLimit({ principal, requestPath: '/api/v1/payments/qr', limit: 30, windowSeconds: 60 });
         if (backofficeConfig.transactionRoutingEnabled) {
           res.statusCode = 410;
           res.end(JSON.stringify({ success: false, error: { code: 'PAYMENT_OWNERSHIP_MOVED', message: 'Payment creation is owned by Backoffice transaction routing' } }));
@@ -1276,7 +1596,8 @@ const server = http.createServer(async (req, res) => {
         const reference = orderId || `TXN-${Date.now().toString().slice(-8)}-${crypto.randomBytes(2).toString('hex').toUpperCase()}`;
 
         // 1. Resolve store & PromptPay recipient
-        const storeRes = await pool.query('SELECT id, name, phone, "qrSettings", "webhookUrl", "webhookSecret" FROM "Store" ORDER BY "createdAt" DESC LIMIT 1;');
+        const targetStoreId = await resolveAuthorizedStore({ principal, requestedStoreId: body.storeId });
+        const storeRes = await pool.query('SELECT id, name, phone, "qrSettings", "webhookUrl", "webhookSecret" FROM "Store" WHERE id = $1;', [targetStoreId]);
         const store = storeRes.rows[0];
         const targetPromptPay = customPromptPay || store?.phone || (store?.qrSettings && store.qrSettings.promptPayId) || '0823456789';
 
@@ -1310,7 +1631,7 @@ const server = http.createServer(async (req, res) => {
             parsedAmount,
             channel,
             'pending',
-            store?.id || null,
+            targetStoreId,
             'THB',
             'NONE',
             'API_DEVELOPER',
@@ -1331,7 +1652,7 @@ const server = http.createServer(async (req, res) => {
           ON CONFLICT DO NOTHING;`,
           [
             crypto.randomUUID(),
-            store?.id || null,
+            targetStoreId,
             'payment.created',
             'DELIVERED',
             JSON.stringify({
@@ -1373,6 +1694,8 @@ const server = http.createServer(async (req, res) => {
           return;
         }
         const txn = txnRes.rows[0];
+        await assertStoreAccess({ pool, principal, storeId: txn.storeId });
+        await writeAudit({ poolOrClient: pool, principal, action: 'PAYMENT_VIEWED', targetType: 'transaction', targetId: txn.id, requestId: req.headers['x-request-id'] || null });
         res.statusCode = 200;
         res.end(JSON.stringify({
           success: true,
@@ -1391,6 +1714,8 @@ const server = http.createServer(async (req, res) => {
 
       // ── DEVELOPER API: 17. POST /api/v1/payments/confirm ──────────────
       if (req.method === 'POST' && (url === '/api/v1/payments/confirm' || url.startsWith('/api/v1/payments/confirm?') || url.includes('/confirm'))) {
+        assertRole(principal, ['merchant']);
+        await enforcePrincipalRateLimit({ principal, requestPath: '/api/v1/payments/confirm', limit: 30, windowSeconds: 60 });
         if (backofficeConfig.transactionRoutingEnabled) {
           res.statusCode = 410;
           res.end(JSON.stringify({ success: false, error: { code: 'PAYMENT_OWNERSHIP_MOVED', message: 'Payment confirmation is owned by LLGW webhook events' } }));
@@ -1398,13 +1723,23 @@ const server = http.createServer(async (req, res) => {
         }
         const body = await parseJsonBody(req);
         const ref = body.reference || decodeURIComponent(url.replace('/api/v1/payments/', '').replace('/confirm', '').split('?')[0]);
+        const existingTxn = await pool.query(
+          'SELECT id, "storeId" FROM "Transaction" WHERE reference = $1 OR id = $1 LIMIT 1',
+          [ref]
+        );
+        if (existingTxn.rowCount === 0) {
+          res.statusCode = 404;
+          res.end(JSON.stringify({ success: false, error: 'Transaction not found to confirm' }));
+          return;
+        }
+        await assertStoreAccess({ pool, principal, storeId: existingTxn.rows[0].storeId });
 
         const updateRes = await pool.query(
           `UPDATE "Transaction" 
            SET status = 'completed', "paidAt" = NOW(), "updatedAt" = NOW() 
-           WHERE reference = $1 OR id = $1
+           WHERE (reference = $1 OR id = $1) AND "storeId" = $2
            RETURNING *;`,
-          [ref]
+          [ref, existingTxn.rows[0].storeId]
         );
 
         if (updateRes.rows.length === 0) {
@@ -1414,6 +1749,7 @@ const server = http.createServer(async (req, res) => {
         }
 
         const txn = updateRes.rows[0];
+        await writeAudit({ poolOrClient: pool, principal, action: 'PAYMENT_STATUS_UPDATED', targetType: 'transaction', targetId: txn.id, after: { status: txn.status }, requestId: req.headers['x-request-id'] || null });
 
         // Log event in WebhookEventLog
         await pool.query(
@@ -1449,8 +1785,11 @@ const server = http.createServer(async (req, res) => {
 
       // ── DEVELOPER API: 18. GET /api/v1/balance ─────────────────────────
       if (req.method === 'GET' && (url === '/api/v1/balance' || url.startsWith('/api/v1/balance?'))) {
+        assertRole(principal, ['merchant']);
+        const storeId = await resolveAuthorizedStore({ principal, requestedStoreId: new URL(`http://127.0.0.1${url}`).searchParams.get('storeId') });
         const statsRes = await pool.query(
-          `SELECT COALESCE(SUM(amount), 0) as total_balance, COUNT(id) as txns_count FROM "Transaction" WHERE status = 'completed';`
+          `SELECT COALESCE(SUM(amount), 0) as total_balance, COUNT(id) as txns_count FROM "Transaction" WHERE status = 'completed' AND "storeId" = $1;`,
+          [storeId]
         );
         const stat = statsRes.rows[0];
         res.statusCode = 200;
@@ -1466,20 +1805,14 @@ const server = http.createServer(async (req, res) => {
 
       // ── DEVELOPER API: 19. POST /api/v1/auth ───────────────────────────
       if (req.method === 'POST' && (url === '/api/v1/auth' || url.startsWith('/api/v1/auth?'))) {
-        const token = 'cpos_jwt_' + crypto.randomBytes(16).toString('hex');
-        res.statusCode = 200;
-        res.end(JSON.stringify({
-          success: true,
-          token,
-          accessToken: token,
-          expiresIn: 86400,
-          tokenType: 'Bearer'
-        }));
+        res.statusCode = 410;
+        res.end(JSON.stringify({ success: false, error: { code: 'API_TOKEN_DEPRECATED', message: 'Use the authenticated server session; browser API token generation is disabled' } }));
         return;
       }
 
       // ── DEVELOPER API: 20. POST /api/v1/payouts ────────────────────────
       if (req.method === 'POST' && (url === '/api/v1/payouts' || url.startsWith('/api/v1/payouts?'))) {
+        assertRole(principal, ['merchant']);
         const body = await parseJsonBody(req);
         const payoutId = `PO-${Date.now().toString().slice(-8)}`;
         res.statusCode = 200;
@@ -1518,6 +1851,8 @@ const server = http.createServer(async (req, res) => {
       res.end(JSON.stringify({ success: false, error: `Endpoint ${url} not found` }));
       return;
     } catch (err) {
+      metrics.errors += 1;
+      if (err.code === 'RATE_LIMITED') metrics.rateLimited += 1;
       console.error('[Server DB API Error]:', err.message);
       res.statusCode = Number.isInteger(err.statusCode) ? err.statusCode : 500;
       res.end(JSON.stringify({
@@ -1561,3 +1896,17 @@ server.listen(port, () => {
   console.log(`🚀 ChatPOS Production Server running at http://localhost:${port}`);
   console.log(`📍 Database configured: ${configuredDatabaseName}`);
 });
+
+const settlementRetryInterval = setInterval(() => {
+  retryPendingSettlementEvents({
+    pool,
+    config: {
+      enabled: backofficeConfig.commissionEventEnabled,
+      sourceUrl: backofficeConfig.commissionEventSourceUrl,
+      webhookSecret: backofficeConfig.commissionWebhookSecret,
+      grossBenefitField: backofficeConfig.commissionGrossBenefitField,
+      maxAttempts: Number(process.env.SETTLEMENT_MAX_ATTEMPTS || 8),
+    },
+  }).catch((error) => console.error('[Settlement Retry Error]:', error.message));
+}, Number(process.env.SETTLEMENT_RETRY_INTERVAL_MS || 30000));
+settlementRetryInterval.unref();

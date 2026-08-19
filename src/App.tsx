@@ -7,7 +7,7 @@ import { CatalogPageView } from './CatalogPageView'
 import { BookingPageView } from './BookingPageView'
 import { DeveloperConsoleView } from './DeveloperConsoleView'
 import { LandingPageView } from './LandingPageView'
-import { fetchDbHealth, fetchDbStats, getStoredUser, type DbHealth, type DbStats } from './dbApi'
+import { fetchDbHealth, fetchDbStats, getServerSession, setStoredUser, type AuthUser, type DbHealth, type DbStats } from './dbApi'
 
 export function App() {
   const [pathname] = useState(window.location.pathname)
@@ -21,8 +21,19 @@ export function App() {
     fetchDbStats().then(setDbStats).catch(() => {})
   }, [])
 
-  // Check login state
-  const currentUser = getStoredUser()
+  // The server session is authoritative; localStorage is only a display cache.
+  const [currentUser, setCurrentUser] = useState<AuthUser | null>(null)
+  const [sessionReady, setSessionReady] = useState(false)
+
+  useEffect(() => {
+    getServerSession()
+      .then((session) => {
+        setCurrentUser(session.success ? session.user : null)
+        if (session.success && session.user) setStoredUser(session.user)
+      })
+      .catch(() => setCurrentUser(null))
+      .finally(() => setSessionReady(true))
+  }, [])
 
   // 1. Dedicated Service Booking Engine Route (/booking, /book, /services, /appointment)
   if (
@@ -98,6 +109,7 @@ export function App() {
 
   // 5. Developer & API Playground (Protected Route: ONLY visible when logged in)
   if (pathname === '/developer' || pathname.startsWith('/developer')) {
+    if (!sessionReady) return null
     if (!currentUser) {
       return <LandingPageView />
     }
@@ -111,6 +123,8 @@ export function App() {
 
   // 7. Merchant Backoffice Dashboard (/merchant)
   if (pathname === '/merchant' || pathname.startsWith('/merchant/')) {
+    if (!sessionReady) return null
+    if (!currentUser) return <LandingPageView />
     return <MerchantView />
   }
 

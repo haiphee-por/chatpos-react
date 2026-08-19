@@ -65,12 +65,17 @@ function parsePositiveInteger(value, fallback) {
 }
 
 function loadBackofficeConfig(env = process.env) {
+  const secretCandidates = (currentKey, previousKey) => [env[currentKey], env[previousKey]]
+    .map((value) => String(value || '').trim())
+    .filter(Boolean);
   return {
     baseUrl: String(env.AGENT_PD_BACKOFFICE_BASE_URL || '').replace(/\/$/, ''),
     storeId: String(env.AGENT_PD_STORE_ID || ''),
     bearerSecret: String(env.AGENT_PD_BEARER_SECRET || ''),
     signingSecret: String(env.AGENT_PD_SIGNING_SECRET || ''),
+    signingSecrets: secretCandidates('AGENT_PD_SIGNING_SECRET', 'AGENT_PD_SIGNING_SECRET_PREVIOUS'),
     callbackSecret: String(env.AGENT_PD_CALLBACK_SECRET || ''),
+    callbackSecrets: secretCandidates('AGENT_PD_CALLBACK_SECRET', 'AGENT_PD_CALLBACK_SECRET_PREVIOUS'),
     enabled: parseBoolean(env.AGENT_PD_INTEGRATION_ENABLED, false),
     assignmentEnabled: parseBoolean(env.AGENT_PD_ASSIGNMENT_ENABLED, false),
     profileUpdateEnabled: parseBoolean(env.MERCHANT_PROFILE_UPDATE_ENABLED, false),
@@ -78,6 +83,7 @@ function loadBackofficeConfig(env = process.env) {
     transactionRoutingEnabled: parseBoolean(env.TRANSACTION_ROUTING_ENABLED, false),
     transactionCommandPath: String(env.AGENT_PD_TRANSACTION_COMMAND_PATH || '/api/v1/transactions'),
     llgwPaymentWebhookSecret: String(env.LLGW_PAYMENT_WEBHOOK_SECRET || ''),
+    llgwPaymentWebhookSecrets: secretCandidates('LLGW_PAYMENT_WEBHOOK_SECRET', 'LLGW_PAYMENT_WEBHOOK_SECRET_PREVIOUS'),
     llgwTimestampToleranceSeconds: parsePositiveInteger(
       env.LLGW_PAYMENT_TIMESTAMP_TOLERANCE_SECONDS,
       DEFAULT_TIMESTAMP_TOLERANCE_SECONDS

@@ -236,6 +236,7 @@ async function fetchDbApi<T>(endpoint: string, options: RequestInit = {}): Promi
   const url = `${API_BASE}/api/db${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`
   const res = await fetch(url, {
     ...options,
+    credentials: 'include',
     headers: {
       'Content-Type': 'application/json',
       ...(options.headers || {}),
@@ -394,9 +395,9 @@ export async function requestMerchantAssignment(data: {
   try {
     const res = await fetch('/api/v1/assignments/requests', {
       method: 'POST',
+      credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
-        'X-Store-Id': data.storeId,
       },
       body: JSON.stringify({
         sourceRequestId: data.sourceRequestId,
@@ -434,9 +435,9 @@ export interface KycDocumentRequest {
 export async function submitKycDocument(storeId: string, caseId: string, payload: KycDocumentRequest) {
   const response = await fetch('/api/v1/kyc/cases/' + encodeURIComponent(caseId) + '/documents', {
     method: 'POST',
+    credentials: 'include',
     headers: {
       'Content-Type': 'application/json',
-      'X-Store-Id': storeId,
       'Idempotency-Key': payload.sourceRequestId,
     },
     body: JSON.stringify(payload),
@@ -449,7 +450,8 @@ export async function submitKycDocument(storeId: string, caseId: string, payload
 export async function postKycMessage(storeId: string, caseId: string, payload: { message?: string; recipientId?: string; attachments?: Array<Record<string, unknown>> }) {
   const response = await fetch('/api/db/kyc/cases/' + encodeURIComponent(caseId) + '/messages', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'X-Store-Id': storeId, 'X-Actor-Role': 'merchant' },
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   })
   const data = await response.json().catch(() => ({}))
@@ -460,7 +462,8 @@ export async function postKycMessage(storeId: string, caseId: string, payload: {
 export async function markKycMessageRead(storeId: string, caseId: string, messageId: string) {
   const response = await fetch(`/api/db/kyc/cases/${encodeURIComponent(caseId)}/messages/${encodeURIComponent(messageId)}/read?storeId=${encodeURIComponent(storeId)}`, {
     method: 'PATCH',
-    headers: { 'Content-Type': 'application/json', 'X-Store-Id': storeId },
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
   })
   const data = await response.json().catch(() => ({}))
   if (!response.ok) throw new Error(data?.error || `KYC read status error ${response.status}`)
@@ -582,7 +585,7 @@ export interface AuthUser {
 
 export interface LoginResponse {
   success: boolean
-  token?: string
+  sessionExpiresAt?: string
   user?: AuthUser
   message?: string
   error?: string
@@ -609,8 +612,8 @@ export async function loginUser(credentials: { email: string; password: string; 
       method: 'POST',
       body: JSON.stringify(credentials),
     })
-    if (res.success && res.user && res.token) {
-      setStoredUser(res.user, res.token)
+    if (res.success && res.user) {
+      setStoredUser(res.user)
     }
     return res
   } catch (err: any) {
@@ -691,7 +694,7 @@ export async function registerMerchant(data: {
 }
 
 /**
- * Local Session Helpers
+ * Non-authoritative UI cache and server session helpers
  */
 export function getStoredUser(): AuthUser | null {
   try {
@@ -702,18 +705,21 @@ export function getStoredUser(): AuthUser | null {
   }
 }
 
-export function getStoredToken(): string | null {
-  return localStorage.getItem('chatpos_session_token')
-}
-
-export function setStoredUser(user: AuthUser, token: string) {
+export function setStoredUser(user: AuthUser) {
   localStorage.setItem('chatpos_session_user', JSON.stringify(user))
-  localStorage.setItem('chatpos_session_token', token)
   localStorage.setItem('chatpos_role', user.role)
 }
 
 export function clearStoredUser() {
   localStorage.removeItem('chatpos_session_user')
-  localStorage.removeItem('chatpos_session_token')
   localStorage.removeItem('chatpos_role')
+}
+
+export async function getServerSession(): Promise<{ success: boolean; user: AuthUser | null }> {
+  return fetchDbApi('/auth/session')
+}
+
+export async function logoutUser(): Promise<void> {
+  await fetchDbApi('/auth/logout', { method: 'POST' })
+  clearStoredUser()
 }

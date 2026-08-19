@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { ProfileSettingsModal } from './ProfileSettingsModal'
 import { MerchantKycView } from './MerchantKycView'
 import { DeveloperConsoleView } from './DeveloperConsoleView'
-import { fetchDbAssignments, fetchDbProducts, fetchDbStores, getStoredUser, clearStoredUser, type AuthUser, type DbAssignmentRow, type DbStoreRow } from './dbApi'
+import { fetchDbAssignments, fetchDbProducts, fetchDbStores, getStoredUser, clearStoredUser, logoutUser, type AuthUser, type DbAssignmentRow, type DbStoreRow } from './dbApi'
 import { generatePromptPayQrDataUrl, generateUrlQrDataUrl, getStoredPromptPayId, setStoredPromptPayId } from './promptpay'
 import { checkTransactionStatus, createTransactionCommand } from './chatposApi'
 import {
@@ -336,8 +336,12 @@ export function MerchantView() {
   const displayUserRole = currentUser?.role === 'owner' ? 'Merchant Owner' : (currentUser?.role ? `${currentUser.role.toUpperCase()} Owner` : 'Merchant Owner')
   const userInitials = (displayUserName.slice(0, 2) || 'MB').toUpperCase()
 
-  const handleLogout = () => {
-    clearStoredUser()
+  const handleLogout = async () => {
+    try {
+      await logoutUser()
+    } catch {
+      clearStoredUser()
+    }
     window.location.href = '/'
   }
 

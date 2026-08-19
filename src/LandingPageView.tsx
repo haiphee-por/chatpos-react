@@ -28,7 +28,7 @@ import {
   Share2,
   X,
 } from 'lucide-react'
-import { loginUser, setStoredUser } from './dbApi'
+import { loginUser } from './dbApi'
 
 export function LandingPageView() {
   const [activeDemoTab, setActiveDemoTab] = useState<'pos' | 'quickpay' | 'booking' | 'salespage' | 'reports'>('pos')
@@ -74,32 +74,10 @@ export function LandingPageView() {
           window.location.href = '/merchant'
         })
       } else {
-        if (targetEmail === 'merchant@chatpos.com' || targetEmail.includes('@')) {
-          setStoredUser({
-            id: 'usr_merchant_demo',
-            email: targetEmail,
-            name: 'เจ้าของร้านค้า (Demo Merchant)',
-            phone: null,
-            role: 'merchant'
-          }, 'demo_token_' + Date.now())
-          window.location.href = '/merchant'
-          return
-        }
         setError(res.error || 'อีเมลหรือรหัสผ่านไม่ถูกต้อง')
         setIsLoading(false)
       }
     } catch (err: any) {
-      if (targetEmail === 'merchant@chatpos.com' || targetEmail.includes('@')) {
-        setStoredUser({
-          id: 'usr_merchant_demo',
-          email: targetEmail,
-          name: 'เจ้าของร้านค้า (Demo Merchant)',
-          phone: null,
-          role: 'merchant'
-        }, 'demo_token_' + Date.now())
-        window.location.href = '/merchant'
-        return
-      }
       setError(err.message || 'เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์')
       setIsLoading(false)
     }

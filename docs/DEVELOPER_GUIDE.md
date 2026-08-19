@@ -2,7 +2,7 @@
 
 คู่มือนี้อธิบายว่า ChatPOS ทำอะไรได้บ้าง ระบบแบ่งส่วนอย่างไร และนักพัฒนาควรแก้หรือเพิ่มฟีเจอร์ตรงไหน เหมาะสำหรับทีมที่ทำงานกับ frontend, API, PostgreSQL และ workflow Merchant KYC
 
-> สถานะปัจจุบัน: ChatPOS ใช้ Next.js เป็น frontend framework แต่ยังมี custom API server แยกจาก Next.js และบาง workflow ใช้ `localStorage` หรือ mock data สำหรับ prototype จึงไม่ควรตีความว่าทุกฟีเจอร์เป็นระบบ production ที่มี persistence และ security ครบแล้ว
+> สถานะปัจจุบัน: ChatPOS ใช้ Next.js เป็น frontend framework และมี custom API server แยกจาก Next.js. Session/authentication ของ API ใช้ server-side session ผ่าน HttpOnly cookie แล้ว แต่บาง workflow ด้านสินค้า บริการ การจอง และคำสั่งซื้อยังใช้ `localStorage` หรือ mock data จึงไม่ควรตีความว่าทุกฟีเจอร์เป็นระบบ production ที่มี persistence ครบแล้ว
 
 ## ภาพรวมความสามารถ
 
@@ -27,7 +27,7 @@ flowchart LR
     Next -->|rewrite /api/db/* and /api/v1/*| API[server.cjs :3001]
     Views -->|relative fetch| Next
     API --> DB[(PostgreSQL)]
-    Views -->|prototype state| Local[(localStorage)]
+    Views -->|client/workflow state| Local[(localStorage)]
     API --> External[Payment Gateway or external services]
 ```
 
@@ -38,7 +38,8 @@ flowchart LR
 - `src/app/[[...slug]]/ClientApp.tsx` โหลด application shell แบบ client-only
 - `src/App.tsx` อ่าน `window.location.pathname` แล้วเลือก view ที่เหมาะสม
 - View แต่ละชุดอยู่ใน `src/*View.tsx` และ CSS อยู่ในไฟล์ `.css` คู่กัน
-- `localStorage` ใช้เก็บ state บางส่วนของร้านค้า การจอง สินค้า หน้าขาย และ session ฝั่ง prototype
+- `localStorage` ใช้เก็บ state ฝั่ง client บางส่วนของร้านค้า การจอง สินค้า หน้าขาย และ workflow อื่น ๆ; ไม่ใช้เป็น authority สำหรับ session หรือ API authorization
+- Login ใช้ `HttpOnly` cookie ชื่อ `chatpos_session`; `src/App.tsx` hydrate user จาก `GET /api/db/auth/session` และ localStorage profile เป็นเพียง display cache
 
 เหตุผลที่ใช้ client-only shell คือโค้ดเดิมอ่าน `window`, `document` และ `localStorage` ระหว่าง render/effect หากนำไป SSR โดยตรงจะเกิดปัญหา `window is not defined` หรือ hydration mismatch
 
@@ -49,9 +50,11 @@ flowchart LR
 1. รับ request ที่ `/api/db/*` และ `/api/v1/*`
 2. ตรวจ method และ route แบบ explicit
 3. อ่าน body JSON และ query PostgreSQL ผ่าน `pg.Pool`
-4. ตรวจ password ด้วย `bcryptjs` ใน login
-5. สร้าง PromptPay EMV payload และ QR data สำหรับ payment flow
-6. ส่ง JSON response กลับไปยัง browser
+4. ตรวจ password ด้วย `bcryptjs` และสร้าง server-side session ใน login
+5. บังคับ role, Store/Case ownership, rate limit, CORS และ secure headers ที่ API boundary
+6. สร้าง PromptPay EMV payload และ QR data สำหรับ legacy payment flow เมื่อ feature flag อนุญาต
+7. ส่ง signed commands/callbacks ระหว่าง ChatPOS กับ PD/Agent Backoffice และบันทึก audit/retry state
+8. ส่ง JSON response กลับไปยัง browser
 
 Next.js ไม่ได้ใช้ Route Handlers หรือ Server Actions สำหรับ API ในตอนนี้ แต่ใช้ rewrites ใน [`next.config.ts`](../next.config.ts) เพื่อส่ง request ไปยัง API process
 
@@ -98,7 +101,7 @@ npm run server
 npm run db:migrate
 ```
 
-Migration หลักอยู่ที่ [`database/migrations/001_initial_chatpos_schema.sql`](../database/migrations/001_initial_chatpos_schema.sql) และ [`database/migrations/002_phase3_profile_kyc.sql`](../database/migrations/002_phase3_profile_kyc.sql) ครอบคลุมตาราง core ที่ `server.cjs` ใช้ รวมถึง Merchant KYC, assignment, profile/document version, audit, idempotency และ webhook event dedupe ตาราง idempotency/nonce/webhook เป็น durable schema สำหรับการต่อยอด production; client helper แบบ in-memory ยังใช้เฉพาะ unit test และไม่ควรใช้แทน persistence layer จริง
+Migration หลักอยู่ที่ [`database/migrations/001_initial_chatpos_schema.sql`](../database/migrations/001_initial_chatpos_schema.sql) ถึง [`database/migrations/005_document_security.sql`](../database/migrations/005_document_security.sql) ครอบคลุมตาราง core ที่ `server.cjs` ใช้ รวมถึง Merchant KYC, assignment, profile/document version, server session, rate limit, audit, idempotency, webhook dedupe, settlement retry/dead-letter และ document scan quarantine. ตารางเหล่านี้เป็น durable schema; client helper แบบ in-memory ยังใช้เฉพาะ unit test และไม่ควรใช้แทน persistence layer จริง
 
 ### Production
 
@@ -132,7 +135,13 @@ npm run lint
 | `API_PORT` | `server.cjs` | `3001` |
 | `CHATPOS_API_URL` | `next.config.ts` | `http://127.0.0.1:3001` สำหรับ local API |
 | `NEXT_PUBLIC_APP_URL` | application/deployment config | URL ภายนอกของเว็บ |
-| `SESSION_SECRET` | security configuration | ต้องเปลี่ยนเป็น secret จริงใน production |
+| `SESSION_SECRET` | legacy/config compatibility | ไม่ใช้แทน database session token; ห้ามใช้ค่า default ใน production |
+| `ALLOWED_ORIGINS` | `server.cjs` | exact comma-separated origins; ห้ามใช้ wildcard เมื่อเปิด credentials |
+| `AUTH_LOGIN_RATE_LIMIT` / `AUTH_LOGIN_RATE_WINDOW_SECONDS` | `server.cjs` | login limit ต่อ IP/email bucket |
+| `SETTLEMENT_RETRY_INTERVAL_MS` / `SETTLEMENT_MAX_ATTEMPTS` | `server.cjs` | durable settlement retry และ dead-letter policy |
+| `DOCUMENT_SCANNER_URL` / `DOCUMENT_SCANNER_TOKEN` / `DOCUMENT_SCANNER_TIMEOUT_MS` | `server/integration/documentSecurity.cjs` | scanner ไม่พร้อมจะ quarantine เอกสาร ไม่ถือว่าสแกนผ่าน |
+| `AGENT_PD_SIGNING_SECRET_PREVIOUS` / `AGENT_PD_CALLBACK_SECRET_PREVIOUS` | signed PD/Agent Backoffice integration | รับ secret เดิมชั่วคราวระหว่าง rotation แล้วต้องลบเพื่อ revoke |
+| `LLGW_PAYMENT_WEBHOOK_SECRET_PREVIOUS` | LLGW webhook verification | รับ secret เดิมชั่วคราวระหว่าง rotation แล้วต้องลบเพื่อ revoke |
 
 `.env.example` ยังมีตัวแปรชื่อ `VITE_API_URL` และ `VITE_APP_ENV` จากยุค Vite เดิม ซึ่งไม่ใช่ตัวแปรที่ Next routing ชุดปัจจุบันอ่านโดยตรง ให้ใช้ `CHATPOS_API_URL` และ `NEXT_PUBLIC_APP_URL` เป็นหลัก
 
@@ -183,15 +192,15 @@ Phase 2 มี assignment service ใน `server/integration/assignmentService.c
 
 Merchant portal แสดงสถานะ `PENDING_ADMIN_ASSIGNMENT`, `PENDING_AGENT_ACCEPTANCE`, `ACCEPTED`, `REJECTED`, `EXPIRED` และ `REASSIGNED` พร้อม next action และจะแสดง Agent/PD เฉพาะเมื่อ status เป็น `ACCEPTED` การสมัคร Merchant จะส่ง assignment request หลังสร้าง Store สำเร็จ โดยรองรับทั้งการระบุเบอร์ Agent และการเว้นว่างให้ Admin จัดสรร หาก `AGENT_PD_INTEGRATION_ENABLED` หรือ `AGENT_PD_ASSIGNMENT_ENABLED` ยังปิดอยู่ การสมัครบัญชียังสำเร็จแต่จะไม่ forward assignment ไป Backoffice
 
-ข้อจำกัดของ Phase 2: route ปัจจุบันยังใช้ `X-Store-Id`/`AGENT_PD_STORE_ID` เป็น store context เพราะ authentication/session ของ custom API server ยังเป็น prototype ต้องย้ายไป server-side session หรือ verified Store-scoped credential ก่อน production และต้องทดสอบ command/callback กับ Backoffice staging จริง รวมถึง receiver downtime และ retry recovery
+Phase 2 command/callback ยังใช้ `AGENT_PD_STORE_ID` ได้เฉพาะเป็น configuration ของ server-side PD/Agent Backoffice integration ไม่ใช่ browser authority. Browser request ใช้ server session และ API ตรวจ Store/Case ownership จากฐานข้อมูล; `X-Store-Id`, `X-Actor-Id` และ `X-Actor-Role` ไม่ได้รับความเชื่อถือและไม่อยู่ใน CORS allowlist แล้ว. ต้องทดสอบ command/callback กับ PD/Agent Backoffice staging จริง รวมถึง receiver downtime, secret rotation และ retry recovery
 
 Phase 3 เพิ่ม `profileKycService.cjs` สำหรับ profile update, KYC document intake และ KYC Chat/Post โดย profile รับเฉพาะ nested `profile` allowlist ตาม contract, ใช้ `expectedProfileVersion`, `Idempotency-Key` และ snapshot ใน `merchant_profile_versions`; conflict ตอบ `PROFILE_VERSION_CONFLICT` และ replay ของ payload เดิมไม่เพิ่ม version ซ้ำ การแก้ field ที่กระทบ KYC จะเก็บ submission snapshot เดิมแบบไม่ overwrite, เปลี่ยน case เป็น `WAITING_AGENT_REVIEW`, อัปเดต `KycVerification`, สร้าง notification ให้ Agent และเขียน audit
 
 Document intake ตรวจ MIME (`application/pdf`, `image/jpeg`, `image/png`, `image/webp`), ขนาดไม่เกิน 10 MB, SHA-256 checksum และ `private://` locator เท่านั้น พร้อม unique `caseId + sourceRequestId`, `caseId + idempotencyKey`, `documentId + version` และ `documentId + checksum` เพื่อป้องกัน replay, overwrite และการใช้ version เดิมกับไฟล์ใหม่ การแก้เอกสารจึงต้องส่ง request ใหม่พร้อม locator/checksum ใหม่เสมอ ส่วน Chat/Post เก็บข้อความและ attachment metadata แบบ append-only และรองรับ read status
 
-Phase 3 ยังเป็น prototype integration: `MERCHANT_PROFILE_UPDATE_ENABLED` และ `KYC_DOCUMENT_INTAKE_ENABLED` ปิดเป็นค่าเริ่มต้น, route command จะ forward ผ่าน signed Backoffice client เมื่อเปิด flag เท่านั้น และ private locator เป็น metadata contract ยังไม่ใช่การ upload/object storage adapter production ต้องทดสอบ private access, staging replay/conflict, upload scanning, role/Store/Case authorization และ Agent review -> PD final decision ก่อนเปิดใช้งานจริง
+Phase 3 ยังเป็น feature-flagged integration: `MERCHANT_PROFILE_UPDATE_ENABLED` และ `KYC_DOCUMENT_INTAKE_ENABLED` ปิดเป็นค่าเริ่มต้น, route command จะ forward ผ่าน signed PD/Agent Backoffice client เมื่อเปิด flag เท่านั้น. Document intake ตรวจ MIME/size/checksum/private locator, เรียก scanner adapter และเก็บ `scanStatus`; scanner ที่ไม่มีหรือไม่พร้อมจะทำให้ version อยู่ในสถานะ quarantine และ `GET /api/db/kyc/documents/{versionId}/access` จะไม่คืน access จนกว่าจะเป็น `CLEAN`. private locator ยังเป็น metadata contract ไม่ใช่ object-storage implementation ใน repository; production ต้องยืนยัน private storage, encryption at rest, scanner service, staging replay/conflict, role/Store/Case authorization และ Agent review -> PD/Compliance final decision
 
-ข้อควรเข้าใจ: โค้ดปัจจุบันมีข้อมูล KYC, role Agent/PD และสถานะสำหรับ dashboard/API แล้ว แต่ยังไม่ใช่ implementation เต็มรูปแบบของ Merchant KYC ที่มี agent assignment, chat/post, immutable document versions, multi-level approval และ audit log ครบทุกขั้นตาม production specification หากพัฒนาต่อให้ใช้ skill [`merchant-kyc`](../.github/skills/merchant-kyc/SKILL.md) เป็นข้อกำหนด workflow
+ข้อควรเข้าใจ: โค้ดปัจจุบันมี assignment, KYC Chat/Post, immutable document versions, server session, role/Store/Case authorization และ audit/retry foundations แล้ว แต่ยังไม่ใช่ implementation เต็มรูปแบบของ Merchant KYC ที่ผ่าน staging, PostgreSQL E2E, storage encryption/scanner verification, multi-level approval sign-off และ production operations ครบทุกขั้น หากพัฒนาต่อให้ใช้ skill [`merchant-kyc`](../.github/skills/merchant-kyc/SKILL.md) เป็นข้อกำหนด workflow
 
 กฎ domain ที่ต้องรักษา:
 
@@ -257,7 +266,7 @@ flowchart TD
 - สร้าง `KycVerification` หรือ `merchant_kyc_cases` สถานะเริ่มต้น `draft`
 - บันทึก consent version และ audit event ของการสมัคร
 
-API prototype ปัจจุบันคือ `POST /api/db/auth/register-merchant` และบันทึก `User`, `Store`, `MerchantIdentity` และ `KycVerification` แต่ยังไม่ได้บังคับ OTP ก่อนสร้างบัญชีอย่างสมบูรณ์ ควรเพิ่ม transaction rollback, email/phone uniqueness และ server-side authorization ก่อนใช้ production
+API ปัจจุบันคือ `POST /api/db/auth/register-merchant` และบันทึก `User`, `Store`, `MerchantIdentity` และ `KycVerification` แต่ยังไม่ได้บังคับ OTP ก่อนสร้างบัญชีอย่างสมบูรณ์ ควรเพิ่ม OTP service จริงและยืนยัน transaction rollback, email/phone uniqueness, abuse controls และ staging authorization ก่อนใช้ production
 
 #### 3. กรอก KYC และข้อมูลธุรกิจ
 
@@ -320,7 +329,7 @@ prototype ปัจจุบันเก็บข้อมูลบางส่�
 7. ถ้าอนุมัติ ให้เปลี่ยนเป็น `approved`, เปิด feature ที่ policy อนุญาต และส่ง notification
 8. ถ้าปฏิเสธ ให้เก็บเหตุผลที่แสดงแก่ Merchant แยกจาก risk rule ภายใน และห้ามเปลี่ยนเป็น approved ผ่าน frontend โดยตรง
 
-API ปัจจุบันมี `GET /api/db/kyc` และ `POST /api/db/kyc/update-status` สำหรับ dashboard/prototype แต่ยังขาด permission matrix, admin session ฝั่ง server, state transition guard, review checklist และ append-only audit ที่ production ต้องมี
+API ปัจจุบันมี `GET /api/db/kyc` และ `POST /api/db/kyc/update-status`; route status จำกัดไว้ที่ Compliance/Admin, ใช้ server session และเขียน before/after audit. ยังต้องเพิ่ม/ยืนยัน transition guard, review checklist, PostgreSQL permission matrix และ final approval policy ก่อน production
 
 #### 7. ขั้นตอนการขอถอนเงินผ่าน OTP SMS
 
@@ -335,19 +344,19 @@ API ปัจจุบันมี `GET /api/db/kyc` และ `POST /api/db/kyc
 
 ห้ามสร้าง payout จาก frontend โดยตรง, ห้ามถือว่า response `200` คือเงินเข้าบัญชีแล้ว และห้ามสร้าง withdrawal ใหม่เมื่อ request เดิม timeout ก่อนรู้ผล ให้ตรวจสถานะด้วย `withdrawalId`/idempotency key เดิม
 
-ปัจจุบัน `POST /api/v1/payouts` ใน `server.cjs` เป็น prototype ที่คืนสถานะ `processing` และยังไม่มี OTP SMS, durable withdrawal record, provider integration หรือ settlement reconciliation ดังนั้น flow ถอนเงินจริงยังต้อง implement เพิ่มก่อนเปิด feature
+ปัจจุบัน `POST /api/v1/payouts` ใน `server.cjs` ยังเป็น prototype ที่คืนสถานะ `processing` และยังไม่มี OTP SMS, durable withdrawal record, provider integration หรือ settlement reconciliation ดังนั้น flow ถอนเงินจริงยังต้อง implement เพิ่มก่อนเปิด feature
 
 #### สถานะ implementation ของ flow นี้
 
 | ขั้นตอน | สถานะปัจจุบัน | จุดที่ต้องทำต่อก่อน production |
 |---|---|---|
 | OTP สมัคร/ถอนผ่าน SMS | มี provider config ใน `.env.example` แต่ยังปิดและยังไม่มี service จริง | OTP persistence, hash, expiry, rate limit, SMS adapter, verify endpoint และ audit |
-| สร้าง Merchant/Store/KYC | มี `POST /api/db/auth/register-merchant` และ core tables | บังคับ OTP, transaction boundary, validation และ server authorization |
-| KYC document/version | มี schema รองรับใน migration แต่ยังไม่มี API flow ครบ | private upload, checksum, immutable version, review queue และ access audit |
+| สร้าง Merchant/Store/KYC | มี `POST /api/db/auth/register-merchant`, core tables และ server session สำหรับ login | บังคับ OTP, transaction boundary, validation และ staging authorization |
+| KYC document/version | มี API, checksum, immutable version, private locator, quarantine/scanner status และ access audit | ต่อ private upload/scanner จริง, encryption at rest, review queue และ PostgreSQL E2E |
 | สินค้า | มี `Product` และ `/api/db/products` | ownership, validation, history และ production authorization |
 | บริการ | ส่วนใหญ่ยังเป็น prototype/localStorage | service/availability schema และ API persistence |
 | บัญชีรับเงิน | มี field ใน `Store`/`KycVerification` | dedicated account/version tables, verification และ change control |
-| Admin approval | มี endpoint เปลี่ยน KYC status แบบกว้าง | role-based authorization, transition guard, checklist, decision และ audit |
+| Admin approval | endpoint จำกัด Compliance/Admin และมี before/after audit | transition guard, checklist, decision policy และ final approval evidence |
 | ถอนเงิน | มี prototype `/api/v1/payouts` | OTP, withdrawal ledger, idempotency, provider webhook และ reconciliation |
 
 ### Merchant back office
@@ -360,9 +369,9 @@ API ปัจจุบันมี `GET /api/db/kyc` และ `POST /api/db/kyc
 - สร้าง/แก้ sales page และ catalog
 - สร้างลิงก์หรือ QR สำหรับช่องทางขาย
 - ดูคำสั่งซื้อ รายการชำระเงิน และการจ่ายเงิน
-- ตั้งค่าโปรไฟล์และ API credentials บางส่วน
+- ตั้งค่าโปรไฟล์และ integration settings ที่เปิดให้ Merchant ใช้
 
-ข้อมูลที่เป็น operational prototype หลายรายการถูกเก็บใน `localStorage` และ sync ระหว่างหน้าด้วย `storage` event จึงควรย้ายไป API/database เมื่อทำระบบหลายผู้ใช้หรือ production
+ข้อมูล operational prototype หลายรายการยังเก็บใน `localStorage` และ sync ระหว่างหน้าด้วย `storage` event จึงควรย้ายไป API/database เมื่อทำระบบหลายผู้ใช้หรือ production. Session, API authorization และ integration secret ไม่อยู่ใน localStorage
 
 ### Customer ordering
 
@@ -376,15 +385,15 @@ API ปัจจุบันมี `GET /api/db/kyc` และ `POST /api/db/kyc
 
 ### Payment และ Developer Console
 
-`QuickPayView.tsx` และ `chatposApi.ts` ใช้ API สำหรับ:
+`QuickPayView.tsx` และ `chatposApi.ts` ใช้ server-session API สำหรับ:
 
-- สร้าง PromptPay QR
-- ตรวจสถานะ payment reference
-- ยืนยันธุรกรรม
-- ดู balance
-- สร้าง payout
+- ส่ง transaction command ไปยัง PD/Agent Backoffice ผ่าน `/api/v1/transactions`
+- ตรวจสถานะ payment reference และ ownership
+- รับผลชำระผ่าน signed LLGW webhook ที่ server
+- ดู balance ตาม Store scope
+- เรียก payout prototype ที่ถูกจำกัดด้วย session และ role
 
-`DeveloperConsoleView.tsx` เป็นเครื่องมือทดลอง endpoint และดู developer logs สำหรับผู้ใช้ที่ผ่าน login ใน client state แล้ว ไม่ควรถือว่าเป็น authorization boundary สำหรับ production API เพราะการป้องกัน route ปัจจุบันเกิดใน frontend
+`DeveloperConsoleView.tsx` เป็นเครื่องมือทดลอง endpoint และดู developer logs สำหรับผู้ใช้ที่ผ่าน server session แล้ว. Frontend route guard เป็นเพียง UX; authorization จริงเกิดที่ `server.cjs` และ API จะไม่รับ browser API key หรือ token ที่สร้างจาก `/api/v1/auth` ซึ่งถูก deprecate แล้ว
 
 ## API reference ภายใน
 
@@ -393,6 +402,8 @@ API ปัจจุบันมี `GET /api/db/kyc` และ `POST /api/db/kyc
 | Method | Endpoint | หน้าที่ |
 |---|---|---|
 | `POST` | `/auth/login` | login และดึงข้อมูล role ที่เกี่ยวข้อง |
+| `GET` | `/auth/session` | hydrate verified server session; ไม่คืน raw token |
+| `POST` | `/auth/logout` | revoke current server session |
 | `POST` | `/auth/register-merchant` | สมัคร Merchant |
 | `POST` | `/auth/register-agent` | สมัคร Agent |
 | `POST` | `/auth/register-pd` | สมัคร PD |
@@ -416,7 +427,9 @@ API ปัจจุบันมี `GET /api/db/kyc` และ `POST /api/db/kyc
 | `GET` | `/payments/:reference` | ตรวจสถานะธุรกรรม |
 | `POST` | `/payments/confirm` | ยืนยัน payment |
 | `GET` | `/balance` | ดู balance และจำนวนธุรกรรม |
-| `POST` | `/auth` | สร้าง API token สำหรับ playground |
+| `POST` | `/transactions` | ส่งคำสั่งสร้าง transaction ไปยัง PD/Agent Backoffice พร้อม idempotency |
+| `GET` | `/transactions/:reference` | อ่าน transaction status ตาม Store ownership |
+| `POST` | `/auth` | deprecated; browser token minting ถูกปิดด้วย `410 API_TOKEN_DEPRECATED` |
 | `POST` | `/payouts` | สร้าง payout |
 | `GET` | `/developer/logs` | ดู webhook event logs |
 
@@ -424,8 +437,10 @@ API ปัจจุบันมี `GET /api/db/kyc` และ `POST /api/db/kyc
 
 ```ts
 await fetch('/api/db/health')
-await fetch('/api/v1/balance')
+await fetch('/api/v1/transactions/PAY-REF-100293', { credentials: 'include' })
 ```
+
+Signed payment callback จาก LLGW ใช้ `POST /api/webhooks/llgw/payment` พร้อม raw-body HMAC, timestamp และ event ID; callback นี้เป็น server-to-server route จึงไม่ใช้ browser session. Assignment callback จากระบบ PD/Agent ใช้ `POST /api/webhooks/assignment-status` ด้วย signature contract เดียวกันตาม Integration Guide
 
 ### Signed Backoffice Client
 
@@ -437,9 +452,37 @@ await fetch('/api/v1/balance')
 - retry เฉพาะ network error, timeout, `429` และ `5xx` ด้วย exponential backoff + jitter; ไม่ retry `4xx` อื่นหรือ idempotency conflict
 - ส่ง structured log ที่มี request metadata, body digest และ error code โดย redaction จะไม่ปล่อย raw body, secret, PII หรือ signature เต็มค่า
 
-สร้าง client ใน custom API server ด้วย `createBackofficeClient()` และตั้ง `AGENT_PD_INTEGRATION_ENABLED=true` เฉพาะ environment ที่ผ่าน staging contract test แล้ว ค่า env และ feature flags ดูได้จาก `.env.example` ส่วน unit tests อยู่ที่ [server/integration/signedMerchantClient.test.cjs](../server/integration/signedMerchantClient.test.cjs) และเรียกด้วย `npm run test:integration`
+สร้าง client ใน custom API server ด้วย `createBackofficeClient()` และตั้ง `AGENT_PD_INTEGRATION_ENABLED=true` เฉพาะ environment ที่ผ่าน staging contract test แล้ว ค่า env และ feature flags ดูได้จาก `.env.example` ระหว่าง rotation ให้ใส่ secret เดิมในตัวแปร `_PREVIOUS` ชั่วคราว แล้วลบออกเพื่อ revoke หลัง retry/clock-skew window หมด ส่วน unit tests อยู่ที่ [server/integration/signedMerchantClient.test.cjs](../server/integration/signedMerchantClient.test.cjs) และเรียกด้วย `npm run test:integration`
 
 อย่า hardcode database URL หรือ secret ใน component และอย่าใช้ `NEXT_PUBLIC_*` กับค่าที่เป็นความลับ
+
+### Security and production boundary
+
+Browser requests to protected `/api/db/*` and `/api/v1/*` routes must carry the HttpOnly `chatpos_session` cookie. The API resolves the principal from `auth_sessions`, checks account activity and expiry, and touches `lastSeenAt`; the raw token is never returned to the frontend. `POST /api/db/auth/logout` revokes the current session. Bearer token parsing remains only as migration compatibility for non-browser clients.
+
+API authorization uses these roles:
+
+| Role | Scope and main actions |
+|---|---|
+| `merchant` | Own Store/Case, profile/document/message/payment actions |
+| `agent` | Assigned Stores/Cases and review communication |
+| `pd` | Stores/Cases under assigned PD scope and supervisory reads |
+| `compliance` | Broad KYC/payment/operations reads and KYC status decisions |
+| `admin` | Broad operational access, assignment and administrative actions |
+
+Never derive actor or Store authority from request headers. Use `assertStoreAccess()` or `assertCaseAccess()` and keep `storeId` in the server-side session only as a default scope. Admin/Compliance unscoped reads must still be explicit in the route policy and audited.
+
+Security-relevant API behavior includes:
+
+- CORS uses `ALLOWED_ORIGINS`; credentials are enabled only for exact configured origins.
+- `X-Content-Type-Options`, CSP, frame protection, Referrer-Policy, Permissions-Policy and production HSTS are set on API responses.
+- Login, assignment, profile, KYC/document, message and payment mutations use PostgreSQL-backed rate limits.
+- `audit_logs` records login, logout, sensitive reads, assignment, profile/document changes, KYC status, payment and settlement events. Secrets and high-risk PII are redacted before persistence.
+- Settlement delivery uses `commission_settlement_events`, atomic claims, `lockedAt`, exponential backoff and `DEAD_LETTERED` after the configured attempt limit. Do not resend a failed event with a new event ID.
+- Document intake stores `scanStatus` and keeps non-clean versions quarantined. Access is denied until a configured scanner returns `CLEAN` or `PASSED`; private storage must provide encryption at rest outside this repository.
+- `GET /api/health/live` is a liveness probe, `GET /api/health/ready` checks PostgreSQL readiness, and `GET /api/health/metrics` is restricted to Admin/Compliance.
+
+See [docs/PHASE5_SECURITY_OPERATIONS.md](PHASE5_SECURITY_OPERATIONS.md) for secret rotation/revocation, backup/restore, alerts and redacted incident procedure. Local syntax/type checks do not constitute production sign-off; use the PostgreSQL and staging evidence listed in [docs/NEXT_STEPS_CHECKLIST.md](NEXT_STEPS_CHECKLIST.md).
 
 ## Data access และ state
 
@@ -447,13 +490,13 @@ await fetch('/api/v1/balance')
 
 ใช้ `src/dbApi.ts` เป็น helper สำหรับ `/api/db` และแปลงข้อมูลบางส่วนจาก database ให้เข้ากับ model ใน `mockData.ts` เพื่อให้ view เดิมใช้งานได้
 
-ใช้ `src/chatposApi.ts` เป็น helper สำหรับ Developer API มีความสามารถอ่าน API key จาก localStorage และแนบ `Authorization: Bearer ...` ให้ request
+ใช้ `src/chatposApi.ts` เป็น helper สำหรับ Developer API และส่ง `credentials: 'include'` เพื่อใช้ HttpOnly session cookie. ห้ามเก็บหรือส่ง API key จาก browser; `/api/v1/auth` token minting ถูกปิดแล้ว
 
 ### Browser prototype state
 
 ข้อมูลที่พบว่าเก็บใน browser ได้แก่:
 
-- merchant login/session บางส่วน
+- display cache ของ user session ซึ่งไม่ใช่ authority; server session เป็นแหล่งอ้างอิงจริง
 - active tab และ hash ของ dashboard
 - สินค้า หมวดหมู่ บริการ และการจอง
 - sales pages, QR slugs และ channel groups
@@ -467,12 +510,12 @@ await fetch('/api/v1/balance')
 1. แยก route selection ออกจาก `src/App.tsx` ไปเป็น Next route segments ทีละ workflow เมื่อจำเป็นต้องใช้ SSR, metadata หรือ server authorization
 2. ย้าย API จาก custom `server.cjs` ไป Next Route Handlers หรือ service backend ที่มี validation และ error contract ชัดเจน หากต้องการรวม deployment
 3. เพิ่ม schema validation ของ request/response ก่อนส่ง query database
-4. เพิ่ม authentication/session ฝั่ง server แทนการพึ่ง localStorage เพียงอย่างเดียว
-5. แยก authorization ของ Merchant, Agent, PD, Compliance และ Admin ที่ API ไม่ใช่เฉพาะหน้า frontend
+4. เติม PostgreSQL integration/E2E tests สำหรับ session, permission matrix, ownership, idempotency, version conflict และ webhook dedupe
+5. ต่อ private upload/scanner/storage encryption และยืนยัน key rotation/revoke กับ deployment platform
 6. ย้ายข้อมูลธุรกิจและ order state ที่ต้องใช้ข้ามอุปกรณ์จาก localStorage ไป PostgreSQL
 7. ทำ KYC case, document version, KYC chat และ audit log ให้เป็น append-only model
 8. เพิ่ม tests สำหรับ status transition, permission matrix, payment idempotency และ document access
-9. เพิ่ม rate limiting, CORS policy ที่จำกัด origin, upload validation, encryption และ secret rotation ก่อน production
+9. เติม metrics/alert wiring, backup/restore drill, incident runbook และ Product/Compliance/Security/PD-Agent Backoffice sign-off ก่อน production
 
 ## Checklist งานที่ต้องทำต่อ
 

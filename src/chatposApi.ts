@@ -16,8 +16,7 @@ export const DEFAULT_API_BASE_URL =
  * Get saved API Key from localStorage
  */
 export const getStoredApiKey = (): string => {
-  if (typeof window === 'undefined') return ''
-  return localStorage.getItem(STORAGE_KEY_API_KEY) || ''
+  return ''
 }
 
 /**
@@ -25,7 +24,7 @@ export const getStoredApiKey = (): string => {
  */
 export const setStoredApiKey = (key: string): void => {
   if (typeof window === 'undefined') return
-  localStorage.setItem(STORAGE_KEY_API_KEY, key.trim())
+  localStorage.removeItem(STORAGE_KEY_API_KEY)
 }
 
 export type ApiRequestOptions = RequestInit & {
@@ -40,9 +39,7 @@ export async function fetchChatPosApi<T = any>(
   endpoint: string,
   options: ApiRequestOptions = {}
 ): Promise<T> {
-  const { apiKey: customApiKey, baseUrl = DEFAULT_API_BASE_URL, headers: customHeaders, ...fetchOptions } = options
-
-  const apiKey = (customApiKey !== undefined ? customApiKey : getStoredApiKey()).trim()
+  const { baseUrl = DEFAULT_API_BASE_URL, headers: customHeaders, ...fetchOptions } = options
   const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`
   const url = endpoint.startsWith('http') ? endpoint : `${baseUrl}${cleanEndpoint}`
 
@@ -52,14 +49,11 @@ export async function fetchChatPosApi<T = any>(
     ...(customHeaders as Record<string, string>),
   }
 
-  if (apiKey) {
-    headers['Authorization'] = apiKey.startsWith('Bearer ') ? apiKey : `Bearer ${apiKey}`
-  }
-
   let response: Response
   try {
     response = await fetch(url, {
       ...fetchOptions,
+      credentials: 'include',
       headers,
     })
   } catch (netErr: any) {

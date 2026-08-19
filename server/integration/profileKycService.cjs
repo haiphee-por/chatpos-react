@@ -1,4 +1,5 @@
 const crypto = require('crypto');
+const { scanDocument } = require('./documentSecurity.cjs');
 
 const PROFILE_FIELDS = {
   businessName: { column: 'name' },
@@ -364,6 +365,7 @@ async function getKycCaseForStore(client, caseId, storeId, lock = false) {
 
 async function intakeKycDocument({ pool, backofficeClient, storeId, caseId, body, idempotencyKey, requestId }) {
   const metadata = validateDocumentBody(body);
+  const scan = await scanDocument({ metadata });
   const normalizedIdempotencyKey = assertIdempotencyKey(idempotencyKey);
   const sourceRequestId = String(body.sourceRequestId || requestId || crypto.randomUUID());
   const commandBody = { sourceRequestId, caseId, ...metadata };
@@ -409,14 +411,14 @@ async function intakeKycDocument({ pool, backofficeClient, storeId, caseId, body
     const version = Number(document.latestVersion) + 1;
     const versionResult = await client.query(
       `INSERT INTO kyc_document_versions
-        ("documentId", "caseId", "storeId", version, "fileName", "mimeType", "fileSize", "checksumSha256", "storageLocator", status, "submittedBy", reason, "sourceRequestId", "idempotencyKey")
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'uploaded', 'merchant', $10, $11, $12)
-       RETURNING id, "documentId", version, "fileName", "mimeType", "fileSize", "checksumSha256", "storageLocator", status, "createdAt"`,
-      [document.id, caseId, storeId, version, metadata.fileName, metadata.mimeType, metadata.fileSize, metadata.checksumSha256, metadata.storageLocator, metadata.reason, sourceRequestId, normalizedIdempotencyKey]
+        ("documentId", "caseId", "storeId", version, "fileName", "mimeType", "fileSize", "checksumSha256", "storageLocator", status, "scanStatus", "scanReportJson", "scannedAt", "submittedBy", reason, "sourceRequestId", "idempotencyKey")
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::jsonb, $13, 'merchant', $14, $15, $16)
+       RETURNING id, "documentId", version, "fileName", "mimeType", "fileSize", "checksumSha256", "storageLocator", status, "scanStatus", "createdAt"`,
+      [document.id, caseId, storeId, version, metadata.fileName, metadata.mimeType, metadata.fileSize, metadata.checksumSha256, metadata.storageLocator, scan.status === 'CLEAN' ? 'uploaded' : 'quarantined', scan.status, JSON.stringify(scan), scan.status === 'CLEAN' ? new Date().toISOString() : null, metadata.reason, sourceRequestId, normalizedIdempotencyKey]
     );
     await client.query(
-      `UPDATE kyc_documents SET status = 'uploaded', "latestVersion" = $1, "updatedAt" = NOW() WHERE id = $2`,
-      [version, document.id]
+      `UPDATE kyc_documents SET status = $1, "scanStatus" = $2, "scanReportJson" = $3::jsonb, "scannedAt" = $4, "latestVersion" = $5, "updatedAt" = NOW() WHERE id = $6`,
+      [scan.status === 'CLEAN' ? 'uploaded' : 'quarantined', scan.status, JSON.stringify(scan), scan.status === 'CLEAN' ? new Date().toISOString() : null, version, document.id]
     );
     if (kycCase.status !== 'draft') {
       await client.query(`UPDATE merchant_kyc_cases SET status = 'WAITING_AGENT_REVIEW', "updatedAt" = NOW() WHERE id = $1`, [caseId]);
@@ -470,7 +472,7 @@ async function getKycWorkspace({ pool, storeId }) {
               COALESCE(json_agg(json_build_object(
                 'id', v.id, 'version', v.version, 'fileName', v."fileName", 'mimeType', v."mimeType",
                 'fileSize', v."fileSize", 'checksumSha256', v."checksumSha256", 'storageLocator', v."storageLocator",
-                'status', v.status, 'reason', v.reason, 'reviewNotes', v."reviewNotes", 'createdAt', v."createdAt"
+                'status', v.status, 'scanStatus', v."scanStatus", 'reason', v.reason, 'reviewNotes', v."reviewNotes", 'createdAt', v."createdAt"
               ) ORDER BY v.version DESC) FILTER (WHERE v.id IS NOT NULL), '[]') AS versions
        FROM kyc_documents d
        LEFT JOIN kyc_document_versions v ON v."documentId" = d.id
@@ -568,12 +570,13 @@ async function markKycMessageRead({ pool, storeId, caseId, messageId }) {
 async function getDocumentAccess({ pool, storeId, versionId }) {
   if (!isUuid(storeId) || !isUuid(versionId)) throw new ProfileKycError('A valid Store and document version are required', 'DOCUMENT_CONTEXT_REQUIRED', 422);
   const result = await pool.query(
-    `SELECT id, "caseId", "fileName", "mimeType", "fileSize", "checksumSha256", "storageLocator", status
+    `SELECT id, "caseId", "fileName", "mimeType", "fileSize", "checksumSha256", "storageLocator", status, "scanStatus"
      FROM kyc_document_versions WHERE id = $1 AND "storeId" = $2`,
     [versionId, storeId]
   );
   const version = result.rows[0];
   if (!version) throw new ProfileKycError('Document version was not found', 'DOCUMENT_VERSION_NOT_FOUND', 404);
+  if (version.scanStatus !== 'CLEAN') throw new ProfileKycError('Document is not available until malware scanning completes', 'DOCUMENT_QUARANTINED', 423);
   if (!String(version.storageLocator).startsWith('private://')) throw new ProfileKycError('Public document locators are forbidden', 'PRIVATE_STORAGE_LOCATOR_REQUIRED', 422);
   return { ...version, access: 'private-locator' };
 }

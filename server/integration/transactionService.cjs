@@ -136,6 +136,7 @@ function publicTransaction(row, extra = {}) {
   const metadata = row.paymentMetadataJson || {};
   return {
     id: row.id,
+    storeId: row.storeId,
     reference: row.reference,
     clientReference: row.clientReference || row.reference,
     paymentReference: row.backofficePaymentReference || null,
@@ -262,6 +263,7 @@ async function getTransaction({ pool, reference }) {
 
 function verifyLlgwWebhook({ rawBody, headers, secret, nowSeconds = Math.floor(Date.now() / 1000), toleranceSeconds = DEFAULT_TIMESTAMP_TOLERANCE_SECONDS }) {
   if (!secret) throw new TransactionRoutingError('LLGW webhook secret is not configured', 'WEBHOOK_SECRET_MISSING', 503);
+  const secrets = Array.isArray(secret) ? secret.filter(Boolean) : [secret];
   const timestamp = String(header(headers, 'x-llgw-timestamp') || '');
   const signature = String(header(headers, 'x-llgw-signature') || '').replace(/^v1=/, '');
   const eventId = String(header(headers, 'x-llgw-event-id') || '');
@@ -270,8 +272,11 @@ function verifyLlgwWebhook({ rawBody, headers, secret, nowSeconds = Math.floor(D
     throw new TransactionRoutingError('LLGW webhook timestamp is invalid or stale', 'STALE_WEBHOOK', 401);
   }
   if (!/^[A-Za-z0-9:_-]{8,128}$/.test(eventId)) throw new TransactionRoutingError('LLGW event ID is required', 'EVENT_ID_REQUIRED', 401);
-  const expected = crypto.createHmac('sha256', secret).update(`${timestamp}.${rawBody}`, 'utf8').digest('hex');
-  if (!safeEqual(signature, expected)) throw new TransactionRoutingError('LLGW webhook signature is invalid', 'INVALID_WEBHOOK_SIGNATURE', 401);
+  const valid = secrets.some((candidate) => {
+    const expected = crypto.createHmac('sha256', candidate).update(`${timestamp}.${rawBody}`, 'utf8').digest('hex');
+    return safeEqual(signature, expected);
+  });
+  if (!valid) throw new TransactionRoutingError('LLGW webhook signature is invalid', 'INVALID_WEBHOOK_SIGNATURE', 401);
   return { timestamp: timestampNumber, eventId, bodyDigest: sha256Hex(rawBody) };
 }
 
@@ -415,41 +420,96 @@ async function createSettlementEvent(client, txn, webhook, config) {
 
 async function dispatchSettlementEvent({ pool, eventId, config, fetchImpl = globalThis.fetch }) {
   if (!config.enabled) return { skipped: true, reason: 'COMMISSION_EVENT_INGEST_DISABLED' };
+  const maxAttempts = Number(config.maxAttempts || process.env.SETTLEMENT_MAX_ATTEMPTS || 8);
+  const existing = await pool.query('SELECT * FROM commission_settlement_events WHERE "eventId" = $1', [eventId]);
+  if (existing.rowCount === 0) throw new TransactionRoutingError('Settlement event was not found', 'SETTLEMENT_NOT_FOUND', 404);
+  if (existing.rows[0].status === 'SENT') return { sent: true, duplicate: true };
+  if (['BLOCKED_MAPPING', 'BLOCKED_REVERSAL_CONFLICT'].includes(existing.rows[0].status)) {
+    return { sent: false, blocked: true, reason: existing.rows[0].status };
+  }
   if (!config.sourceUrl || !config.webhookSecret) {
     throw new TransactionRoutingError('Commission settlement endpoint is not configured', 'SETTLEMENT_CONFIG_MISSING', 503);
   }
-  const result = await pool.query('SELECT * FROM commission_settlement_events WHERE "eventId" = $1', [eventId]);
-  if (result.rowCount === 0) throw new TransactionRoutingError('Settlement event was not found', 'SETTLEMENT_NOT_FOUND', 404);
+  const result = await pool.query(
+    `UPDATE commission_settlement_events
+     SET "lockedAt" = NOW(), attempts = attempts + 1
+     WHERE "eventId" = $1
+       AND status IN ('PENDING', 'FAILED')
+       AND "deadLetteredAt" IS NULL
+       AND ("nextAttemptAt" IS NULL OR "nextAttemptAt" <= NOW())
+       AND ("lockedAt" IS NULL OR "lockedAt" < NOW() - INTERVAL '5 minutes')
+     RETURNING *`,
+    [eventId]
+  );
+  if (result.rowCount === 0) return { sent: false, inFlight: true };
   const event = result.rows[0];
-  if (event.status === 'SENT') return { sent: true, duplicate: true };
-  if (event.status === 'BLOCKED_MAPPING' || event.status === 'BLOCKED_REVERSAL_CONFLICT') {
-    return { sent: false, blocked: true, reason: event.status };
-  }
   const rawBody = JSON.stringify(event.payloadJson);
   const signature = crypto.createHmac('sha256', config.webhookSecret).update(rawBody, 'utf8').digest('hex');
-  const response = await fetchImpl(config.sourceUrl, {
-    method: 'POST',
-    headers: {
-      Accept: 'application/json',
-      'Content-Type': 'application/json',
-      'X-Commission-Event-Id': event.eventId,
-      'X-Commission-Signature': signature,
-      'Idempotency-Key': event.eventId,
-    },
-    body: rawBody,
-  });
-  if (!response.ok) {
-    await pool.query('UPDATE commission_settlement_events SET status = \'FAILED\', "lastErrorCode" = $1 WHERE id = $2', [`HTTP_${response.status}`, event.id]);
-    throw new TransactionRoutingError('Backoffice rejected settlement event', 'SETTLEMENT_REJECTED', 502);
+  try {
+    const response = await fetchImpl(config.sourceUrl, {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+        'X-Commission-Event-Id': event.eventId,
+        'X-Commission-Signature': signature,
+        'Idempotency-Key': event.eventId,
+      },
+      body: rawBody,
+    });
+    if (!response.ok) {
+      throw new TransactionRoutingError('Backoffice rejected settlement event', `HTTP_${response.status}`, 502);
+    }
+    await pool.query('UPDATE commission_settlement_events SET status = \'SENT\', "sentAt" = NOW(), "lockedAt" = NULL WHERE id = $1', [event.id]);
+    return { sent: true, duplicate: false, attempts: event.attempts };
+  } catch (error) {
+    const nextAttemptSeconds = Math.min(3600, 2 ** Math.min(event.attempts, 10) * 10);
+    const deadLettered = event.attempts >= maxAttempts;
+    await pool.query(
+      `UPDATE commission_settlement_events
+       SET status = $1,
+           "lastErrorCode" = $2,
+           "nextAttemptAt" = CASE WHEN $3 THEN NULL ELSE NOW() + ($4 * INTERVAL '1 second') END,
+           "deadLetteredAt" = CASE WHEN $3 THEN NOW() ELSE NULL END,
+           "lockedAt" = NULL
+       WHERE id = $5`,
+      [deadLettered ? 'DEAD_LETTERED' : 'FAILED', error.code || 'SETTLEMENT_SEND_FAILED', deadLettered, nextAttemptSeconds, event.id]
+    );
+    throw error;
   }
-  await pool.query('UPDATE commission_settlement_events SET status = \'SENT\', "sentAt" = NOW() WHERE id = $1', [event.id]);
-  return { sent: true, duplicate: false };
+}
+
+async function retryPendingSettlementEvents({ pool, config, limit = 20, fetchImpl = globalThis.fetch }) {
+  if (!config.enabled) return { attempted: 0, sent: 0, failed: 0 };
+  const pending = await pool.query(
+    `SELECT "eventId"
+     FROM commission_settlement_events
+     WHERE status IN ('PENDING', 'FAILED')
+       AND "deadLetteredAt" IS NULL
+       AND ("nextAttemptAt" IS NULL OR "nextAttemptAt" <= NOW())
+       AND ("lockedAt" IS NULL OR "lockedAt" < NOW() - INTERVAL '5 minutes')
+     ORDER BY "createdAt"
+     LIMIT $1`,
+    [limit]
+  );
+  let sent = 0;
+  let failed = 0;
+  for (const row of pending.rows) {
+    try {
+      const result = await dispatchSettlementEvent({ pool, eventId: row.eventId, config, fetchImpl });
+      if (result.sent) sent += 1;
+    } catch {
+      failed += 1;
+    }
+  }
+  return { attempted: pending.rowCount, sent, failed };
 }
 
 module.exports = {
   TransactionRoutingError,
   createTransactionCommand,
   dispatchSettlementEvent,
+  retryPendingSettlementEvents,
   getTransaction,
   processPaymentWebhook,
   sha256Hex,
