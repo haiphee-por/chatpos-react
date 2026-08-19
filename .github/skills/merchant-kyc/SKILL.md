@@ -39,7 +39,7 @@ user-invocable: true
 
 สำหรับ repo นี้:
 
-- ใช้ React + TypeScript + Vite ที่มีอยู่แล้ว
+- ใช้ Next.js App Router + React + TypeScript ที่มีอยู่แล้ว
 - ใช้ `lucide-react` สำหรับไอคอนเมื่อมีไอคอนที่เหมาะสม
 - รักษารูปแบบ CSS และ component ที่มีอยู่ แทนการสร้าง design system ใหม่โดยไม่จำเป็น
 - อย่าเพิ่ม backend, authentication จริง หรือ upload storage โดยไม่ระบุให้ชัดว่าเป็น mock/prototype

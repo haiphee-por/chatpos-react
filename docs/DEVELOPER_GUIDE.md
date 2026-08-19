@@ -92,6 +92,14 @@ npm run dev
 npm run server
 ```
 
+เมื่อต้องการสร้างหรืออัปเดต schema ของ PostgreSQL:
+
+```bash
+npm run db:migrate
+```
+
+Migration แรกอยู่ที่ [`database/migrations/001_initial_chatpos_schema.sql`](../database/migrations/001_initial_chatpos_schema.sql) และครอบคลุมตาราง core ที่ `server.cjs` ใช้ รวมถึง Merchant KYC, assignment, document version, audit, idempotency และ webhook event dedupe ตาราง idempotency/nonce/webhook เป็น durable schema สำหรับการต่อยอด production; client helper แบบ in-memory ยังใช้เฉพาะ unit test และไม่ควรใช้แทน persistence layer จริง
+
 ### Production
 
 ```bash
@@ -172,6 +180,155 @@ API ที่เกี่ยวข้อง:
 - ทุก status transition สำคัญต้องเก็บ actor, เวลา, เหตุผล และ audit event
 - ข้อมูลบัตรประชาชนและบัญชีธนาคารต้อง mask เมื่อไม่จำเป็นต้องแสดงเต็ม
 
+### Flow สมัคร Merchant ตั้งแต่ OTP ถึงเปิดใช้งาน
+
+Flow นี้เป็นลำดับมาตรฐานสำหรับ Merchant registration, KYC, ข้อมูลร้านค้า, สินค้า/บริการ, บัญชีรับเงิน และการอนุมัติ โดยแยกส่วนที่มีอยู่ใน prototype ปัจจุบันออกจากส่วนที่ต้องทำต่อเป็น production workflow
+
+```mermaid
+flowchart TD
+    A[กรอกเบอร์โทรศัพท์] --> B[ขอ OTP SMS]
+    B --> C{OTP ถูกต้องและยังไม่หมดอายุหรือไม่}
+    C -->|ไม่ถูกต้อง| B2[เพิ่ม attempt หรือขอส่งใหม่ตาม rate limit]
+    B2 --> B
+    C -->|ถูกต้อง| D[ยืนยันเบอร์โทรศัพท์]
+    D --> E[สร้าง Merchant account และ Store]
+    E --> F[กรอก KYC และข้อมูลธุรกิจ]
+    F --> G[กรอกสินค้าและบริการ]
+    G --> H[เพิ่มบัญชีธนาคารรับเงิน]
+    H --> I[อัปโหลดเอกสารและยินยอม PDPA]
+    I --> J[ส่งคำขอ KYC]
+    J --> K[ระบบตรวจความครบถ้วน]
+    K -->|ข้อมูลไม่ครบ| F2[ขอแก้ไขข้อมูล]
+    F2 --> F
+    K -->|ครบ| L[Admin ตรวจสอบ]
+    L -->|ขอข้อมูลเพิ่ม| F2
+    L -->|ไม่อนุมัติ| M[REJECTED]
+    L -->|อนุมัติ| N[APPROVED / เปิดรับชำระเงิน]
+    N --> O[Merchant ขอถอนเงิน]
+    O --> P[ขอ OTP SMS สำหรับถอนเงิน]
+    P --> Q{OTP ถูกต้องหรือไม่}
+    Q -->|ไม่ถูกต้อง| P2[ปฏิเสธหรือให้ลองใหม่ตาม policy]
+    P2 --> P
+    Q -->|ถูกต้อง| R[สร้างคำขอถอนเงินแบบ idempotent]
+    R --> S[ส่งธนาคารหรือ payout provider]
+    S --> T[รอผลและบันทึก settlement/audit]
+```
+
+#### 1. สมัครและยืนยันเบอร์ด้วย OTP SMS
+
+1. Merchant กรอกเบอร์โทรศัพท์และระบบ normalize เป็นรูปแบบมาตรฐานก่อนตรวจซ้ำ
+2. ระบบสร้าง OTP ตาม `purpose` เช่น `merchant_registration`, `change_phone` หรือ `withdrawal` และผูกกับเบอร์, session/request ID และวันหมดอายุ
+3. ระบบเก็บเฉพาะ hash ของ OTP ไม่เก็บรหัสจริงใน database หรือ log แล้วส่งรหัสผ่าน SMS provider
+4. จำกัดการขอส่งใหม่และจำนวนครั้งที่กรอกผิด เช่น cooldown ต่อเบอร์/IP/device และ lock ชั่วคราวเมื่อเกินจำนวนครั้ง
+5. เมื่อกรอกรหัสถูกต้อง ระบบต้องตรวจ `purpose`, expiry, attempt, nonce และสถานะ `used` ก่อน mark เป็นใช้แล้วเพียงครั้งเดียว
+6. หลังยืนยันสำเร็จให้บันทึก `phoneVerifiedAt` และออก registration session/server-side token ห้ามถือว่าแค่ส่ง OTP สำเร็จคือยืนยันตัวตนแล้ว
+7. การส่ง OTP ซ้ำต้อง invalidate OTP เดิมตาม policy และห้ามส่งรหัสผ่าน query string, browser storage หรือ log
+
+ค่า provider ปัจจุบันอยู่ใน `.env.example` เช่น `SMS_OTP_ENABLED`, `SMS_BASE_URL`, `SMS_BEARER_TOKEN`, `SMS_CALLBACK_SECRET` และ `SMS_REQUEST_TIMEOUT_MS` แต่ค่าเริ่มต้นยังปิดอยู่ (`false`) และ repository ยังไม่มี endpoint OTP production ที่ใช้จริง จึงต้องเพิ่ม OTP service, persistence, rate limiting และ provider adapter ก่อนเปิดใช้งาน
+
+#### 2. สร้างบัญชี Merchant และข้อมูลร้านค้า
+
+หลังยืนยัน OTP สำเร็จ Merchant กรอก email, password, ชื่อผู้สมัคร, ชื่อร้าน, ประเภทร้าน, เบอร์ที่ยืนยันแล้ว และข้อมูลติดต่อ ระบบควรทำใน transaction เดียว:
+
+- สร้าง `User` ด้วย role `owner` หรือ `merchant`
+- สร้าง `Store` และผูกกับ `User`
+- สร้าง `MerchantIdentity` สำหรับ merchant ID ที่ระบบออกให้
+- สร้าง `KycVerification` หรือ `merchant_kyc_cases` สถานะเริ่มต้น `draft`
+- บันทึก consent version และ audit event ของการสมัคร
+
+API prototype ปัจจุบันคือ `POST /api/db/auth/register-merchant` และบันทึก `User`, `Store`, `MerchantIdentity` และ `KycVerification` แต่ยังไม่ได้บังคับ OTP ก่อนสร้างบัญชีอย่างสมบูรณ์ ควรเพิ่ม transaction rollback, email/phone uniqueness และ server-side authorization ก่อนใช้ production
+
+#### 3. กรอก KYC และข้อมูลธุรกิจ
+
+Merchant เลือกประเภทกิจการและกรอกข้อมูลตามลำดับ ไม่ควรใช้ form เดียวที่ไม่มี business rule:
+
+1. ข้อมูลเจ้าของกิจการหรือข้อมูลนิติบุคคล
+2. ชื่อร้าน ประเภทธุรกิจ ที่อยู่ สาขา พิกัด และช่องทางการขาย
+3. สินค้า/บริการหลัก รูปแบบการดำเนินงาน ยอดขายโดยประมาณ และวัตถุประสงค์การรับเงิน
+4. ข้อมูลบัญชีธนาคารรับเงิน
+5. เอกสาร KYC ที่ตรงกับประเภทกิจการ
+6. ตรวจทานข้อมูล, consent/PDPA และ submit
+
+เลขบัตรประชาชน, เลขทะเบียนนิติบุคคล, เลขบัญชี และเอกสารต้อง mask เมื่อแสดงผล ใช้ private storage สำหรับไฟล์ และสร้าง document version ใหม่ทุกครั้งที่ส่งแก้ไข ห้าม overwrite version เดิม
+
+สถานะที่ควรใช้:
+
+`draft` -> `ready_for_submission` -> `pending_admin_review` -> `needs_more_info` -> `approved` หรือ `rejected`
+
+หากใช้ Agent/PD workflow ร่วมด้วย ให้ Agent ตรวจสอบเบื้องต้นและส่งต่อ ส่วน PD/Compliance หรือผู้มีอำนาจเป็นผู้อนุมัติขั้นสุดท้าย ไม่ให้ Agent กดอนุมัติแทน
+
+#### 4. ลงข้อมูลร้านค้า สินค้า และบริการ
+
+ข้อมูลร้านค้าเป็น profile ของ Store ส่วนสินค้าและบริการเป็นข้อมูลที่ Merchant ใช้เปิดขายจริง ควรแยกสถานะและ audit ออกจาก KYC:
+
+- ร้านค้า: ชื่อร้าน, ที่อยู่, เบอร์, ประเภทร้าน, เวลาเปิด-ปิด, ช่องทางขาย และสถานะเปิดใช้งาน
+- สินค้า: ชื่อ, SKU, หมวดหมู่, รายละเอียด, ราคาขาย, ต้นทุน, stock, รูปภาพ และสถานะ active
+- บริการ: ชื่อบริการ, รายละเอียด, ราคา, ระยะเวลา, จำนวนคิว/slot, เงื่อนไขการจอง และสถานะ active
+
+ตาราง `Product` มีอยู่ใน migration และถูกใช้โดย `/api/db/products` แล้ว ส่วนข้อมูลบริการและตารางเวลาปัจจุบันยังมีส่วนที่อยู่ใน prototype/localStorage จึงควรเพิ่มตาราง service/availability เมื่อจะรองรับหลายอุปกรณ์หรือ production
+
+กติกาการบันทึก:
+
+- Merchant แก้ไขเฉพาะ Store ของตนเอง
+- การเปลี่ยนข้อมูลที่กระทบ KYC ต้องสร้าง profile version ใหม่และส่ง review ตาม policy
+- การแก้สินค้า/บริการไม่ควรแก้ทับประวัติราคา/สถานะที่จำเป็นต่อการตรวจสอบ transaction
+- ห้ามเปิดขายสินค้า/บริการก่อน Store ผ่านสถานะที่ policy อนุญาต
+
+#### 5. ลงข้อมูลบัญชีธนาคารสำหรับรับเงิน
+
+1. Merchant เลือกธนาคารและกรอกเลขบัญชี, ชื่อบัญชี และประเภทบัญชี
+2. ระบบตรวจ format และตรวจว่าชื่อบัญชีสอดคล้องกับเจ้าของกิจการ/นิติบุคคลตาม policy
+3. Merchant อัปโหลดหน้าสมุดบัญชีหรือเอกสารยืนยันผ่าน private upload
+4. ระบบเก็บ checksum, MIME, size, storage locator และ document version; ไม่เก็บ public URL หรือไฟล์ base64 ใน record
+5. สถานะบัญชีควรเป็น `pending_verification`, `verified`, `rejected`, `suspended` หรือ `change_requested`
+6. การเปลี่ยนบัญชีหลัง verified ต้องทำเป็นบัญชี/เวอร์ชันใหม่, ส่ง OTP ที่เบอร์ verified และอาจต้อง Admin review ใหม่
+7. ห้ามให้ Merchant ถอนเงินไปยังบัญชีที่ยังไม่ verified และห้ามให้ frontend เป็นผู้ตัดสินสถานะเอง
+
+prototype ปัจจุบันเก็บข้อมูลบางส่วนใน `Store.payoutBankName`, `Store.payoutAccountNumber`, `Store.payoutAccountName` และ `KycVerification` แต่ยังควรแยกเป็น `merchant_bank_accounts` และ `merchant_bank_account_versions` เพื่อรองรับหลายบัญชี, verification history, masking, replacement และ audit อย่างถูกต้อง
+
+#### 6. ขั้นตอนการอนุมัติโดย Admin ระบบ
+
+เมื่อ Merchant กด submit ระบบต้องสร้าง submission snapshot และเปลี่ยนสถานะใน transaction เดียว จากนั้น Admin ทำงานตามลำดับ:
+
+1. ตรวจว่า OTP/เบอร์, ข้อมูลบังคับ, consent, เอกสาร และบัญชีรับเงินครบ
+2. ตรวจ duplicate Merchant, risk flag, ชื่อบัญชีธนาคาร และความสอดคล้องของเอกสาร
+3. เปิดดูข้อมูลเท่าที่ role มีสิทธิ์ และบันทึกทุก access/download ที่เป็นข้อมูลอ่อนไหว
+4. เลือก action ได้เฉพาะตามสถานะ: `request_more_info`, `approve`, `reject`, `hold`
+5. ทุก action ต้องมี actor, timestamp, reason, before/after และ request/correlation ID
+6. ถ้าขอข้อมูลเพิ่ม ให้เปลี่ยนเป็น `needs_more_info` และระบุ field/document ที่ต้องแก้ ไม่ลบ submission เดิม
+7. ถ้าอนุมัติ ให้เปลี่ยนเป็น `approved`, เปิด feature ที่ policy อนุญาต และส่ง notification
+8. ถ้าปฏิเสธ ให้เก็บเหตุผลที่แสดงแก่ Merchant แยกจาก risk rule ภายใน และห้ามเปลี่ยนเป็น approved ผ่าน frontend โดยตรง
+
+API ปัจจุบันมี `GET /api/db/kyc` และ `POST /api/db/kyc/update-status` สำหรับ dashboard/prototype แต่ยังขาด permission matrix, admin session ฝั่ง server, state transition guard, review checklist และ append-only audit ที่ production ต้องมี
+
+#### 7. ขั้นตอนการขอถอนเงินผ่าน OTP SMS
+
+1. Merchant เปิดหน้ากระเป๋าเงิน ระบบอ่าน available balance และตรวจว่า Store/บัญชีธนาคาร/สถานะ KYC ผ่านเงื่อนไข
+2. Merchant ระบุจำนวนเงินและบัญชีปลายทาง ระบบตรวจ minimum/maximum, fee, balance, pending withdrawal และ ownership ของบัญชี
+3. Merchant กดขอถอน ระบบสร้าง withdrawal intent ที่ยังไม่ส่ง payout และส่ง OTP ไปยังเบอร์โทรศัพท์ที่ verified เท่านั้น
+4. OTP ต้องผูกกับ `withdrawalId`, amount, destination account version และ `purpose=withdrawal`; หากเปลี่ยนยอดหรือบัญชีต้องยกเลิก OTP เดิมและสร้าง intent ใหม่
+5. Merchant กรอก OTP ระบบตรวจ hash, expiry, attempts, used state และ lock policy จาก server
+6. เมื่อยืนยันสำเร็จ ระบบทำ idempotent command ด้วย `Idempotency-Key` เดิมของ withdrawal intent แล้วส่งไป payout provider/Backoffice
+7. เปลี่ยนสถานะเป็น `processing` และส่งผลผ่าน webhook/reconciliation เป็น `completed`, `failed`, `reversed` หรือ `cancelled`
+8. บันทึก audit, OTP verification result, provider reference, fee, amount และบัญชีเวอร์ชันที่ใช้ โดย mask เลขบัญชีในทุก log/หน้าจอ
+
+ห้ามสร้าง payout จาก frontend โดยตรง, ห้ามถือว่า response `200` คือเงินเข้าบัญชีแล้ว และห้ามสร้าง withdrawal ใหม่เมื่อ request เดิม timeout ก่อนรู้ผล ให้ตรวจสถานะด้วย `withdrawalId`/idempotency key เดิม
+
+ปัจจุบัน `POST /api/v1/payouts` ใน `server.cjs` เป็น prototype ที่คืนสถานะ `processing` และยังไม่มี OTP SMS, durable withdrawal record, provider integration หรือ settlement reconciliation ดังนั้น flow ถอนเงินจริงยังต้อง implement เพิ่มก่อนเปิด feature
+
+#### สถานะ implementation ของ flow นี้
+
+| ขั้นตอน | สถานะปัจจุบัน | จุดที่ต้องทำต่อก่อน production |
+|---|---|---|
+| OTP สมัคร/ถอนผ่าน SMS | มี provider config ใน `.env.example` แต่ยังปิดและยังไม่มี service จริง | OTP persistence, hash, expiry, rate limit, SMS adapter, verify endpoint และ audit |
+| สร้าง Merchant/Store/KYC | มี `POST /api/db/auth/register-merchant` และ core tables | บังคับ OTP, transaction boundary, validation และ server authorization |
+| KYC document/version | มี schema รองรับใน migration แต่ยังไม่มี API flow ครบ | private upload, checksum, immutable version, review queue และ access audit |
+| สินค้า | มี `Product` และ `/api/db/products` | ownership, validation, history และ production authorization |
+| บริการ | ส่วนใหญ่ยังเป็น prototype/localStorage | service/availability schema และ API persistence |
+| บัญชีรับเงิน | มี field ใน `Store`/`KycVerification` | dedicated account/version tables, verification และ change control |
+| Admin approval | มี endpoint เปลี่ยน KYC status แบบกว้าง | role-based authorization, transition guard, checklist, decision และ audit |
+| ถอนเงิน | มี prototype `/api/v1/payouts` | OTP, withdrawal ledger, idempotency, provider webhook และ reconciliation |
+
 ### Merchant back office
 
 `MerchantView.tsx` รวมความสามารถหลายกลุ่มไว้ใน dashboard เดียว เช่น:
@@ -248,6 +405,18 @@ API ที่เกี่ยวข้อง:
 await fetch('/api/db/health')
 await fetch('/api/v1/balance')
 ```
+
+### Signed Backoffice Client
+
+การเชื่อมต่อ Agent/PD Backoffice ฝั่ง server ใช้ [server/integration/signedMerchantClient.cjs](../server/integration/signedMerchantClient.cjs) เท่านั้น ห้าม import โมดูลนี้จาก `src/` หรือส่ง secret ไป browser โมดูลนี้ทำงานดังนี้:
+
+- serialize JSON เป็น raw body เพียงครั้งเดียว แล้วใช้ string เดิมสำหรับ HTTP body และ SHA-256 digest ทุก retry
+- สร้าง canonical path, timestamp, nonce และ `v1=` HMAC-SHA256 signature ตาม [Client Integration Guide](CHATPOS_CLIENT_INTEGRATION_GUIDE.md)
+- สร้าง nonce/timestamp/signature ใหม่ต่อ HTTP retry แต่คง `Idempotency-Key`, `sourceRequestId` ใน body และ `X-Request-Id` เดิม
+- retry เฉพาะ network error, timeout, `429` และ `5xx` ด้วย exponential backoff + jitter; ไม่ retry `4xx` อื่นหรือ idempotency conflict
+- ส่ง structured log ที่มี request metadata, body digest และ error code โดย redaction จะไม่ปล่อย raw body, secret, PII หรือ signature เต็มค่า
+
+สร้าง client ใน custom API server ด้วย `createBackofficeClient()` และตั้ง `AGENT_PD_INTEGRATION_ENABLED=true` เฉพาะ environment ที่ผ่าน staging contract test แล้ว ค่า env และ feature flags ดูได้จาก `.env.example` ส่วน unit tests อยู่ที่ [server/integration/signedMerchantClient.test.cjs](../server/integration/signedMerchantClient.test.cjs) และเรียกด้วย `npm run test:integration`
 
 อย่า hardcode database URL หรือ secret ใน component และอย่าใช้ `NEXT_PUBLIC_*` กับค่าที่เป็นความลับ
 

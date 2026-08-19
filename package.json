@@ -9,6 +9,8 @@
     "lint": "oxlint",
     "start": "concurrently -k \"next start\" \"node server.cjs\"",
     "server": "node server.cjs",
+    "db:migrate": "node database/migrate.cjs",
+    "test:integration": "node --test server/integration",
     "test:db": "node test-db.cjs"
   },
   "dependencies": {

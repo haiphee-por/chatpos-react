@@ -10,6 +10,14 @@ const QRCode = require('qrcode');
 dotenv.config();
 
 const port = process.env.API_PORT || 3001;
+const configuredDatabaseName = (() => {
+  if (process.env.PGDATABASE) return process.env.PGDATABASE;
+  try {
+    return decodeURIComponent(new URL(process.env.DATABASE_URL).pathname.replace(/^\//, '')) || 'chatpos';
+  } catch {
+    return 'chatpos';
+  }
+})();
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL || undefined,
   host: process.env.PGHOST || '127.0.0.1',
@@ -1136,5 +1144,5 @@ const server = http.createServer(async (req, res) => {
 
 server.listen(port, () => {
   console.log(`🚀 ChatPOS Production Server running at http://localhost:${port}`);
-  console.log(`📍 Database connected: ${process.env.PGDATABASE || 'chatpos-biz-prod'}`);
+  console.log(`📍 Database configured: ${configuredDatabaseName}`);
 });

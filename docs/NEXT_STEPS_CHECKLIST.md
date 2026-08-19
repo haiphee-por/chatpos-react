@@ -2,33 +2,39 @@
 
 รายการนี้เป็น checklist กลางสำหรับงานที่ต้องทำต่อของ ChatPOS และ integration กับ `chatpos.biz`, Agent/PD Backoffice และ LLGW แบ่งตาม dependency, owner และ Definition of Done
 
-> สถานะเริ่มต้น: รายการทั้งหมดเป็นงานที่ยังต้องยืนยันหรือ implement ต่อจาก codebase ปัจจุบัน ซึ่งยังมี custom API server, client-only frontend และ prototype state บางส่วน ไม่ควรถือว่า checklist นี้เป็น production approval โดยตัวมันเอง
+> สถานะ sync ล่าสุด: 2026-08-19
+>
+> - `[x]` implementation และหลักฐานตรวจในเครื่องครบสำหรับรายการนั้น แต่ยังไม่หมายถึง external sign-off หรือ production approval
+> - `[~]` มี implementation บางส่วนแล้ว แต่ยังขาด persistence, contract, test scope หรือ owner sign-off ที่จำเป็น
+> - `[ ]` ยังต้อง implement หรือยืนยันต่อ
+>
+> Codebase ยังมี custom API server, client-only frontend และ prototype state บางส่วน จึงไม่ควรถือว่า checklist นี้เป็น production approval โดยตัวมันเอง
 
 ## วิธีใช้
 
 - `P0`: blocker หรือความเสี่ยงสูง ต้องทำก่อนเปิด integration/production
 - `P1`: งานสำคัญที่ต้องทำก่อนขยาย usage หรือเปิด feature ครบชุด
 - `รอภายนอก`: ต้องรอ Backoffice, LLGW, Finance หรือ Product/Compliance
-- ติ๊ก `[x]` เมื่อ implementation, test evidence และ owner sign-off ของรายการนั้นครบ ไม่ใช่เพียงสร้างไฟล์หรือ endpoint แล้ว
+- ใช้ `[x]` เมื่อ implementation และ test evidence ใน repository ครบ; งานที่ยังรอ external contract, owner sign-off หรือ production hardening ให้ใช้ `[~]` หรือคง `[ ]` ตามสถานะ
 - รายละเอียด API contract และตัวอย่าง signing อยู่ใน [CHATPOS Client Integration Guide](CHATPOS_CLIENT_INTEGRATION_GUIDE.md)
 - รายละเอียด architecture และจุดแก้ใน repository อยู่ใน [Developer Guide](DEVELOPER_GUIDE.md)
 
 ## Phase 0: ยืนยัน contract และขอบเขต
 
 - [ ] **P0 / Product + Backoffice:** ยืนยัน Base URL, Store credential, scopes, signing secret, callback secret และ environment ของ test/production
-- [ ] **P0 / Architecture:** ตัดสินใจว่าจะวาง integration client และ callback receiver ใน custom API server, Next Route Handlers หรือ service แยก โดยห้ามเก็บ secret ใน browser
-- [ ] **P0 / Data:** ออกแบบ schema และ migration สำหรับ assignment request, profile version, KYC document version, webhook event dedupe, idempotency record และ audit log
+- [~] **P0 / Architecture:** วาง integration client ไว้ใน custom API server และกำหนด server-only boundary แล้ว แต่ยังต้องทำ decision record และยืนยัน callback receiver กับทีมภายนอก โดยห้ามเก็บ secret ใน browser
+- [~] **P0 / Data:** มี initial schema และ migration สำหรับ assignment request, profile version, KYC document version, webhook event dedupe, idempotency record และ audit log แล้ว แต่ยังต้อง review/sign-off และเติมตารางเฉพาะของ bank account กับ withdrawal
 - [ ] **P0 / Compliance:** ยืนยัน field mapping ที่กระทบ KYC, retention, masking, document access และผู้มีสิทธิ์อนุมัติขั้นสุดท้าย
 - [ ] **เสร็จเมื่อ:** มี contract owner, data owner, environment matrix และ decision record ที่ทีม implement อ้างอิงได้
 
 ## Phase 1: Integration foundation
 
-- [ ] **P0 / Backend:** เพิ่ม environment variables ใน `.env.example` สำหรับ Backoffice base URL, bearer secret, signing secret, callback secret, timeout และ feature flags
-- [ ] **P0 / Backend:** สร้าง server-only signed HTTP client ที่ serialize raw JSON ครั้งเดียว, คำนวณ SHA-256, สร้าง canonical request และ HMAC ตาม contract
-- [ ] **P0 / Backend:** เพิ่ม nonce/timestamp validation, timeout, exponential backoff + jitter และ retry เฉพาะ network error, `429` และ `5xx`
-- [ ] **P0 / Backend:** เพิ่ม idempotency handling โดยคง `Idempotency-Key` และ exact body เมื่อ retry และแยก `sourceRequestId` กับ `X-Request-Id`
-- [ ] **P0 / Observability:** เพิ่ม correlation ID, structured log, secret/PII redaction และห้าม log raw body, bearer secret หรือ signature เต็มค่า
-- [ ] **เสร็จเมื่อ:** มี unit tests สำหรับ canonical path, body digest, signature, stale timestamp, nonce replay และ changed-payload conflict
+- [x] **P0 / Backend:** เพิ่ม environment variables ใน `.env.example` สำหรับ Backoffice base URL, bearer secret, signing secret, callback secret, timeout และ feature flags
+- [x] **P0 / Backend:** สร้าง server-only signed HTTP client ที่ serialize raw JSON ครั้งเดียว, คำนวณ SHA-256, สร้าง canonical request และ HMAC ตาม contract
+- [x] **P0 / Backend:** เพิ่ม nonce/timestamp validation, timeout, exponential backoff + jitter และ retry เฉพาะ network error, `429` และ `5xx`
+- [x] **P0 / Backend:** เพิ่ม idempotency handling โดยคง `Idempotency-Key` และ exact body เมื่อ retry และแยก `sourceRequestId` กับ `X-Request-Id`
+- [x] **P0 / Observability:** เพิ่ม correlation ID, structured log, secret/PII redaction และห้าม log raw body, bearer secret หรือ signature เต็มค่า
+- [x] **เสร็จเมื่อ:** มี focused Node tests สำหรับ canonical path, body digest, signature, stale timestamp, nonce replay, changed-payload conflict และ retry behavior
 
 ## Phase 2: Merchant-Agent assignment
 
@@ -125,8 +131,8 @@
 
 ## ลำดับแนะนำสำหรับการลงมือ
 
-1. ทำ Phase 0 และ Phase 1 ให้เสร็จก่อน เพื่อไม่ให้แต่ละ endpoint มี signing, retry และ idempotency คนละแบบ
-2. ทำ assignment callback ก่อน KYC document เพราะสถานะ Agent/PD เป็น dependency ของ case
-3. ทำ profile version และ document version ก่อนเปิดให้ Merchant แก้ข้อมูลจริง
+1. ปิด Phase 0 ด้วย contract matrix, decision record และ owner/sign-off ที่ยังค้างอยู่
+2. นำ signed client และ initial schema ไป wiring กับ assignment request/callback ก่อน KYC document เพราะสถานะ Agent/PD เป็น dependency ของ case
+3. ทำ durable profile version, document intake และ dedicated bank/withdrawal records ก่อนเปิดให้ Merchant แก้ข้อมูลจริง
 4. ทำ transaction routing และ webhook ownership ก่อนเชื่อม settlement/commission
-5. ปิดท้ายด้วย authorization, audit, observability และ E2E gate ก่อนเปิด feature flag production
+5. ปิดท้ายด้วย authorization, audit, observability, PostgreSQL integration/E2E และ Go-Live gate ก่อนเปิด feature flag production
