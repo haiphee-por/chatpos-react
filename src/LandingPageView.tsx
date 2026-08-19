@@ -29,7 +29,6 @@ import {
   X,
 } from 'lucide-react'
 import { loginUser, setStoredUser } from './dbApi'
-import './LandingPageView.css'
 
 export function LandingPageView() {
   const [activeDemoTab, setActiveDemoTab] = useState<'pos' | 'quickpay' | 'booking' | 'salespage' | 'reports'>('pos')

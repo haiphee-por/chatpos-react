@@ -18,7 +18,6 @@ import {
   Check,
   UtensilsCrossed
 } from 'lucide-react'
-import './CustomerView.css'
 
 /* Web Audio API Sound Utility */
 const playTapSound = (type: 'pop' | 'click' | 'success' = 'click') => {

@@ -16,7 +16,6 @@ import {
   Layers
 } from 'lucide-react'
 import { generateUrlQrDataUrl } from './promptpay'
-import './CatalogPageView.css'
 
 export interface CatalogProduct {
   id: string

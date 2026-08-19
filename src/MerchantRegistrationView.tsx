@@ -18,7 +18,6 @@ import {
   Users,
   Sparkles,
 } from 'lucide-react'
-import './MerchantRegistrationView.css'
 import { useMerchantT, type Lang } from './registrationI18n'
 import { registerMerchant } from './dbApi'
 

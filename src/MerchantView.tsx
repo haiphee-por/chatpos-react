@@ -71,7 +71,6 @@ import {
   BadgePercent,
   Share2
 } from 'lucide-react'
-import './MerchantView.css'
 
 /* ==========================================================================
    WEB AUDIO API SOUND SYNTHESIZER (Tap / Click / Pop / Chime Audio Effects)

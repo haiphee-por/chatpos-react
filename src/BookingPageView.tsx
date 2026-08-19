@@ -19,7 +19,6 @@ import {
   MapPin
 } from 'lucide-react'
 import { generateUrlQrDataUrl, generatePromptPayQrDataUrl, getStoredPromptPayId } from './promptpay'
-import './BookingPageView.css'
 
 export interface BookingServiceItem {
   id: string

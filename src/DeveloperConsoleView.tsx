@@ -26,7 +26,6 @@ import {
   ArrowLeft
 } from 'lucide-react'
 import { createPaymentQr, checkPaymentStatus, fetchBalance, fetchChatPosApi } from './chatposApi'
-import './DeveloperConsoleView.css'
 
 export type DevTab = 'dashboard' | 'api-keys' | 'webhooks' | 'gateway' | 'api-docs'
 

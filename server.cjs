@@ -9,7 +9,7 @@ const QRCode = require('qrcode');
 
 dotenv.config();
 
-const port = process.env.PORT || 3000;
+const port = process.env.API_PORT || 3001;
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL || undefined,
   host: process.env.PGHOST || '127.0.0.1',

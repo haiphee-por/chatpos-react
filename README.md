@@ -1,41 +1,23 @@
-# React + TypeScript + Vite
+# ChatPOS
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+ChatPOS is a Next.js application using the App Router, React, TypeScript, and Oxlint. The existing merchant, customer, booking, catalog, payment, and developer views are mounted through an optional catch-all route so their existing URLs continue to work.
 
-Currently, two official plugins are available:
+## Development
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
-
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the Oxlint configuration
-
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
-
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+```bash
+npm install
+npm run dev
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+The Next.js application runs at `http://localhost:3000`. The PostgreSQL-backed API process runs alongside it at port `3001`; Next rewrites `/api/db/*` and `/api/v1/*` to that process.
 
-## Deploy on Easypanel
+Set `CHATPOS_API_URL` when the API process is hosted elsewhere. Database settings remain in `.env` and are read by `server.cjs`.
 
-This project includes a production `Dockerfile` and Nginx configuration for the Vite SPA.
+## Production
 
-In Easypanel, configure the service as follows:
+```bash
+npm run build
+npm run start
 
 - Source: **Github**
 - Repository: `haiphee-por/chatpos-react`

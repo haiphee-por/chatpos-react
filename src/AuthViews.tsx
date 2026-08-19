@@ -17,7 +17,6 @@ import {
   Zap,
 } from 'lucide-react'
 import { loginUser } from './dbApi'
-import './AuthViews.css'
 
 export type Role = 'merchant'
 

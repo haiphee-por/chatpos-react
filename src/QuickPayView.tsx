@@ -17,7 +17,6 @@ import {
 } from 'lucide-react'
 import { generatePromptPayQrDataUrl, getStoredPromptPayId } from './promptpay'
 import { createPaymentQr, checkPaymentStatus } from './chatposApi'
-import './QuickPayView.css'
 
 /* Web Audio API Sound Generator */
 const playAudioEffect = (type: 'beep' | 'pop' | 'success' | 'clear') => {

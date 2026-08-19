@@ -8,7 +8,6 @@ import { BookingPageView } from './BookingPageView'
 import { DeveloperConsoleView } from './DeveloperConsoleView'
 import { LandingPageView } from './LandingPageView'
 import { fetchDbHealth, fetchDbStats, getStoredUser, type DbHealth, type DbStats } from './dbApi'
-import './App.css'
 
 export function App() {
   const [pathname] = useState(window.location.pathname)
