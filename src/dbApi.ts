@@ -77,6 +77,22 @@ export interface DbStoreRow {
   pd_name: string | null
 }
 
+export interface DbAssignmentRow {
+  id: string
+  assignmentRequestId: string | null
+  sourceRequestId: string
+  status: string
+  reason: string | null
+  createdAt: string
+  updatedAt: string
+  acceptedAt: string | null
+  rejectedAt: string | null
+  expiresAt: string | null
+  agent_code: string | null
+  pd_code: string | null
+  pd_name: string | null
+}
+
 export interface DbAgentRow {
   id: string
   code: string
@@ -291,6 +307,59 @@ export async function fetchDbStores(): Promise<DbStoreRow[]> {
   } catch (err) {
     console.error('Failed to fetch real stores:', err)
     return []
+  }
+}
+
+/**
+ * Fetch Merchant-Agent assignment state from PostgreSQL.
+ */
+export async function fetchDbAssignments(storeId?: string | null): Promise<DbAssignmentRow[]> {
+  try {
+    const query = storeId ? `?storeId=${encodeURIComponent(storeId)}` : ''
+    const res = await fetchDbApi<{ success: boolean; data: DbAssignmentRow[] }>(`/assignments${query}`)
+    return res.data || []
+  } catch (err) {
+    console.error('Failed to fetch assignment status:', err)
+    return []
+  }
+}
+
+export interface AssignmentRequestResponse {
+  success: boolean
+  data?: DbAssignmentRow & { idempotentReplay?: boolean }
+  code?: string
+  error?: string
+}
+
+/**
+ * Request an Agent assignment through the server-side Backoffice client.
+ */
+export async function requestMerchantAssignment(data: {
+  storeId: string
+  sourceRequestId: string
+  agentPhone?: string
+}): Promise<AssignmentRequestResponse> {
+  try {
+    const res = await fetch('/api/v1/assignments/requests', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Store-Id': data.storeId,
+      },
+      body: JSON.stringify({
+        sourceRequestId: data.sourceRequestId,
+        ...(data.agentPhone ? { agentPhone: data.agentPhone } : {}),
+      }),
+    })
+    let payload: AssignmentRequestResponse
+    try {
+      payload = await res.json()
+    } catch {
+      payload = { success: false, error: `Assignment API error ${res.status}` }
+    }
+    return res.ok ? payload : { ...payload, success: false }
+  } catch (err: any) {
+    return { success: false, error: err?.message || 'ไม่สามารถส่งคำขอผูก Agent ได้' }
   }
 }
 

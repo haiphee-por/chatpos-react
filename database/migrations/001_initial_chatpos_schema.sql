@@ -240,6 +240,10 @@ CREATE TABLE IF NOT EXISTS agent_assignment_events (
   "createdAt" timestamptz NOT NULL DEFAULT NOW()
 );
 
+ALTER TABLE agent_assignments
+  ADD COLUMN IF NOT EXISTS "lastEventOccurredAt" timestamptz,
+  ADD COLUMN IF NOT EXISTS "lastEventId" text;
+
 CREATE TABLE IF NOT EXISTS merchant_profile_versions (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   "storeId" uuid NOT NULL REFERENCES "Store"(id),

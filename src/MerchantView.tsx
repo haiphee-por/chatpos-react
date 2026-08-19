@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { ProfileSettingsModal } from './ProfileSettingsModal'
 import { DeveloperConsoleView } from './DeveloperConsoleView'
-import { fetchDbProducts, fetchDbStores, getStoredUser, clearStoredUser, createDbTransaction, type AuthUser, type DbStoreRow } from './dbApi'
+import { fetchDbAssignments, fetchDbProducts, fetchDbStores, getStoredUser, clearStoredUser, createDbTransaction, type AuthUser, type DbAssignmentRow, type DbStoreRow } from './dbApi'
 import { generatePromptPayQrDataUrl, generateUrlQrDataUrl, getStoredPromptPayId, setStoredPromptPayId } from './promptpay'
 import { createPaymentQr, checkPaymentStatus, fetchChatPosApi } from './chatposApi'
 import {
@@ -69,7 +69,8 @@ import {
   HelpCircle,
   Utensils,
   BadgePercent,
-  Share2
+  Share2,
+  RefreshCw,
 } from 'lucide-react'
 
 /* ==========================================================================
@@ -461,7 +462,7 @@ export function MerchantView() {
         </header>
         <main className="merchant-content">
           {active === 'home' ? (
-            <MerchantHome onNavigate={navigate} />
+            <MerchantHome onNavigate={navigate} storeId={selectedStore?.id || currentUser?.store?.id || null} />
           ) : active === 'pos' ? (
             <PosView onNavigate={navigate} />
           ) : active === 'payment' ? (
@@ -699,7 +700,73 @@ export function MerchantView() {
   )
 }
 
-function MerchantHome({ onNavigate }: { onNavigate: (id: string) => void }) {
+const assignmentStatusLabels: Record<string, { label: string; nextAction: string; color: string; background: string }> = {
+  PENDING_ADMIN_ASSIGNMENT: { label: 'รอ Admin จัดสรร Agent', nextAction: 'ทีม Operations กำลังเลือก Agent และ PD ที่รับผิดชอบ', color: '#b45309', background: '#fffbeb' },
+  PENDING_AGENT_ACCEPTANCE: { label: 'รอ Agent กดยอมรับ', nextAction: 'รอ Agent ยืนยันการรับดูแล Merchant', color: '#0369a1', background: '#f0f9ff' },
+  ACCEPTED: { label: 'ผูก Agent แล้ว', nextAction: 'Agent และ PD ยืนยันการดูแลแล้ว', color: '#047857', background: '#ecfdf5' },
+  REJECTED: { label: 'Agent ปฏิเสธคำขอ', nextAction: 'ตรวจเหตุผลและส่งคำขอใหม่ตาม policy', color: '#b91c1c', background: '#fef2f2' },
+  EXPIRED: { label: 'คำขอหมดอายุ', nextAction: 'ส่งคำขอ assignment ใหม่เมื่อพร้อม', color: '#b91c1c', background: '#fef2f2' },
+  REASSIGNED: { label: 'กำลังจัดสรร Agent ใหม่', nextAction: 'รอ callback ยืนยัน Agent คนใหม่', color: '#7c3aed', background: '#f5f3ff' },
+  REQUEST_FAILED: { label: 'ส่งคำขอไม่สำเร็จ', nextAction: 'ตรวจการเชื่อมต่อก่อนลองใหม่', color: '#b91c1c', background: '#fef2f2' },
+}
+
+function MerchantAssignmentStatus({ storeId }: { storeId: string | null }) {
+  const [assignments, setAssignments] = useState<DbAssignmentRow[]>([])
+  const [isLoading, setIsLoading] = useState(Boolean(storeId))
+  const [lastError, setLastError] = useState('')
+
+  const loadAssignments = async () => {
+    if (!storeId) return
+    setIsLoading(true)
+    setLastError('')
+    try {
+      const rows = await fetchDbAssignments(storeId)
+      setAssignments(rows)
+    } catch {
+      setLastError('ยังโหลดสถานะ assignment ไม่ได้')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    loadAssignments()
+  }, [storeId])
+
+  if (!storeId) return null
+
+  const latest = assignments[0]
+  const statusCopy = assignmentStatusLabels[latest?.status || ''] || {
+    label: latest?.status || 'ยังไม่มีสถานะ assignment',
+    nextAction: 'ยังไม่มีคำขอผูก Agent สำหรับร้านค้านี้',
+    color: '#64748b',
+    background: '#f8fafc',
+  }
+
+  return (
+    <section style={{ marginBottom: 18, padding: '16px 18px', border: '1px solid #dbe9e2', borderRadius: 12, background: statusCopy.background }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
+        <div>
+          <span style={{ display: 'block', color: '#648076', fontSize: 11, fontWeight: 800, letterSpacing: '.04em', textTransform: 'uppercase' }}>Merchant-Agent assignment</span>
+          <strong style={{ display: 'block', marginTop: 5, color: statusCopy.color, fontSize: 16 }}>{isLoading ? 'กำลังโหลดสถานะ...' : statusCopy.label}</strong>
+        </div>
+        <button type="button" onClick={loadAssignments} disabled={isLoading} title="รีเฟรชสถานะ assignment" style={{ display: 'grid', placeItems: 'center', width: 32, height: 32, border: '1px solid #cfe1d8', borderRadius: 7, background: '#ffffffaa', color: '#28745c', cursor: isLoading ? 'wait' : 'pointer' }}>
+          <RefreshCw size={15} className={isLoading ? 'spin' : ''} />
+        </button>
+      </div>
+      <p style={{ margin: '8px 0 0', color: '#4f6f63', fontSize: 12 }}>{lastError || statusCopy.nextAction}</p>
+      {latest?.status === 'ACCEPTED' && (latest.agent_code || latest.pd_code) && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 12 }}>
+          {latest.agent_code && <span style={{ padding: '5px 9px', borderRadius: 6, background: '#ffffffaa', color: '#166534', fontSize: 11, fontWeight: 700 }}>Agent {latest.agent_code}</span>}
+          {latest.pd_code && <span style={{ padding: '5px 9px', borderRadius: 6, background: '#ffffffaa', color: '#166534', fontSize: 11, fontWeight: 700 }}>PD {latest.pd_code}{latest.pd_name ? ` · ${latest.pd_name}` : ''}</span>}
+        </div>
+      )}
+      {latest && <small style={{ display: 'block', marginTop: 10, color: '#78968a', fontSize: 10 }}>อัปเดตล่าสุด {new Date(latest.updatedAt).toLocaleString('th-TH')}</small>}
+    </section>
+  )
+}
+
+function MerchantHome({ onNavigate, storeId }: { onNavigate: (id: string) => void; storeId: string | null }) {
   const [showBalance, setShowBalance] = useState(true)
   const [copiedId, setCopiedId] = useState(false)
   const [now, setNow] = useState(() => new Date())
@@ -731,6 +798,7 @@ function MerchantHome({ onNavigate }: { onNavigate: (id: string) => void }) {
 
   return (
     <div className="merchant-home-view">
+      <MerchantAssignmentStatus storeId={storeId} />
       {/* 1. Top Green Store Status Card (GORRADA) */}
       <section className="mh-store-card">
         <div className="mh-store-info">

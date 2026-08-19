@@ -6,6 +6,12 @@ const { Pool } = require('pg');
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const QRCode = require('qrcode');
+const { createBackofficeClient, loadBackofficeConfig } = require('./server/integration/signedMerchantClient.cjs');
+const {
+  AssignmentError,
+  createAssignmentRequest,
+  processAssignmentCallback,
+} = require('./server/integration/assignmentService.cjs');
 
 dotenv.config();
 
@@ -28,6 +34,13 @@ const pool = new Pool({
   max: 10,
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 5000,
+});
+const backofficeConfig = loadBackofficeConfig();
+const assignmentBackofficeClient = createBackofficeClient({
+  config: {
+    ...backofficeConfig,
+    enabled: backofficeConfig.enabled && backofficeConfig.assignmentEnabled,
+  },
 });
 
 function crc16(data) {
@@ -97,29 +110,48 @@ const mimeTypes = {
   '.ttf': 'font/ttf',
 };
 
-function parseJsonBody(req) {
-  return new Promise((resolve) => {
-    let bodyStr = '';
-    req.on('data', (chunk) => (bodyStr += chunk));
-    req.on('end', () => {
-      try {
-        resolve(JSON.parse(bodyStr || '{}'));
-      } catch (e) {
-        resolve({});
+function readRawBody(req, maxBytes = 1024 * 1024) {
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    let totalBytes = 0;
+
+    req.on('data', (chunk) => {
+      totalBytes += chunk.length;
+      if (totalBytes > maxBytes) {
+        reject(new AssignmentError('Request body is too large', 'BODY_TOO_LARGE', 413));
+        req.destroy();
+        return;
       }
+      chunks.push(chunk);
     });
+    req.on('error', reject);
+    req.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
   });
+}
+
+async function parseJsonBody(req) {
+  const bodyStr = await readRawBody(req);
+  try {
+    return JSON.parse(bodyStr || '{}');
+  } catch {
+    return {};
+  }
 }
 
 const server = http.createServer(async (req, res) => {
   const url = req.url || '';
 
   // Handle API Database routes
-  if (url.startsWith('/api/db') || url.startsWith('/api/v1')) {
+  const requestPath = url.split('?')[0];
+
+  if (url.startsWith('/api/db') || url.startsWith('/api/v1') || requestPath === '/api/webhooks/assignment-status') {
     res.setHeader('Content-Type', 'application/json');
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    res.setHeader(
+      'Access-Control-Allow-Headers',
+      'Content-Type, Authorization, Idempotency-Key, X-Request-Id, X-Store-Id, X-ChatPOS-Event-Id, X-ChatPOS-Timestamp, X-ChatPOS-Signature'
+    );
 
     if (req.method === 'OPTIONS') {
       res.statusCode = 204;
@@ -128,6 +160,47 @@ const server = http.createServer(async (req, res) => {
     }
 
     try {
+      if (requestPath === '/api/webhooks/assignment-status' && req.method === 'POST') {
+        const rawBody = await readRawBody(req);
+        const callbackResult = await processAssignmentCallback({
+          pool,
+          rawBody,
+          headers: req.headers,
+          callbackSecret: backofficeConfig.callbackSecret,
+        });
+        res.statusCode = callbackResult.statusCode || 200;
+        res.end(JSON.stringify({
+          success: true,
+          duplicate: Boolean(callbackResult.duplicate),
+          late: Boolean(callbackResult.late),
+          data: callbackResult.data || null,
+        }));
+        return;
+      }
+
+      if (requestPath === '/api/v1/assignments/requests' && req.method === 'POST') {
+        if (!backofficeConfig.enabled || !backofficeConfig.assignmentEnabled) {
+          res.statusCode = 503;
+          res.end(JSON.stringify({ success: false, code: 'ASSIGNMENT_INTEGRATION_DISABLED', error: 'Assignment integration is disabled' }));
+          return;
+        }
+
+        const body = await parseJsonBody(req);
+        const storeId = backofficeConfig.storeId || req.headers['x-store-id'] || body.storeId;
+        const requestId = String(req.headers['x-request-id'] || crypto.randomUUID());
+        const assignmentResult = await createAssignmentRequest({
+          pool,
+          backofficeClient: assignmentBackofficeClient,
+          storeId,
+          sourceRequestId: body.sourceRequestId,
+          agentPhone: body.agentPhone,
+          requestId,
+        });
+        res.statusCode = assignmentResult.statusCode;
+        res.end(JSON.stringify({ success: true, data: assignmentResult.data }));
+        return;
+      }
+
       // ── AUTH: 1. POST /api/db/auth/login ────────────────────────────
       if (url === '/api/db/auth/login' && req.method === 'POST') {
         const body = await parseJsonBody(req);
@@ -537,7 +610,71 @@ const server = http.createServer(async (req, res) => {
         return;
       }
 
-      // ── 7. GET /api/db/kyc ──────────────────────────────────────────
+      // ── 7. GET /api/db/assignments ────────────────────────────────
+      if (requestPath === '/api/db/assignments' && req.method === 'GET') {
+        const query = new URL(`http://127.0.0.1${url}`).searchParams;
+        const requestedStoreId = query.get('storeId') || backofficeConfig.storeId || null;
+        if (requestedStoreId && !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(requestedStoreId)) {
+          res.statusCode = 400;
+          res.end(JSON.stringify({ success: false, code: 'INVALID_STORE_ID', error: 'storeId must be a UUID' }));
+          return;
+        }
+
+        const assignmentQuery = requestedStoreId
+          ? {
+              text: `
+                SELECT
+                  aa.id,
+                  aa."assignmentRequestId",
+                  aa."sourceRequestId",
+                  aa.status,
+                  aa.reason,
+                  aa."createdAt",
+                  aa."updatedAt",
+                  aa."acceptedAt",
+                  aa."rejectedAt",
+                  aa."expiresAt",
+                  CASE WHEN aa.status = 'ACCEPTED' THEN a.code ELSE NULL END AS agent_code,
+                  CASE WHEN aa.status = 'ACCEPTED' THEN pd.code ELSE NULL END AS pd_code,
+                  CASE WHEN aa.status = 'ACCEPTED' THEN pd."displayName" ELSE NULL END AS pd_name
+                FROM agent_assignments aa
+                LEFT JOIN "Agent" a ON aa."agentId" = a.id
+                LEFT JOIN "ProvincialDirector" pd ON aa."pdId" = pd.id
+                WHERE aa."storeId" = $1
+                ORDER BY aa."createdAt" DESC
+                LIMIT 20`,
+              values: [requestedStoreId],
+            }
+          : {
+              text: `
+                SELECT
+                  aa.id,
+                  aa."assignmentRequestId",
+                  aa."sourceRequestId",
+                  aa.status,
+                  aa.reason,
+                  aa."createdAt",
+                  aa."updatedAt",
+                  aa."acceptedAt",
+                  aa."rejectedAt",
+                  aa."expiresAt",
+                  CASE WHEN aa.status = 'ACCEPTED' THEN a.code ELSE NULL END AS agent_code,
+                  CASE WHEN aa.status = 'ACCEPTED' THEN pd.code ELSE NULL END AS pd_code,
+                  CASE WHEN aa.status = 'ACCEPTED' THEN pd."displayName" ELSE NULL END AS pd_name
+                FROM agent_assignments aa
+                LEFT JOIN "Agent" a ON aa."agentId" = a.id
+                LEFT JOIN "ProvincialDirector" pd ON aa."pdId" = pd.id
+                ORDER BY aa."createdAt" DESC
+                LIMIT 20`,
+              values: [],
+            };
+        const assignments = await pool.query(assignmentQuery);
+        res.statusCode = 200;
+        res.end(JSON.stringify({ success: true, data: assignments.rows }));
+        return;
+      }
+
+      // ── 8. GET /api/db/kyc ──────────────────────────────────────────
       if (url === '/api/db/kyc' || url.startsWith('/api/db/kyc?')) {
         const result = await pool.query(`
           SELECT 
@@ -572,7 +709,7 @@ const server = http.createServer(async (req, res) => {
         return;
       }
 
-      // ── 8. GET /api/db/stores ──────────────────────────────────────
+      // ── 9. GET /api/db/stores ──────────────────────────────────────
       if (url === '/api/db/stores' || url.startsWith('/api/db/stores?')) {
         const result = await pool.query(`
           SELECT 
@@ -611,7 +748,7 @@ const server = http.createServer(async (req, res) => {
         return;
       }
 
-      // ── 9. GET /api/db/agents ──────────────────────────────────────
+      // ── 10. GET /api/db/agents ─────────────────────────────────────
       if (url === '/api/db/agents' || url.startsWith('/api/db/agents?')) {
         const result = await pool.query(`
           SELECT 
@@ -1108,8 +1245,12 @@ const server = http.createServer(async (req, res) => {
       return;
     } catch (err) {
       console.error('[Server DB API Error]:', err.message);
-      res.statusCode = 500;
-      res.end(JSON.stringify({ success: false, error: err.message }));
+      res.statusCode = Number.isInteger(err.statusCode) ? err.statusCode : 500;
+      res.end(JSON.stringify({
+        success: false,
+        code: err.code || 'INTERNAL_ERROR',
+        error: err.message,
+      }));
       return;
     }
   }

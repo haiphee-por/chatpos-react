@@ -19,7 +19,7 @@ import {
   Sparkles,
 } from 'lucide-react'
 import { useMerchantT, type Lang } from './registrationI18n'
-import { registerMerchant } from './dbApi'
+import { registerMerchant, requestMerchantAssignment } from './dbApi'
 
 type TFn = (key: string) => string
 
@@ -51,6 +51,7 @@ export function MerchantRegistrationView() {
     storeName: '',
     ownerName: '',
     phone: '',
+    agentPhone: '',
     email: '',
     password: '',
     referralCode: '',
@@ -115,6 +116,20 @@ export function MerchantRegistrationView() {
       })
 
       if (res.success) {
+        if (res.storeId) {
+          const assignment = await requestMerchantAssignment({
+            storeId: res.storeId,
+            sourceRequestId: `merchant-registration-${res.storeId}`,
+            agentPhone: quickData.agentPhone.trim() || undefined,
+          })
+          if (assignment.success && assignment.data?.status) {
+            try {
+              localStorage.setItem('merchant_assignment_status', assignment.data.status)
+            } catch {}
+          } else if (assignment.code && assignment.code !== 'ASSIGNMENT_INTEGRATION_DISABLED') {
+            console.warn('Merchant registration succeeded but assignment request failed:', assignment.code)
+          }
+        }
         setShowDecisionModal(true)
       } else {
         setQuickError(res.error || 'ไม่สามารถลงทะเบียนได้ กรุณาลองใหม่อีกครั้ง')
@@ -244,6 +259,17 @@ export function MerchantRegistrationView() {
                     placeholder="เช่น AG-001 หรือเว้นว่างไว้"
                     value={quickData.referralCode}
                     onChange={(e) => setQuickData({ ...quickData, referralCode: e.target.value })}
+                  />
+                </div>
+
+                <div className="reg-field reg-col-span-2">
+                  <span className="reg-label">เบอร์โทรศัพท์ Agent ผู้ดูแล (ถ้ามี)</span>
+                  <input
+                    className="reg-input"
+                    type="tel"
+                    placeholder="08X-XXX-XXXX หรือเว้นว่างให้ Admin จัดสรร"
+                    value={quickData.agentPhone}
+                    onChange={(e) => setQuickData({ ...quickData, agentPhone: e.target.value })}
                   />
                 </div>
               </div>

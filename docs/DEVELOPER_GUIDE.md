@@ -167,8 +167,17 @@ npm run lint
 API ที่เกี่ยวข้อง:
 
 - `POST /api/db/auth/register-merchant`
+- `POST /api/v1/assignments/requests` สำหรับส่งคำขอผูก Agent ผ่าน signed server-side client
+- `POST /api/webhooks/assignment-status` สำหรับรับ signed status callback จาก Backoffice
+- `GET /api/db/assignments` สำหรับอ่านสถานะ assignment ของ Store
 - `GET /api/db/kyc`
 - `POST /api/db/kyc/update-status`
+
+Phase 2 มี assignment service ใน `server/integration/assignmentService.cjs` ซึ่งบันทึก request และ event history แบบ durable, ใช้ idempotency ตาม `storeId + sourceRequestId`, ตรวจ callback ด้วย raw body และ HMAC แบบ constant-time และเปลี่ยน `Store.currentAgentId`/`Store.currentPdId` เฉพาะ callback สถานะ `ACCEPTED` ที่ resolve Agent และ PD ที่ active ได้เท่านั้น สถานะ `REJECTED`, `EXPIRED` และ `REASSIGNED` จะไม่ทำให้ Store ถูกผูก Agent ต่อ ส่วน callback ซ้ำหรือ callback ที่มาช้ากว่าจะถูก dedupe/ignore ใน transaction เดียวกับ state update
+
+Merchant portal แสดงสถานะ `PENDING_ADMIN_ASSIGNMENT`, `PENDING_AGENT_ACCEPTANCE`, `ACCEPTED`, `REJECTED`, `EXPIRED` และ `REASSIGNED` พร้อม next action และจะแสดง Agent/PD เฉพาะเมื่อ status เป็น `ACCEPTED` การสมัคร Merchant จะส่ง assignment request หลังสร้าง Store สำเร็จ โดยรองรับทั้งการระบุเบอร์ Agent และการเว้นว่างให้ Admin จัดสรร หาก `AGENT_PD_INTEGRATION_ENABLED` หรือ `AGENT_PD_ASSIGNMENT_ENABLED` ยังปิดอยู่ การสมัครบัญชียังสำเร็จแต่จะไม่ forward assignment ไป Backoffice
+
+ข้อจำกัดของ Phase 2: route ปัจจุบันยังใช้ `X-Store-Id`/`AGENT_PD_STORE_ID` เป็น store context เพราะ authentication/session ของ custom API server ยังเป็น prototype ต้องย้ายไป server-side session หรือ verified Store-scoped credential ก่อน production และต้องทดสอบ command/callback กับ Backoffice staging จริง รวมถึง receiver downtime และ retry recovery
 
 ข้อควรเข้าใจ: โค้ดปัจจุบันมีข้อมูล KYC, role Agent/PD และสถานะสำหรับ dashboard/API แล้ว แต่ยังไม่ใช่ implementation เต็มรูปแบบของ Merchant KYC ที่มี agent assignment, chat/post, immutable document versions, multi-level approval และ audit log ครบทุกขั้นตาม production specification หากพัฒนาต่อให้ใช้ skill [`merchant-kyc`](../.github/skills/merchant-kyc/SKILL.md) เป็นข้อกำหนด workflow
 

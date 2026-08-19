@@ -18,12 +18,13 @@
 - ใช้ `[x]` เมื่อ implementation และ test evidence ใน repository ครบ; งานที่ยังรอ external contract, owner sign-off หรือ production hardening ให้ใช้ `[~]` หรือคง `[ ]` ตามสถานะ
 - รายละเอียด API contract และตัวอย่าง signing อยู่ใน [CHATPOS Client Integration Guide](CHATPOS_CLIENT_INTEGRATION_GUIDE.md)
 - รายละเอียด architecture และจุดแก้ใน repository อยู่ใน [Developer Guide](DEVELOPER_GUIDE.md)
+- Phase 0 contract matrix, decision record และ sign-off template อยู่ใน [Phase 0 Contract Decision Record](PHASE_0_CONTRACT_DECISION_RECORD.md)
 
 ## Phase 0: ยืนยัน contract และขอบเขต
 
 - [ ] **P0 / Product + Backoffice:** ยืนยัน Base URL, Store credential, scopes, signing secret, callback secret และ environment ของ test/production
-- [~] **P0 / Architecture:** วาง integration client ไว้ใน custom API server และกำหนด server-only boundary แล้ว แต่ยังต้องทำ decision record และยืนยัน callback receiver กับทีมภายนอก โดยห้ามเก็บ secret ใน browser
-- [~] **P0 / Data:** มี initial schema และ migration สำหรับ assignment request, profile version, KYC document version, webhook event dedupe, idempotency record และ audit log แล้ว แต่ยังต้อง review/sign-off และเติมตารางเฉพาะของ bank account กับ withdrawal
+- [~] **P0 / Architecture:** วาง integration client ไว้ใน custom API server และกำหนด server-only boundary แล้ว; ใช้ [Phase 0 Contract Decision Record](PHASE_0_CONTRACT_DECISION_RECORD.md) เป็น draft decision record แต่ยังต้องยืนยัน callback receiver กับทีมภายนอก โดยห้ามเก็บ secret ใน browser
+- [~] **P0 / Data:** มี initial schema และ migration สำหรับ assignment request, profile version, KYC document version, webhook event dedupe, idempotency record และ audit log แล้ว แต่ยังต้อง review/sign-off และเติมตารางเฉพาะของ bank account กับ withdrawal ตาม [Phase 0 Contract Decision Record](PHASE_0_CONTRACT_DECISION_RECORD.md)
 - [ ] **P0 / Compliance:** ยืนยัน field mapping ที่กระทบ KYC, retention, masking, document access และผู้มีสิทธิ์อนุมัติขั้นสุดท้าย
 - [ ] **เสร็จเมื่อ:** มี contract owner, data owner, environment matrix และ decision record ที่ทีม implement อ้างอิงได้
 
@@ -38,12 +39,12 @@
 
 ## Phase 2: Merchant-Agent assignment
 
-- [ ] **P0 / Backend:** เพิ่ม command `POST /api/v1/assignments/requests` ไปยัง Backoffice รองรับทั้งระบุ `agentPhone` และไม่ระบุเบอร์
-- [ ] **P0 / Database:** บันทึก assignment request/status/history แบบ idempotent และห้ามถือว่า Merchant ถูกผูก Agent ก่อนสถานะ `ACCEPTED`
-- [ ] **P0 / Backend:** เพิ่ม callback receiver สำหรับ assignment status โดยอ่าน raw body, verify HMAC แบบ constant-time และ dedupe `eventId` ใน transaction เดียวกับ state update
-- [ ] **P1 / Frontend:** เพิ่ม UI แสดง `PENDING_ADMIN_ASSIGNMENT`, `PENDING_AGENT_ACCEPTANCE`, `ACCEPTED`, `REJECTED`, `EXPIRED` และ `REASSIGNED` พร้อม next action
-- [ ] **P1 / Frontend:** เชื่อม Merchant registration กับ assignment request และแสดง Agent/PD เฉพาะข้อมูลที่ callback ยืนยันแล้ว
-- [ ] **P1 / Operations:** รองรับ callback ซ้ำ, callback ล่าช้า และ receiver downtime โดยไม่สร้าง side effect ซ้ำ
+- [~] **P0 / Backend:** เพิ่ม command `POST /api/v1/assignments/requests` ไปยัง Backoffice รองรับทั้งระบุ `agentPhone` และไม่ระบุเบอร์ใน `server.cjs`/`server/integration/assignmentService.cjs`; ยังต้องเปิด feature flag และทดสอบกับ Backoffice staging
+- [~] **P0 / Database:** บันทึก assignment request/status/history แบบ idempotent และห้ามถือว่า Merchant ถูกผูก Agent ก่อนสถานะ `ACCEPTED` โดยมี durable event/late-event guard แล้ว; ยังต้องรัน migration ใน environment เป้าหมายและทำ integration test บน PostgreSQL จริง
+- [~] **P0 / Backend:** เพิ่ม callback receiver ที่ `/api/webhooks/assignment-status` อ่าน raw body, verify HMAC แบบ constant-time และ dedupe `eventId` ใน transaction เดียวกับ state update; ยังต้องยืนยัน callback URL/retry contract กับ Backoffice
+- [x] **P1 / Frontend:** เพิ่ม UI แสดง `PENDING_ADMIN_ASSIGNMENT`, `PENDING_AGENT_ACCEPTANCE`, `ACCEPTED`, `REJECTED`, `EXPIRED` และ `REASSIGNED` พร้อม next action ใน Merchant portal โดยซ่อน Agent/PD จนกว่า status จะเป็น `ACCEPTED`
+- [x] **P1 / Frontend:** เชื่อม Merchant registration กับ assignment request รองรับ Agent phone หรือปล่อยว่างให้ Admin จัดสรร; assignment API ยังถูกข้ามอย่างปลอดภัยเมื่อ integration flag ปิด
+- [~] **P1 / Operations:** รองรับ callback ซ้ำและ callback ล่าช้าด้วย durable dedupe/ordering แล้ว แต่ยังต้องทดสอบ receiver downtime, Backoffice retry และ recovery ใน staging
 - [ ] **เสร็จเมื่อ:** Merchant onboarding happy path, no-agent admin assignment, Agent accept/reject และ callback retry ผ่าน staging
 
 ## Phase 3: Merchant profile และ KYC documents
