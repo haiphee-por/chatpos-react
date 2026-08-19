@@ -122,6 +122,69 @@ export type CreatePaymentQrPayload = {
   [key: string]: any
 }
 
+export type CreateTransactionPayload = {
+  amount: number
+  clientReference?: string
+  orderId?: string
+  currency?: string
+  channel?: string
+  note?: string
+  customerName?: string
+  customerPhone?: string
+  tableName?: string
+  metadata?: Record<string, unknown>
+}
+
+export type TransactionPayment = {
+  id?: string
+  reference?: string
+  clientReference?: string
+  paymentReference?: string
+  gatewayReference?: string
+  qrCodeUrl?: string | null
+  qrRawText?: string | null
+  amount?: number
+  currency?: string
+  channel?: string
+  status?: 'pending' | 'completed' | 'failed' | 'expired' | 'refunded' | 'chargeback' | 'stoppay' | string
+  paidAt?: string | null
+  expiresAt?: string | null
+  [key: string]: any
+}
+
+/**
+ * POST /api/v1/transactions
+ * Create a payment through Agent/PD Backoffice routing.
+ */
+export async function createTransactionCommand(payload: CreateTransactionPayload, idempotencyKey: string, apiKey?: string) {
+  return fetchChatPosApi<{
+    success?: boolean
+    idempotentReplay?: boolean
+    transaction?: TransactionPayment
+    [key: string]: any
+  }>('/api/v1/transactions', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+    apiKey,
+    headers: { 'Idempotency-Key': idempotencyKey },
+  })
+}
+
+/**
+ * GET /api/v1/transactions/{reference}
+ * Read the payment status owned by the routed transaction.
+ */
+export async function checkTransactionStatus(reference: string, apiKey?: string) {
+  return fetchChatPosApi<{
+    success?: boolean
+    transaction?: TransactionPayment
+    [key: string]: any
+  }>(`/api/v1/transactions/${encodeURIComponent(reference)}`, {
+    method: 'GET',
+    apiKey,
+  })
+}
+
 /**
  * 2. POST /api/v1/payments/qr
  * Purpose: Create payment QR code

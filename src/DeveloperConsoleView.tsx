@@ -25,7 +25,7 @@ import {
   Lock,
   ArrowLeft
 } from 'lucide-react'
-import { createPaymentQr, checkPaymentStatus, fetchBalance, fetchChatPosApi } from './chatposApi'
+import { checkTransactionStatus, createTransactionCommand, fetchBalance, fetchChatPosApi } from './chatposApi'
 
 export type DevTab = 'dashboard' | 'api-keys' | 'webhooks' | 'gateway' | 'api-docs'
 
@@ -182,7 +182,7 @@ export function DeveloperConsoleView({ embedded = false }: { embedded?: boolean 
     {
       id: 'log-1',
       method: 'POST',
-      endpoint: '/api/v1/payments/qr',
+      endpoint: '/api/v1/transactions',
       status: 200,
       latencyMs: 38,
       timestamp: '11:34:10 น.',
@@ -232,7 +232,7 @@ export function DeveloperConsoleView({ embedded = false }: { embedded?: boolean 
         const formattedApi: ApiLogItem[] = res.logs.map((l: any, idx: number) => ({
           id: `api-log-${l.id || idx}`,
           method: 'POST',
-          endpoint: l.event === 'payment.created' ? '/api/v1/payments/qr' : '/api/v1/payments/confirm',
+          endpoint: l.event === 'payment.created' ? '/api/v1/transactions' : '/api/v1/transactions/{reference}',
           status: 200,
           latencyMs: 28 + (idx * 2),
           timestamp: new Date(l.timestamp).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) + ' น.',
@@ -353,20 +353,20 @@ export function DeveloperConsoleView({ embedded = false }: { embedded?: boolean 
 
     try {
       if (selectedDocEndpoint === 'create_qr') {
-        const res = await createPaymentQr({
+        const res = await createTransactionCommand({
           amount: parseFloat(sandboxAmount) || 100.0,
           channel: sandboxChannel,
           customerName: sandboxCustomerName,
           customerPhone: sandboxCustomerPhone,
           note: sandboxNote,
-        })
+        }, `developer:${Date.now()}:${Math.random().toString(36).slice(2, 10)}`)
         setSandboxResponse(res)
-        if (res && res.reference) {
-          setSandboxCheckRef(res.reference)
+        if (res?.transaction) {
+          setSandboxCheckRef(res.transaction.paymentReference || res.transaction.clientReference || res.transaction.reference || '')
         }
         refreshDevLogs()
       } else if (selectedDocEndpoint === 'check_status') {
-        const res = await checkPaymentStatus(sandboxCheckRef)
+        const res = await checkTransactionStatus(sandboxCheckRef)
         setSandboxResponse(res)
         refreshDevLogs()
       } else {
@@ -1084,7 +1084,7 @@ export function DeveloperConsoleView({ embedded = false }: { embedded?: boolean 
                     onClick={() => setSelectedDocEndpoint('create_qr')}
                   >
                     <span className="dev-method-badge post">POST</span>
-                    <span>/api/v1/payments/qr</span>
+                    <span>/api/v1/transactions</span>
                   </button>
                   <button
                     type="button"
@@ -1092,7 +1092,7 @@ export function DeveloperConsoleView({ embedded = false }: { embedded?: boolean 
                     onClick={() => setSelectedDocEndpoint('check_status')}
                   >
                     <span className="dev-method-badge get">GET</span>
-                    <span>/api/v1/payments/{'{ref}'}</span>
+                    <span>/api/v1/transactions/{'{ref}'}</span>
                   </button>
                 </div>
 
@@ -1124,7 +1124,7 @@ export function DeveloperConsoleView({ embedded = false }: { embedded?: boolean 
                     <>
                       <div className="dev-ep-title-row">
                         <span className="dev-method-badge post lg">POST</span>
-                        <code className="dev-ep-uri">/api/v1/payments/qr</code>
+                        <code className="dev-ep-uri">/api/v1/transactions</code>
                         <span className="dev-ep-auth-badge">Auth: Bearer Token</span>
                       </div>
                       <h3>สร้างคิวอาร์โค้ดรับชำระเงิน (Create Payment QR)</h3>
@@ -1138,7 +1138,7 @@ export function DeveloperConsoleView({ embedded = false }: { embedded?: boolean 
                     <>
                       <div className="dev-ep-title-row">
                         <span className="dev-method-badge get lg">GET</span>
-                        <code className="dev-ep-uri">/api/v1/payments/{'{reference}'}</code>
+                        <code className="dev-ep-uri">/api/v1/transactions/{'{reference}'}</code>
                         <span className="dev-ep-auth-badge">Auth: Bearer Token</span>
                       </div>
                       <h3>ตรวจสอบสถานะการจ่ายเงิน (Check Payment Status)</h3>
@@ -1377,7 +1377,7 @@ export function DeveloperConsoleView({ embedded = false }: { embedded?: boolean 
                       onClick={() => {
                         let sample = ''
                         if (codeLanguage === 'curl') {
-                          sample = `curl -X POST "https://chatpos.biz/api/v1/payments/qr" \\\n  -H "Authorization: Bearer YOUR_API_KEY" \\\n  -H "Content-Type: application/json" \\\n  -d '{"amount": ${sandboxAmount}, "channel": "${sandboxChannel}", "customerName": "${sandboxCustomerName}", "note": "${sandboxNote}"}'`
+                          sample = `curl -X POST "https://chatpos.biz/api/v1/transactions" \\\n  -H "Authorization: Bearer YOUR_API_KEY" \\\n  -H "Idempotency-Key: transaction-demo-001" \\\n  -H "Content-Type: application/json" \\\n  -d '{"amount": ${sandboxAmount}, "channel": "${sandboxChannel}", "customerName": "${sandboxCustomerName}", "note": "${sandboxNote}"}'`
                         }
                         copyToClipboard(sample, 'code-sample')
                       }}
@@ -1388,8 +1388,9 @@ export function DeveloperConsoleView({ embedded = false }: { embedded?: boolean 
 
                   <div className="dev-code-block dark">
                     {codeLanguage === 'curl' && (
-                      <pre>{`curl -X POST "https://chatpos.biz/api/v1/payments/qr" \\
+                      <pre>{`curl -X POST "https://chatpos.biz/api/v1/transactions" \\
   -H "Authorization: Bearer cpos_live_your_api_key_here" \\
+  -H "Idempotency-Key: transaction-demo-001" \\
   -H "Content-Type: application/json" \\
   -d '{
     "amount": ${sandboxAmount},
@@ -1402,11 +1403,12 @@ export function DeveloperConsoleView({ embedded = false }: { embedded?: boolean 
                     )}
 
                     {codeLanguage === 'javascript' && (
-                      <pre>{`const response = await fetch('https://chatpos.biz/api/v1/payments/qr', {
+                      <pre>{`const response = await fetch('https://chatpos.biz/api/v1/transactions', {
   method: 'POST',
   headers: {
     'Authorization': 'Bearer cpos_live_your_api_key_here',
-    'Content-Type': 'application/json'
+    'Content-Type': 'application/json',
+    'Idempotency-Key': 'transaction-demo-001'
   },
   body: JSON.stringify({
     amount: ${sandboxAmount},
@@ -1425,10 +1427,11 @@ console.log('Checkout URL:', result.data.checkoutUrl);`}</pre>
                     {codeLanguage === 'python' && (
                       <pre>{`import requests
 
-url = "https://chatpos.biz/api/v1/payments/qr"
+url = "https://chatpos.biz/api/v1/transactions"
 headers = {
     "Authorization": "Bearer cpos_live_your_api_key_here",
-    "Content-Type": "application/json"
+  "Content-Type": "application/json",
+  "Idempotency-Key": "transaction-demo-001"
 }
 payload = {
     "amount": ${sandboxAmount},
@@ -1446,7 +1449,7 @@ print("Checkout URL:", data["data"]["checkoutUrl"])`}</pre>
 
                     {codeLanguage === 'php' && (
                       <pre>{`<?php
-$ch = curl_init('https://chatpos.biz/api/v1/payments/qr');
+$ch = curl_init('https://chatpos.biz/api/v1/transactions');
 $payload = json_encode([
   'amount' => ${sandboxAmount},
   'channel' => '${sandboxChannel}',
@@ -1457,7 +1460,8 @@ $payload = json_encode([
 curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
 curl_setopt($ch, CURLOPT_HTTPHEADER, [
   'Authorization: Bearer cpos_live_your_api_key_here',
-  'Content-Type: application/json'
+  'Content-Type: application/json',
+  'Idempotency-Key: transaction-demo-001'
 ]);
 curl_setopt($ch, CURLOPT_POST, true);
 curl_setopt($ch, CURLOPT_POSTFIELDS, $payload);

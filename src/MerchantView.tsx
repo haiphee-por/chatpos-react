@@ -2,9 +2,9 @@ import { useState, useEffect } from 'react'
 import { ProfileSettingsModal } from './ProfileSettingsModal'
 import { MerchantKycView } from './MerchantKycView'
 import { DeveloperConsoleView } from './DeveloperConsoleView'
-import { fetchDbAssignments, fetchDbProducts, fetchDbStores, getStoredUser, clearStoredUser, createDbTransaction, type AuthUser, type DbAssignmentRow, type DbStoreRow } from './dbApi'
+import { fetchDbAssignments, fetchDbProducts, fetchDbStores, getStoredUser, clearStoredUser, type AuthUser, type DbAssignmentRow, type DbStoreRow } from './dbApi'
 import { generatePromptPayQrDataUrl, generateUrlQrDataUrl, getStoredPromptPayId, setStoredPromptPayId } from './promptpay'
-import { createPaymentQr, checkPaymentStatus, fetchChatPosApi } from './chatposApi'
+import { checkTransactionStatus, createTransactionCommand } from './chatposApi'
 import {
   LogOut,
   Bell,
@@ -7645,6 +7645,7 @@ function QuickPayView() {
 
   // Real PromptPay Generation & Developer Mode Sync
   const [activePaymentRef, setActivePaymentRef] = useState<string>('')
+  const [activeIdempotencyKey, setActiveIdempotencyKey] = useState<string>('')
   const [promptPayQrUrl, setPromptPayQrUrl] = useState<string>('')
   const [merchantPromptPayId, setMerchantPromptPayId] = useState<string>(() => {
     const user = getStoredUser()
@@ -7652,7 +7653,6 @@ function QuickPayView() {
   })
   const [isEditingPromptPay, setIsEditingPromptPay] = useState(false)
   const [promptPayInput, setPromptPayInput] = useState('')
-  const [isSavingTxn, setIsSavingTxn] = useState(false)
 
   const numAmount = parseFloat(amountStr) || 0
   const baseSubtotal = (pendingPosOrder && pendingPosOrder.total) ? Number(pendingPosOrder.total) : numAmount
@@ -7662,48 +7662,49 @@ function QuickPayView() {
   const finalDiscount = Math.min(baseSubtotal, Math.max(0, calculatedDiscount))
   const netPayable = Math.max(0, baseSubtotal - finalDiscount)
 
-  // 1. Generate real PromptPay QR via Developer API (/api/v1/payments/qr)
+  // 1. Request the payment QR through Backoffice transaction routing
   useEffect(() => {
     let isMounted = true
     if (isSummaryModalOpen && summaryStep === 'qr') {
-      const target = merchantPromptPayId || getStoredPromptPayId('0823456789')
+      if (!activeIdempotencyKey) {
+        setActiveIdempotencyKey(`merchant:${Date.now()}:${Math.random().toString(36).slice(2, 10)}`)
+        return () => {
+          isMounted = false
+        }
+      }
 
-      // Directly invoke Developer API
-      createPaymentQr({
+      createTransactionCommand({
         amount: netPayable,
         channel: selectedMethod,
         customerName: pendingPosOrder?.tableName ? `ลูกค้า ${pendingPosOrder.tableName}` : 'ลูกค้าหน้าร้าน',
-        note: `ชำระเงินผ่าน POS / Developer Mode API (ยอดเงิน ฿${netPayable.toFixed(2)})`,
-        promptPayId: target,
-      })
+        note: `ชำระเงินผ่าน POS / Backoffice Transaction (ยอดเงิน ฿${netPayable.toFixed(2)})`,
+        tableName: pendingPosOrder?.tableName || 'คิดเงินหน้าร้าน',
+      }, activeIdempotencyKey)
         .then((res) => {
-          if (isMounted && res) {
-            if (res.qrCodeUrl) setPromptPayQrUrl(res.qrCodeUrl)
-            if (res.reference) setActivePaymentRef(res.reference)
+          const transaction = res?.transaction
+          if (isMounted && transaction) {
+            setPromptPayQrUrl(transaction.qrCodeUrl || '')
+            setActivePaymentRef(transaction.paymentReference || transaction.clientReference || transaction.reference || '')
           }
         })
         .catch((err) => {
-          console.warn('Developer API offline, fallback to client QR generator:', err)
-          generatePromptPayQrDataUrl(target, netPayable, 260)
-            .then((url) => {
-              if (isMounted) setPromptPayQrUrl(url)
-            })
-            .catch((e) => console.error('Failed to generate PromptPay QR:', e))
+          console.warn('Backoffice transaction routing unavailable:', err)
+          if (isMounted) setPromptPayQrUrl('')
         })
     }
     return () => {
       isMounted = false
     }
-  }, [isSummaryModalOpen, summaryStep, netPayable, selectedMethod, merchantPromptPayId])
+  }, [isSummaryModalOpen, summaryStep, netPayable, selectedMethod, pendingPosOrder?.tableName, activeIdempotencyKey])
 
-  // 2. Auto-polling payment status via Developer API (/api/v1/payments/:ref)
+  // 2. Auto-polling the routed transaction status
   useEffect(() => {
     let pollTimer: any
     if (isSummaryModalOpen && summaryStep === 'qr' && activePaymentRef) {
       pollTimer = setInterval(async () => {
         try {
-          const res = await checkPaymentStatus(activePaymentRef)
-          if (res && res.status === 'completed') {
+          const res = await checkTransactionStatus(activePaymentRef)
+          if (res?.transaction?.status === 'completed') {
             clearInterval(pollTimer)
             handleConfirmPaymentSuccess()
           }
@@ -7764,9 +7765,8 @@ function QuickPayView() {
     setIsSummaryModalOpen(true)
   }
 
-  const handleConfirmPaymentSuccess = async () => {
+  const handleConfirmPaymentSuccess = () => {
     playTapSound('success')
-    setIsSavingTxn(true)
     const successInfo = {
       orderId: activePaymentRef || `ORD-${Date.now().toString().slice(-6)}`,
       amount: netPayable,
@@ -7776,41 +7776,6 @@ function QuickPayView() {
     }
 
     try {
-      if (activePaymentRef) {
-        // 1. Confirm through Developer API (/api/v1/payments/confirm)
-        await fetchChatPosApi('/api/v1/payments/confirm', {
-          method: 'POST',
-          body: JSON.stringify({ reference: activePaymentRef }),
-        }).catch(async () => {
-          // Fallback direct db insertion if needed
-          const user = getStoredUser()
-          await createDbTransaction({
-            amount: netPayable,
-            storeId: user?.store?.id || null,
-            userId: user?.id || null,
-            channel: selectedMethod,
-            paymentMethod: getChannelInfo(selectedMethod).name,
-            customerName: pendingPosOrder?.tableName ? `ลูกค้า ${pendingPosOrder.tableName}` : 'ลูกค้าหน้าร้าน',
-            tableName: pendingPosOrder?.tableName || 'คิดเงินหน้าร้าน',
-            note: `ชำระเงินผ่าน PromptPay QR เข้าบัญชี ${merchantPromptPayId} (ยอดเงิน ฿${netPayable.toFixed(2)})`,
-            origin: 'POS'
-          })
-        })
-      } else {
-        const user = getStoredUser()
-        await createDbTransaction({
-          amount: netPayable,
-          storeId: user?.store?.id || null,
-          userId: user?.id || null,
-          channel: selectedMethod,
-          paymentMethod: getChannelInfo(selectedMethod).name,
-          customerName: pendingPosOrder?.tableName ? `ลูกค้า ${pendingPosOrder.tableName}` : 'ลูกค้าหน้าร้าน',
-          tableName: pendingPosOrder?.tableName || 'คิดเงินหน้าร้าน',
-          note: `ชำระเงินผ่าน PromptPay QR เข้าบัญชี ${merchantPromptPayId} (ยอดเงิน ฿${netPayable.toFixed(2)})`,
-          origin: 'POS'
-        })
-      }
-
       const existing = JSON.parse(localStorage.getItem('merchant_live_paid_txns') || '[]')
       existing.unshift({
         id: `tx-${Date.now()}`,
@@ -7823,12 +7788,10 @@ function QuickPayView() {
       window.dispatchEvent(new Event('storage'))
     } catch (e) {
       console.error('Error saving transaction:', e)
-    } finally {
-      setIsSavingTxn(false)
-      setPaymentSuccessData(successInfo)
-      setSummaryStep('success')
-      handleClearPendingPosOrder()
     }
+    setPaymentSuccessData(successInfo)
+    setSummaryStep('success')
+    handleClearPendingPosOrder()
   }
 
   const handleCopyPayLink = () => {
@@ -8374,7 +8337,13 @@ function QuickPayView() {
                   <button
                     type="button"
                     className="qp-btn-generate-qr-action"
-                    onClick={() => { playTapSound('success'); setSummaryStep('qr') }}
+                    onClick={() => {
+                      playTapSound('success')
+                      setPromptPayQrUrl('')
+                      setActivePaymentRef('')
+                      setActiveIdempotencyKey('')
+                      setSummaryStep('qr')
+                    }}
                   >
                     <QrCode size={18} />
                     <span>รับคิวอาร์โค้ดชำระเงิน (฿{netPayable.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}) ›</span>
@@ -8496,28 +8465,6 @@ function QuickPayView() {
                       <Share2 size={15} /> {copiedPayLink ? 'คัดลอกลิงก์แล้ว! ✨' : 'แชร์ลิงก์จ่ายเงิน'}
                     </button>
                   </div>
-
-                  {/* Real Payment Confirmation Button */}
-                  <button
-                    type="button"
-                    className="qp-btn-simulate-success"
-                    onClick={handleConfirmPaymentSuccess}
-                    disabled={isSavingTxn}
-                    style={{
-                      background: 'linear-gradient(135deg, #059669 0%, #10b981 100%)',
-                      color: '#ffffff',
-                      border: 'none',
-                      fontWeight: 700,
-                      boxShadow: '0 4px 14px rgba(16, 185, 129, 0.35)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: '8px',
-                    }}
-                  >
-                    <CheckCircle2 size={18} />
-                    <span>{isSavingTxn ? 'กำลังบันทึกข้อมูลเข้าฐานข้อมูล...' : 'ยืนยันได้รับเงินแล้ว (บันทึกยอดขายจริง)'}</span>
-                  </button>
 
                   <button
                     type="button"

@@ -21,6 +21,14 @@ const {
   ProfileKycError,
   updateStoreProfile,
 } = require('./server/integration/profileKycService.cjs');
+const {
+  TransactionRoutingError,
+  createTransactionCommand,
+  dispatchSettlementEvent,
+  getTransaction,
+  processPaymentWebhook,
+  verifyLlgwWebhook,
+} = require('./server/integration/transactionService.cjs');
 
 dotenv.config();
 
@@ -61,6 +69,12 @@ const kycDocumentBackofficeClient = createBackofficeClient({
   config: {
     ...backofficeConfig,
     enabled: backofficeConfig.enabled && backofficeConfig.kycDocumentEnabled,
+  },
+});
+const transactionBackofficeClient = createBackofficeClient({
+  config: {
+    ...backofficeConfig,
+    enabled: backofficeConfig.enabled && backofficeConfig.transactionRoutingEnabled,
   },
 });
 
@@ -165,13 +179,18 @@ const server = http.createServer(async (req, res) => {
   // Handle API Database routes
   const requestPath = url.split('?')[0];
 
-  if (url.startsWith('/api/db') || url.startsWith('/api/v1') || requestPath === '/api/webhooks/assignment-status') {
+  if (
+    url.startsWith('/api/db') ||
+    url.startsWith('/api/v1') ||
+    requestPath === '/api/webhooks/assignment-status' ||
+    requestPath === '/api/webhooks/llgw/payment'
+  ) {
     res.setHeader('Content-Type', 'application/json');
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PATCH, PUT, DELETE, OPTIONS');
     res.setHeader(
       'Access-Control-Allow-Headers',
-      'Content-Type, Authorization, Idempotency-Key, X-Request-Id, X-Store-Id, X-Actor-Id, X-Actor-Role, X-ChatPOS-Event-Id, X-ChatPOS-Timestamp, X-ChatPOS-Signature'
+      'Content-Type, Authorization, Idempotency-Key, X-Request-Id, X-Store-Id, X-Actor-Id, X-Actor-Role, X-ChatPOS-Event-Id, X-ChatPOS-Timestamp, X-ChatPOS-Signature, X-LLGW-Event-Id, X-LLGW-Timestamp, X-LLGW-Signature'
     );
 
     if (req.method === 'OPTIONS') {
@@ -1119,8 +1138,127 @@ const server = http.createServer(async (req, res) => {
         return;
       }
 
+      // ── PHASE 4: LLGW payment webhook ───────────────────────────────
+      if (req.method === 'POST' && requestPath === '/api/webhooks/llgw/payment') {
+        const rawBody = await readRawBody(req);
+        try {
+          const verified = verifyLlgwWebhook({
+            rawBody,
+            headers: req.headers,
+            secret: backofficeConfig.llgwPaymentWebhookSecret,
+            toleranceSeconds: backofficeConfig.llgwTimestampToleranceSeconds,
+          });
+          let body;
+          try {
+            body = JSON.parse(rawBody || '{}');
+          } catch {
+            throw new TransactionRoutingError('LLGW webhook body must be valid JSON', 'INVALID_WEBHOOK_JSON');
+          }
+          const result = await processPaymentWebhook({
+            pool,
+            rawBody,
+            body,
+            verified,
+            commissionConfig: {
+              enabled: backofficeConfig.commissionEventEnabled,
+              sourceUrl: backofficeConfig.commissionEventSourceUrl,
+              webhookSecret: backofficeConfig.commissionWebhookSecret,
+              grossBenefitField: backofficeConfig.commissionGrossBenefitField,
+            },
+          });
+          let settlement = null;
+          if (result.settlementEvent) {
+            try {
+              settlement = await dispatchSettlementEvent({
+                pool,
+                eventId: result.settlementEvent.eventId,
+                config: {
+                  enabled: backofficeConfig.commissionEventEnabled,
+                  sourceUrl: backofficeConfig.commissionEventSourceUrl,
+                  webhookSecret: backofficeConfig.commissionWebhookSecret,
+                },
+              });
+            } catch (settlementError) {
+              settlement = { sent: false, pending: true, code: settlementError.code || 'SETTLEMENT_SEND_FAILED' };
+            }
+          }
+          res.statusCode = 200;
+          res.end(JSON.stringify({
+            success: true,
+            duplicate: Boolean(result.duplicate),
+            late: Boolean(result.late),
+            transaction: result.transaction || null,
+            settlement,
+          }));
+        } catch (error) {
+          const statusCode = error.statusCode || 400;
+          res.statusCode = statusCode;
+          res.end(JSON.stringify({ success: false, error: { code: error.code || 'WEBHOOK_FAILED', message: error.message } }));
+        }
+        return;
+      }
+
+      // ── PHASE 4: signed transaction command ─────────────────────────
+      if (req.method === 'POST' && requestPath === '/api/v1/transactions') {
+        if (!backofficeConfig.transactionRoutingEnabled) {
+          res.statusCode = 503;
+          res.end(JSON.stringify({ success: false, error: { code: 'TRANSACTION_ROUTING_DISABLED', message: 'Transaction routing is disabled' } }));
+          return;
+        }
+        const rawBody = await readRawBody(req);
+        let body;
+        try {
+          body = JSON.parse(rawBody || '{}');
+        } catch {
+          res.statusCode = 400;
+          res.end(JSON.stringify({ success: false, error: { code: 'INVALID_JSON', message: 'Request body must be valid JSON' } }));
+          return;
+        }
+        try {
+          let storeId = body.storeId || req.headers['x-store-id'] || null;
+          if (!storeId) {
+            const storeResult = await pool.query('SELECT id FROM "Store" ORDER BY "createdAt" DESC LIMIT 1');
+            storeId = storeResult.rows[0]?.id || null;
+          }
+          const result = await createTransactionCommand({
+            pool,
+            backofficeClient: transactionBackofficeClient,
+            storeId,
+            body,
+            idempotencyKey: req.headers['idempotency-key'],
+            requestId: req.headers['x-request-id'] || undefined,
+          });
+          res.statusCode = result.idempotentReplay ? 200 : 201;
+          res.end(JSON.stringify({ success: true, idempotentReplay: result.idempotentReplay, transaction: result.transaction }));
+        } catch (error) {
+          const statusCode = error.statusCode || (error.code === 'INTEGRATION_DISABLED' ? 503 : 400);
+          res.statusCode = statusCode;
+          res.end(JSON.stringify({ success: false, error: { code: error.code || 'TRANSACTION_COMMAND_FAILED', message: error.message } }));
+        }
+        return;
+      }
+
+      // ── PHASE 4: transaction status ─────────────────────────────────
+      if (req.method === 'GET' && requestPath.startsWith('/api/v1/transactions/')) {
+        try {
+          const reference = decodeURIComponent(requestPath.replace('/api/v1/transactions/', ''));
+          const transaction = await getTransaction({ pool, reference });
+          res.statusCode = 200;
+          res.end(JSON.stringify({ success: true, transaction }));
+        } catch (error) {
+          res.statusCode = error.statusCode || 500;
+          res.end(JSON.stringify({ success: false, error: { code: error.code || 'TRANSACTION_READ_FAILED', message: error.message } }));
+        }
+        return;
+      }
+
       // ── DEVELOPER API: 15. POST /api/v1/payments/qr ──────────────────
       if (req.method === 'POST' && (url === '/api/v1/payments/qr' || url.startsWith('/api/v1/payments/qr?'))) {
+        if (backofficeConfig.transactionRoutingEnabled) {
+          res.statusCode = 410;
+          res.end(JSON.stringify({ success: false, error: { code: 'PAYMENT_OWNERSHIP_MOVED', message: 'Payment creation is owned by Backoffice transaction routing' } }));
+          return;
+        }
         const body = await parseJsonBody(req);
         const {
           amount,
@@ -1253,6 +1391,11 @@ const server = http.createServer(async (req, res) => {
 
       // ── DEVELOPER API: 17. POST /api/v1/payments/confirm ──────────────
       if (req.method === 'POST' && (url === '/api/v1/payments/confirm' || url.startsWith('/api/v1/payments/confirm?') || url.includes('/confirm'))) {
+        if (backofficeConfig.transactionRoutingEnabled) {
+          res.statusCode = 410;
+          res.end(JSON.stringify({ success: false, error: { code: 'PAYMENT_OWNERSHIP_MOVED', message: 'Payment confirmation is owned by LLGW webhook events' } }));
+          return;
+        }
         const body = await parseJsonBody(req);
         const ref = body.reference || decodeURIComponent(url.replace('/api/v1/payments/', '').replace('/confirm', '').split('?')[0]);
 

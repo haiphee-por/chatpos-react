@@ -61,12 +61,12 @@
 ## Phase 4: Transaction routing และ settlement
 
 - [ ] **P0 / Contract:** ขอ command endpoint สำหรับสร้าง Transaction ผ่าน `chatpos.biz -> Backoffice -> LLGW`; ห้ามใช้ read-only payment endpoint แทน command
-- [ ] **P0 / Backend:** เพิ่ม Backoffice transaction client และ stable `clientReference` พร้อม idempotency ก่อนส่งต่อคำสั่ง
-- [ ] **P0 / Backend:** ปิดหรือ gate direct payment creation จาก `chatpos.biz -> LLGW` และปรับ `QuickPayView`/`chatposApi.ts` ให้ใช้เส้นทางใหม่
-- [ ] **P0 / Backend:** เพิ่ม LLGW payment webhook receiver ที่ `chatpos.biz` พร้อม raw-body signature, timestamp, event ID dedupe และ late/out-of-order handling
+- [x] **P0 / Backend:** เพิ่ม Backoffice transaction client และ stable `clientReference` พร้อม idempotency ก่อนส่งต่อคำสั่ง
+- [x] **P0 / Backend:** ปิดหรือ gate direct payment creation จาก `chatpos.biz -> LLGW` และปรับ `QuickPayView`/`chatposApi.ts` ให้ใช้เส้นทางใหม่
+- [x] **P0 / Backend:** เพิ่ม LLGW payment webhook receiver ที่ `chatpos.biz` พร้อม raw-body signature, timestamp, event ID dedupe และ late/out-of-order handling
 - [ ] **P1 / Finance + Backoffice:** ยืนยัน `COMMISSION_EVENT_INGEST_ENABLED`, schema/field mapping และ reversal policy ก่อนส่ง settlement
-- [ ] **P1 / Backend:** เพิ่ม signed final settlement event ไป `/api/webhooks/commission/settlement` เมื่อ Finance เปิด feature และรองรับ reversal conflict
-- [ ] **P1 / Frontend:** แสดง payment reference/status ที่มาจาก Backoffice และไม่ expose gateway secret ใน Developer Console หรือ browser storage
+- [x] **P1 / Backend:** เพิ่ม signed final settlement event ไป `/api/webhooks/commission/settlement` เมื่อ Finance เปิด feature และรองรับ reversal conflict
+- [x] **P1 / Frontend:** แสดง payment reference/status ที่มาจาก Backoffice และไม่ expose gateway secret ใน Developer Console หรือ browser storage
 - [ ] **เสร็จเมื่อ:** sandbox success, failure, timeout, duplicate webhook, late webhook, payment confirmation และ settlement reconciliation ผ่าน end to end
 
 ## Phase 5: Security, authorization และ production readiness

@@ -76,6 +76,16 @@ function loadBackofficeConfig(env = process.env) {
     profileUpdateEnabled: parseBoolean(env.MERCHANT_PROFILE_UPDATE_ENABLED, false),
     kycDocumentEnabled: parseBoolean(env.KYC_DOCUMENT_INTAKE_ENABLED, false),
     transactionRoutingEnabled: parseBoolean(env.TRANSACTION_ROUTING_ENABLED, false),
+    transactionCommandPath: String(env.AGENT_PD_TRANSACTION_COMMAND_PATH || '/api/v1/transactions'),
+    llgwPaymentWebhookSecret: String(env.LLGW_PAYMENT_WEBHOOK_SECRET || ''),
+    llgwTimestampToleranceSeconds: parsePositiveInteger(
+      env.LLGW_PAYMENT_TIMESTAMP_TOLERANCE_SECONDS,
+      DEFAULT_TIMESTAMP_TOLERANCE_SECONDS
+    ),
+    commissionEventEnabled: parseBoolean(env.COMMISSION_EVENT_INGEST_ENABLED, false),
+    commissionEventSourceUrl: String(env.COMMISSION_EVENT_SOURCE_URL || ''),
+    commissionWebhookSecret: String(env.COMMISSION_EVENT_WEBHOOK_SECRET || ''),
+    commissionGrossBenefitField: String(env.COMMISSION_PD_GROSS_BENEFIT_FIELD || ''),
     timeoutMs: parsePositiveInteger(env.AGENT_PD_REQUEST_TIMEOUT_MS, DEFAULT_TIMEOUT_MS),
     maxRetries: Number.isInteger(Number(env.AGENT_PD_MAX_RETRIES)) && Number(env.AGENT_PD_MAX_RETRIES) >= 0
       ? Number(env.AGENT_PD_MAX_RETRIES)

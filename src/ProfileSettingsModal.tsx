@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { Bell, Camera, CheckCircle2, KeyRound, Shield, Store, User, X, Key, RefreshCw, Server, AlertCircle, Code, Copy, Check } from 'lucide-react'
-import { getStoredApiKey, setStoredApiKey, fetchBalance, createPaymentQr, checkPaymentStatus, authenticateApi, createPayout } from './chatposApi'
+import { getStoredApiKey, setStoredApiKey, fetchBalance, createTransactionCommand, checkTransactionStatus, authenticateApi, createPayout } from './chatposApi'
 import { getStoredUser } from './dbApi'
 
 export type ProfileData = {
@@ -172,13 +172,13 @@ export function ProfileSettingsModal({
       if (selectedEndpoint === 'balance') {
         data = await fetchBalance(keyToUse)
       } else if (selectedEndpoint === 'create_qr') {
-        data = await createPaymentQr({
+        data = await createTransactionCommand({
           amount: Number(paramAmount) || 100,
-          description: paramDescription || 'Payment QR Test',
+          note: paramDescription || 'Payment QR Test',
           orderId: `ORD-${Date.now()}`
-        }, keyToUse)
+        }, `profile-test:${Date.now()}:${Math.random().toString(36).slice(2, 10)}`, keyToUse)
       } else if (selectedEndpoint === 'check_payment') {
-        data = await checkPaymentStatus(paramRef || 'PAY-REF-100293', keyToUse)
+        data = await checkTransactionStatus(paramRef || 'PAY-REF-100293', keyToUse)
       } else if (selectedEndpoint === 'auth') {
         data = await authenticateApi({}, keyToUse)
       } else if (selectedEndpoint === 'create_payout') {
@@ -213,11 +213,12 @@ export function ProfileSettingsModal({
     }
 
     if (selectedEndpoint === 'create_qr') {
-      return `fetch('https://chatpos.biz/api/v1/payments/qr', {
+      return `fetch('https://chatpos.biz/api/v1/transactions', {
   method: 'POST',
   headers: {
     'Authorization': 'Bearer ${keyStr}',
-    'Content-Type': 'application/json'
+    'Content-Type': 'application/json',
+    'Idempotency-Key': 'transaction-demo-001'
   },
   body: JSON.stringify({
     amount: ${paramAmount || '100'},
@@ -231,7 +232,7 @@ export function ProfileSettingsModal({
     }
 
     if (selectedEndpoint === 'check_payment') {
-      return `fetch('https://chatpos.biz/api/v1/payments/${paramRef || 'PAY-REF-100293'}', {
+      return `fetch('https://chatpos.biz/api/v1/transactions/${paramRef || 'PAY-REF-100293'}', {
   method: 'GET',
   headers: {
     'Authorization': 'Bearer ${keyStr}'
@@ -580,8 +581,8 @@ export function ProfileSettingsModal({
                   className="api-endpoint-select"
                 >
                   <option value="balance">GET /api/v1/balance (Check account balance)</option>
-                  <option value="create_qr">POST /api/v1/payments/qr (Create payment QR)</option>
-                  <option value="check_payment">GET /api/v1/payments/&#123;reference&#125; (Check payment status)</option>
+                  <option value="create_qr">POST /api/v1/transactions (Create routed transaction)</option>
+                  <option value="check_payment">GET /api/v1/transactions/&#123;reference&#125; (Check payment status)</option>
                   <option value="auth">POST /api/v1/auth (Authenticate & get token)</option>
                   <option value="create_payout">POST /api/v1/payouts (Create withdrawal/payout)</option>
                 </select>

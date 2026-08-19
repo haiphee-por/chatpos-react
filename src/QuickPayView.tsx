@@ -15,8 +15,8 @@ import {
   Volume2,
   VolumeX,
 } from 'lucide-react'
-import { generatePromptPayQrDataUrl, getStoredPromptPayId } from './promptpay'
-import { createPaymentQr, checkPaymentStatus } from './chatposApi'
+import { getStoredPromptPayId } from './promptpay'
+import { checkTransactionStatus, createTransactionCommand } from './chatposApi'
 
 /* Web Audio API Sound Generator */
 const playAudioEffect = (type: 'beep' | 'pop' | 'success' | 'clear') => {
@@ -173,6 +173,7 @@ export function QuickPayView() {
   const [qrCountdown, setQrCountdown] = useState(300)
   const [promptPayQrUrl, setPromptPayQrUrl] = useState<string>('')
   const [activePaymentRef, setActivePaymentRef] = useState<string>('')
+  const [activeIdempotencyKey, setActiveIdempotencyKey] = useState<string>('')
   const [paymentSuccessData, setPaymentSuccessData] = useState<any>(null)
   const [autoResetSec, setAutoResetSec] = useState(8)
 
@@ -193,35 +194,37 @@ export function QuickPayView() {
   useEffect(() => {
     let isMounted = true
     if (isSummaryModalOpen && summaryStep === 'qr') {
-      const target = merchantPromptPayId || '0823456789'
       setQrCountdown(300)
 
-      createPaymentQr({
+      if (!activeIdempotencyKey) {
+        setActiveIdempotencyKey(`quickpay:${Date.now()}:${Math.random().toString(36).slice(2, 10)}`)
+        return () => {
+          isMounted = false
+        }
+      }
+
+      createTransactionCommand({
         amount: netPayable,
         channel: selectedMethod,
         customerName: note ? `ลูกค้า (${note})` : 'ลูกค้าหน้าร้าน',
         note: `ชำระเงินผ่าน QuickPay Standalone (ยอดเงิน ฿${netPayable.toFixed(2)})`,
-        promptPayId: target,
-      })
+      }, activeIdempotencyKey)
         .then((res) => {
-          if (isMounted && res) {
-            if (res.qrCodeUrl) setPromptPayQrUrl(res.qrCodeUrl)
-            if (res.reference) setActivePaymentRef(res.reference)
+          const transaction = res?.transaction
+          if (isMounted && transaction) {
+            setPromptPayQrUrl(transaction.qrCodeUrl || '')
+            setActivePaymentRef(transaction.paymentReference || transaction.clientReference || transaction.reference || '')
           }
         })
         .catch((err) => {
-          console.warn('Developer API offline, fallback to client QR generator:', err)
-          generatePromptPayQrDataUrl(target, netPayable, 280)
-            .then((url) => {
-              if (isMounted) setPromptPayQrUrl(url)
-            })
-            .catch((e) => console.error('Failed to generate PromptPay QR:', e))
+          console.warn('Backoffice transaction routing unavailable:', err)
+          if (isMounted) setPromptPayQrUrl('')
         })
     }
     return () => {
       isMounted = false
     }
-  }, [isSummaryModalOpen, summaryStep, netPayable, selectedMethod, merchantPromptPayId, note])
+  }, [isSummaryModalOpen, summaryStep, netPayable, selectedMethod, note, activeIdempotencyKey])
 
   // Countdown timer for QR
   useEffect(() => {
@@ -238,8 +241,8 @@ export function QuickPayView() {
     if (isSummaryModalOpen && summaryStep === 'qr' && activePaymentRef) {
       pollTimer = setInterval(async () => {
         try {
-          const res = await checkPaymentStatus(activePaymentRef)
-          if (res && res.status === 'completed') {
+          const res = await checkTransactionStatus(activePaymentRef)
+          if (res?.transaction?.status === 'completed') {
             clearInterval(pollTimer)
             handleConfirmPaymentSuccess()
           }
@@ -358,6 +361,9 @@ export function QuickPayView() {
 
   const handleProceedToQr = () => {
     playSound('pop')
+    setPromptPayQrUrl('')
+    setActivePaymentRef('')
+    setActiveIdempotencyKey('')
     setSummaryStep('qr')
   }
 
