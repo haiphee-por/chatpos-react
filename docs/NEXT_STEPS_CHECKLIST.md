@@ -49,13 +49,13 @@
 
 ## Phase 3: Merchant profile และ KYC documents
 
-- [ ] **P0 / Backend:** เพิ่ม `PATCH /api/v1/stores/profile` ผ่าน signed server-side client พร้อม allowlist field และห้ามรับ `storeId`, Agent, PD, status หรือ credential จาก body
-- [ ] **P0 / Database:** เพิ่ม optimistic concurrency ด้วย `expectedProfileVersion`, profile snapshot และ conflict response `PROFILE_VERSION_CONFLICT`
-- [ ] **P0 / KYC:** map field ที่กระทบ KYC ให้เปลี่ยนเป็น `WAITING_AGENT_REVIEW`, สร้าง notification และคง submission snapshot เดิม
-- [ ] **P0 / Backend:** เพิ่ม document intake สำหรับ `POST /api/v1/kyc/cases/{caseId}/documents` พร้อม checksum, private storage locator, MIME/size validation และ immutable version
-- [ ] **P0 / Storage:** ใช้ private storage locator เท่านั้น ตรวจ MIME/size/checksum และห้าม overwrite object หรือ reuse version ด้วย checksum ใหม่
-- [ ] **P1 / Frontend:** เพิ่ม document timeline, version comparison, status, correction request และป้องกันการ overwrite version เดิม
-- [ ] **P1 / Frontend:** เพิ่ม KYC Chat/Post ที่เชื่อม document request, attachment metadata, read status และ append-only message history
+- [~] **P0 / Backend:** เพิ่ม `PATCH /api/v1/stores/profile` ผ่าน signed server-side client ใน `server.cjs`/`profileKycService.cjs` พร้อม nested allowlist และ reject `storeId`, Agent, PD, status หรือ credential จาก body; ยังต้องเปิด flag และยืนยัน Backoffice scope/contract ใน staging
+- [x] **P0 / Database:** เพิ่ม `profileVersion`, `profileJson`, profile snapshot/body digest, submission snapshot และ document request idempotency columns ใน `database/migrations/002_phase3_profile_kyc.sql`; apply migration บน PostgreSQL local แล้ว แต่ยังต้อง apply/review ใน environment เป้าหมาย
+- [x] **P0 / KYC:** map KYC-impact profile fields เป็น `WAITING_AGENT_REVIEW`, เก็บ submission snapshot เดิมแบบไม่ overwrite, update verification, สร้าง Agent notification และ audit ภายใน transaction
+- [~] **P0 / Backend:** เพิ่ม document intake สำหรับ `POST /api/v1/kyc/cases/{caseId}/documents` พร้อม checksum, private locator, MIME/size validation และ immutable version; ยังต้องทดสอบ signed Backoffice document contract จริง
+- [x] **P0 / Storage:** validate `private://` locator, MIME/size/SHA-256 และ unique request/checksum/version; ไม่ overwrite object หรือ reuse version เดิมใน local persistence แต่ยังต้องต่อ private storage adapter/scanning production
+- [x] **P1 / Frontend:** เพิ่ม KYC document timeline, version comparison, status, correction reason และ attach version ใหม่โดยไม่ overwrite version เดิมใน Merchant portal
+- [x] **P1 / Frontend:** เพิ่ม KYC Chat/Post พร้อม document attachment metadata, read status และ append-only message history
 - [ ] **เสร็จเมื่อ:** profile replay/conflict, document replay/conflict, private access, version correction และ Agent review -> PD final decision ผ่าน staging
 
 ## Phase 4: Transaction routing และ settlement

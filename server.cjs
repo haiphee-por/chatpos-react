@@ -12,6 +12,15 @@ const {
   createAssignmentRequest,
   processAssignmentCallback,
 } = require('./server/integration/assignmentService.cjs');
+const {
+  appendKycMessage,
+  getDocumentAccess,
+  getKycWorkspace,
+  intakeKycDocument,
+  markKycMessageRead,
+  ProfileKycError,
+  updateStoreProfile,
+} = require('./server/integration/profileKycService.cjs');
 
 dotenv.config();
 
@@ -40,6 +49,18 @@ const assignmentBackofficeClient = createBackofficeClient({
   config: {
     ...backofficeConfig,
     enabled: backofficeConfig.enabled && backofficeConfig.assignmentEnabled,
+  },
+});
+const profileBackofficeClient = createBackofficeClient({
+  config: {
+    ...backofficeConfig,
+    enabled: backofficeConfig.enabled && backofficeConfig.profileUpdateEnabled,
+  },
+});
+const kycDocumentBackofficeClient = createBackofficeClient({
+  config: {
+    ...backofficeConfig,
+    enabled: backofficeConfig.enabled && backofficeConfig.kycDocumentEnabled,
   },
 });
 
@@ -129,8 +150,8 @@ function readRawBody(req, maxBytes = 1024 * 1024) {
   });
 }
 
-async function parseJsonBody(req) {
-  const bodyStr = await readRawBody(req);
+async function parseJsonBody(req, maxBytes = 1024 * 1024) {
+  const bodyStr = await readRawBody(req, maxBytes);
   try {
     return JSON.parse(bodyStr || '{}');
   } catch {
@@ -147,10 +168,10 @@ const server = http.createServer(async (req, res) => {
   if (url.startsWith('/api/db') || url.startsWith('/api/v1') || requestPath === '/api/webhooks/assignment-status') {
     res.setHeader('Content-Type', 'application/json');
     res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PATCH, PUT, DELETE, OPTIONS');
     res.setHeader(
       'Access-Control-Allow-Headers',
-      'Content-Type, Authorization, Idempotency-Key, X-Request-Id, X-Store-Id, X-ChatPOS-Event-Id, X-ChatPOS-Timestamp, X-ChatPOS-Signature'
+      'Content-Type, Authorization, Idempotency-Key, X-Request-Id, X-Store-Id, X-Actor-Id, X-Actor-Role, X-ChatPOS-Event-Id, X-ChatPOS-Timestamp, X-ChatPOS-Signature'
     );
 
     if (req.method === 'OPTIONS') {
@@ -198,6 +219,54 @@ const server = http.createServer(async (req, res) => {
         });
         res.statusCode = assignmentResult.statusCode;
         res.end(JSON.stringify({ success: true, data: assignmentResult.data }));
+        return;
+      }
+
+      if (requestPath === '/api/v1/stores/profile' && req.method === 'PATCH') {
+        if (!backofficeConfig.enabled || !backofficeConfig.profileUpdateEnabled) {
+          res.statusCode = 503;
+          res.end(JSON.stringify({ success: false, code: 'PROFILE_UPDATE_DISABLED', error: 'Merchant profile integration is disabled' }));
+          return;
+        }
+        const body = await parseJsonBody(req);
+        const storeId = backofficeConfig.storeId || req.headers['x-store-id'];
+        const idempotencyKey = req.headers['idempotency-key'];
+        const requestId = String(req.headers['x-request-id'] || crypto.randomUUID());
+        const profileResult = await updateStoreProfile({
+          pool,
+          backofficeClient: profileBackofficeClient,
+          storeId,
+          body,
+          idempotencyKey,
+          requestId,
+        });
+        res.statusCode = 200;
+        res.end(JSON.stringify({ success: true, data: profileResult }));
+        return;
+      }
+
+      const documentRoute = requestPath.match(/^\/api\/v1\/kyc\/cases\/([^/]+)\/documents$/);
+      if (documentRoute && req.method === 'POST') {
+        if (!backofficeConfig.enabled || !backofficeConfig.kycDocumentEnabled) {
+          res.statusCode = 503;
+          res.end(JSON.stringify({ success: false, code: 'KYC_DOCUMENT_INTEGRATION_DISABLED', error: 'KYC document integration is disabled' }));
+          return;
+        }
+        const body = await parseJsonBody(req, 16 * 1024 * 1024);
+        const storeId = backofficeConfig.storeId || req.headers['x-store-id'];
+        const idempotencyKey = req.headers['idempotency-key'];
+        const requestId = String(req.headers['x-request-id'] || crypto.randomUUID());
+        const documentResult = await intakeKycDocument({
+          pool,
+          backofficeClient: kycDocumentBackofficeClient,
+          storeId,
+          caseId: documentRoute[1],
+          body,
+          idempotencyKey,
+          requestId,
+        });
+        res.statusCode = documentResult.replayed ? 200 : 201;
+        res.end(JSON.stringify({ success: true, data: documentResult }));
         return;
       }
 
@@ -671,6 +740,68 @@ const server = http.createServer(async (req, res) => {
         const assignments = await pool.query(assignmentQuery);
         res.statusCode = 200;
         res.end(JSON.stringify({ success: true, data: assignments.rows }));
+        return;
+      }
+
+      if (requestPath === '/api/db/kyc/workspace' && req.method === 'GET') {
+        const query = new URL(url, 'http://localhost').searchParams;
+        const storeId = query.get('storeId') || req.headers['x-store-id'];
+        const workspace = await getKycWorkspace({ pool, storeId });
+        res.statusCode = 200;
+        res.end(JSON.stringify({ success: true, data: workspace }));
+        return;
+      }
+
+      const kycMessageRoute = requestPath.match(/^\/api\/db\/kyc\/cases\/([^/]+)\/messages$/);
+      if (kycMessageRoute && req.method === 'GET') {
+        const query = new URL(url, 'http://localhost').searchParams;
+        const storeId = query.get('storeId') || req.headers['x-store-id'];
+        const workspace = await getKycWorkspace({ pool, storeId });
+        const messages = workspace.case.id === kycMessageRoute[1] ? workspace.messages : [];
+        if (!messages.length && workspace.case.id !== kycMessageRoute[1]) {
+          throw new ProfileKycError('KYC case was not found', 'KYC_CASE_NOT_FOUND', 404);
+        }
+        res.statusCode = 200;
+        res.end(JSON.stringify({ success: true, data: messages }));
+        return;
+      }
+
+      if (kycMessageRoute && req.method === 'POST') {
+        const body = await parseJsonBody(req);
+        const storeId = req.headers['x-store-id'] || body.storeId;
+        if (Object.prototype.hasOwnProperty.call(body, 'storeId') || Object.prototype.hasOwnProperty.call(body, 'senderId') || Object.prototype.hasOwnProperty.call(body, 'senderRole')) {
+          throw new ProfileKycError('Message ownership fields must come from request context', 'MESSAGE_CONTEXT_FORBIDDEN', 422);
+        }
+        const message = await appendKycMessage({
+          pool,
+          storeId,
+          caseId: kycMessageRoute[1],
+          body,
+          actorId: req.headers['x-actor-id'] || 'merchant-session',
+          actorRole: req.headers['x-actor-role'] || 'merchant',
+        });
+        res.statusCode = 201;
+        res.end(JSON.stringify({ success: true, data: message }));
+        return;
+      }
+
+      const readMessageRoute = requestPath.match(/^\/api\/db\/kyc\/cases\/([^/]+)\/messages\/([^/]+)\/read$/);
+      if (readMessageRoute && req.method === 'PATCH') {
+        const query = new URL(url, 'http://localhost').searchParams;
+        const storeId = query.get('storeId') || req.headers['x-store-id'];
+        const message = await markKycMessageRead({ pool, storeId, caseId: readMessageRoute[1], messageId: readMessageRoute[2] });
+        res.statusCode = 200;
+        res.end(JSON.stringify({ success: true, data: message }));
+        return;
+      }
+
+      const documentAccessRoute = requestPath.match(/^\/api\/db\/kyc\/documents\/([^/]+)\/access$/);
+      if (documentAccessRoute && req.method === 'GET') {
+        const query = new URL(url, 'http://localhost').searchParams;
+        const storeId = query.get('storeId') || req.headers['x-store-id'];
+        const document = await getDocumentAccess({ pool, storeId, versionId: documentAccessRoute[1] });
+        res.statusCode = 200;
+        res.end(JSON.stringify({ success: true, data: document }));
         return;
       }
 

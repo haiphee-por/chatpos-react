@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { ProfileSettingsModal } from './ProfileSettingsModal'
+import { MerchantKycView } from './MerchantKycView'
 import { DeveloperConsoleView } from './DeveloperConsoleView'
 import { fetchDbAssignments, fetchDbProducts, fetchDbStores, getStoredUser, clearStoredUser, createDbTransaction, type AuthUser, type DbAssignmentRow, type DbStoreRow } from './dbApi'
 import { generatePromptPayQrDataUrl, generateUrlQrDataUrl, getStoredPromptPayId, setStoredPromptPayId } from './promptpay'
@@ -71,6 +72,7 @@ import {
   BadgePercent,
   Share2,
   RefreshCw,
+  FileCheck2,
 } from 'lucide-react'
 
 /* ==========================================================================
@@ -208,6 +210,7 @@ const navItems = [
   { id: 'salespage', label: 'เซลเพจ', icon: Globe },
   { id: 'reports', label: 'รายงานการเงิน', icon: ReceiptText },
   { id: 'wallet', label: 'กระเป๋าเงิน', icon: WalletCards },
+  { id: 'kyc', label: 'KYC และเอกสาร', icon: FileCheck2 },
   { id: 'developer', label: 'โหมดนักพัฒนา', icon: Code },
   { id: 'settings', label: 'ตั้งค่าร้านค้า', icon: Settings },
 ]
@@ -479,6 +482,8 @@ export function MerchantView() {
             <ReportsView />
           ) : active === 'wallet' ? (
             <WalletView />
+          ) : active === 'kyc' ? (
+            <MerchantKycView storeId={selectedStore?.id || currentUser?.store?.id || null} />
           ) : active === 'developer' ? (
             <DeveloperConsoleView embedded={true} />
           ) : active === 'settings' ? (

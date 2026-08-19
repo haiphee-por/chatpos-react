@@ -98,7 +98,7 @@ npm run server
 npm run db:migrate
 ```
 
-Migration แรกอยู่ที่ [`database/migrations/001_initial_chatpos_schema.sql`](../database/migrations/001_initial_chatpos_schema.sql) และครอบคลุมตาราง core ที่ `server.cjs` ใช้ รวมถึง Merchant KYC, assignment, document version, audit, idempotency และ webhook event dedupe ตาราง idempotency/nonce/webhook เป็น durable schema สำหรับการต่อยอด production; client helper แบบ in-memory ยังใช้เฉพาะ unit test และไม่ควรใช้แทน persistence layer จริง
+Migration หลักอยู่ที่ [`database/migrations/001_initial_chatpos_schema.sql`](../database/migrations/001_initial_chatpos_schema.sql) และ [`database/migrations/002_phase3_profile_kyc.sql`](../database/migrations/002_phase3_profile_kyc.sql) ครอบคลุมตาราง core ที่ `server.cjs` ใช้ รวมถึง Merchant KYC, assignment, profile/document version, audit, idempotency และ webhook event dedupe ตาราง idempotency/nonce/webhook เป็น durable schema สำหรับการต่อยอด production; client helper แบบ in-memory ยังใช้เฉพาะ unit test และไม่ควรใช้แทน persistence layer จริง
 
 ### Production
 
@@ -170,6 +170,12 @@ API ที่เกี่ยวข้อง:
 - `POST /api/v1/assignments/requests` สำหรับส่งคำขอผูก Agent ผ่าน signed server-side client
 - `POST /api/webhooks/assignment-status` สำหรับรับ signed status callback จาก Backoffice
 - `GET /api/db/assignments` สำหรับอ่านสถานะ assignment ของ Store
+- `PATCH /api/v1/stores/profile` สำหรับแก้ profile ผ่าน signed server-side client และ optimistic concurrency
+- `POST /api/v1/kyc/cases/{caseId}/documents` สำหรับเพิ่ม KYC document version แบบ immutable
+- `GET /api/db/kyc/workspace` สำหรับอ่าน case, document timeline, notifications และ chat
+- `POST /api/db/kyc/cases/{caseId}/messages` สำหรับ append-only KYC Chat/Post
+- `PATCH /api/db/kyc/cases/{caseId}/messages/{messageId}/read` สำหรับ read status
+- `GET /api/db/kyc/documents/{versionId}/access` สำหรับตรวจ private document locator ตาม Store context
 - `GET /api/db/kyc`
 - `POST /api/db/kyc/update-status`
 
@@ -178,6 +184,12 @@ Phase 2 มี assignment service ใน `server/integration/assignmentService.c
 Merchant portal แสดงสถานะ `PENDING_ADMIN_ASSIGNMENT`, `PENDING_AGENT_ACCEPTANCE`, `ACCEPTED`, `REJECTED`, `EXPIRED` และ `REASSIGNED` พร้อม next action และจะแสดง Agent/PD เฉพาะเมื่อ status เป็น `ACCEPTED` การสมัคร Merchant จะส่ง assignment request หลังสร้าง Store สำเร็จ โดยรองรับทั้งการระบุเบอร์ Agent และการเว้นว่างให้ Admin จัดสรร หาก `AGENT_PD_INTEGRATION_ENABLED` หรือ `AGENT_PD_ASSIGNMENT_ENABLED` ยังปิดอยู่ การสมัครบัญชียังสำเร็จแต่จะไม่ forward assignment ไป Backoffice
 
 ข้อจำกัดของ Phase 2: route ปัจจุบันยังใช้ `X-Store-Id`/`AGENT_PD_STORE_ID` เป็น store context เพราะ authentication/session ของ custom API server ยังเป็น prototype ต้องย้ายไป server-side session หรือ verified Store-scoped credential ก่อน production และต้องทดสอบ command/callback กับ Backoffice staging จริง รวมถึง receiver downtime และ retry recovery
+
+Phase 3 เพิ่ม `profileKycService.cjs` สำหรับ profile update, KYC document intake และ KYC Chat/Post โดย profile รับเฉพาะ nested `profile` allowlist ตาม contract, ใช้ `expectedProfileVersion`, `Idempotency-Key` และ snapshot ใน `merchant_profile_versions`; conflict ตอบ `PROFILE_VERSION_CONFLICT` และ replay ของ payload เดิมไม่เพิ่ม version ซ้ำ การแก้ field ที่กระทบ KYC จะเก็บ submission snapshot เดิมแบบไม่ overwrite, เปลี่ยน case เป็น `WAITING_AGENT_REVIEW`, อัปเดต `KycVerification`, สร้าง notification ให้ Agent และเขียน audit
+
+Document intake ตรวจ MIME (`application/pdf`, `image/jpeg`, `image/png`, `image/webp`), ขนาดไม่เกิน 10 MB, SHA-256 checksum และ `private://` locator เท่านั้น พร้อม unique `caseId + sourceRequestId`, `caseId + idempotencyKey`, `documentId + version` และ `documentId + checksum` เพื่อป้องกัน replay, overwrite และการใช้ version เดิมกับไฟล์ใหม่ การแก้เอกสารจึงต้องส่ง request ใหม่พร้อม locator/checksum ใหม่เสมอ ส่วน Chat/Post เก็บข้อความและ attachment metadata แบบ append-only และรองรับ read status
+
+Phase 3 ยังเป็น prototype integration: `MERCHANT_PROFILE_UPDATE_ENABLED` และ `KYC_DOCUMENT_INTAKE_ENABLED` ปิดเป็นค่าเริ่มต้น, route command จะ forward ผ่าน signed Backoffice client เมื่อเปิด flag เท่านั้น และ private locator เป็น metadata contract ยังไม่ใช่การ upload/object storage adapter production ต้องทดสอบ private access, staging replay/conflict, upload scanning, role/Store/Case authorization และ Agent review -> PD final decision ก่อนเปิดใช้งานจริง
 
 ข้อควรเข้าใจ: โค้ดปัจจุบันมีข้อมูล KYC, role Agent/PD และสถานะสำหรับ dashboard/API แล้ว แต่ยังไม่ใช่ implementation เต็มรูปแบบของ Merchant KYC ที่มี agent assignment, chat/post, immutable document versions, multi-level approval และ audit log ครบทุกขั้นตาม production specification หากพัฒนาต่อให้ใช้ skill [`merchant-kyc`](../.github/skills/merchant-kyc/SKILL.md) เป็นข้อกำหนด workflow
 

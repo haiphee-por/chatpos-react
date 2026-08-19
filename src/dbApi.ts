@@ -93,6 +93,58 @@ export interface DbAssignmentRow {
   pd_name: string | null
 }
 
+export interface KycDocumentVersion {
+  id: string
+  documentId: string
+  version: number
+  fileName: string
+  mimeType: string
+  fileSize: number | string
+  checksumSha256: string
+  storageLocator: string
+  status: string
+  reason: string | null
+  reviewNotes: string | null
+  createdAt: string
+}
+
+export interface KycDocumentTimeline {
+  id: string
+  documentType: string
+  status: string
+  latestVersion: number
+  updatedAt: string
+  versions: KycDocumentVersion[]
+}
+
+export interface KycChatMessage {
+  id: string
+  senderId: string
+  senderRole: string
+  recipientId: string | null
+  message: string | null
+  attachmentMetadataJson: Array<Record<string, unknown>>
+  status: string
+  readAt: string | null
+  createdAt: string
+}
+
+export interface KycWorkspace {
+  case: {
+    id: string
+    storeId: string
+    verificationId: string | null
+    case_number: string
+    status: string
+    submissionVersion: number
+    submissionSnapshotJson: Record<string, unknown> | null
+    submissionProfileVersion: number | null
+  }
+  documents: KycDocumentTimeline[]
+  messages: KycChatMessage[]
+  notifications: Array<{ id: string; type: string; title: string; message: string; readAt: string | null; createdAt: string }>
+}
+
 export interface DbAgentRow {
   id: string
   code: string
@@ -361,6 +413,58 @@ export async function requestMerchantAssignment(data: {
   } catch (err: any) {
     return { success: false, error: err?.message || 'ไม่สามารถส่งคำขอผูก Agent ได้' }
   }
+}
+
+export async function fetchKycWorkspace(storeId: string): Promise<KycWorkspace> {
+  const res = await fetchDbApi<{ success: boolean; data: KycWorkspace }>(`/kyc/workspace?storeId=${encodeURIComponent(storeId)}`)
+  return res.data
+}
+
+export interface KycDocumentRequest {
+  documentType: string
+  fileName: string
+  mimeType: string
+  fileSize: number
+  checksumSha256: string
+  storageLocator: string
+  reason?: string
+  sourceRequestId: string
+}
+
+export async function submitKycDocument(storeId: string, caseId: string, payload: KycDocumentRequest) {
+  const response = await fetch('/api/v1/kyc/cases/' + encodeURIComponent(caseId) + '/documents', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Store-Id': storeId,
+      'Idempotency-Key': payload.sourceRequestId,
+    },
+    body: JSON.stringify(payload),
+  })
+  const data = await response.json().catch(() => ({}))
+  if (!response.ok) throw new Error(data?.error || `Document API error ${response.status}`)
+  return data as { success: boolean; data: { document: KycDocumentVersion; replayed: boolean } }
+}
+
+export async function postKycMessage(storeId: string, caseId: string, payload: { message?: string; recipientId?: string; attachments?: Array<Record<string, unknown>> }) {
+  const response = await fetch('/api/db/kyc/cases/' + encodeURIComponent(caseId) + '/messages', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Store-Id': storeId, 'X-Actor-Role': 'merchant' },
+    body: JSON.stringify(payload),
+  })
+  const data = await response.json().catch(() => ({}))
+  if (!response.ok) throw new Error(data?.error || `KYC chat error ${response.status}`)
+  return data as { success: boolean; data: KycChatMessage }
+}
+
+export async function markKycMessageRead(storeId: string, caseId: string, messageId: string) {
+  const response = await fetch(`/api/db/kyc/cases/${encodeURIComponent(caseId)}/messages/${encodeURIComponent(messageId)}/read?storeId=${encodeURIComponent(storeId)}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', 'X-Store-Id': storeId },
+  })
+  const data = await response.json().catch(() => ({}))
+  if (!response.ok) throw new Error(data?.error || `KYC read status error ${response.status}`)
+  return data as { success: boolean; data: { id: string; readAt: string } }
 }
 
 /**
