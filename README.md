@@ -2,6 +2,8 @@
 
 ChatPOS is a Next.js application using the App Router, React, TypeScript, and Oxlint. The existing merchant, customer, booking, catalog, payment, and developer views are mounted through an optional catch-all route so their existing URLs continue to work.
 
+สำหรับภาพรวมความสามารถ สถาปัตยกรรม route, API, database, KYC และแนวทางพัฒนาต่อ ดูที่ [Developer Guide](docs/DEVELOPER_GUIDE.md)
+
 ## Development
 
 ```bash
