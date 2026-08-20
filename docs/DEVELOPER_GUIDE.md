@@ -142,6 +142,9 @@ npm run lint
 | `DOCUMENT_SCANNER_URL` / `DOCUMENT_SCANNER_TOKEN` / `DOCUMENT_SCANNER_TIMEOUT_MS` | `server/integration/documentSecurity.cjs` | scanner ไม่พร้อมจะ quarantine เอกสาร ไม่ถือว่าสแกนผ่าน |
 | `AGENT_PD_SIGNING_SECRET_PREVIOUS` / `AGENT_PD_CALLBACK_SECRET_PREVIOUS` | signed PD/Agent Backoffice integration | รับ secret เดิมชั่วคราวระหว่าง rotation แล้วต้องลบเพื่อ revoke |
 | `LLGW_PAYMENT_WEBHOOK_SECRET_PREVIOUS` | LLGW webhook verification | รับ secret เดิมชั่วคราวระหว่าง rotation แล้วต้องลบเพื่อ revoke |
+| `PAYMENT_STATUS_WEBHOOK_ENABLED` | normalized payment-status callback receiver | ปิดเป็นค่าเริ่มต้นจนกว่า external contract และ staging evidence จะผ่าน |
+| `PAYMENT_STATUS_WEBHOOK_SECRET(_PREVIOUS)` | normalized payment-status callback verification | secret manager เท่านั้น; รองรับ rotation ชั่วคราว |
+| `PAYMENT_STATUS_TIMESTAMP_TOLERANCE_SECONDS` | normalized payment-status callback verification | ค่าเริ่มต้น 300 วินาที |
 
 `.env.example` ยังมีตัวแปรชื่อ `VITE_API_URL` และ `VITE_APP_ENV` จากยุค Vite เดิม ซึ่งไม่ใช่ตัวแปรที่ Next routing ชุดปัจจุบันอ่านโดยตรง ให้ใช้ `CHATPOS_API_URL` และ `NEXT_PUBLIC_APP_URL` เป็นหลัก
 
@@ -383,13 +386,31 @@ API ปัจจุบันมี `GET /api/db/kyc` และ `POST /api/db/kyc
 - `CatalogPageView.tsx` แสดงหน้าขาย/catalog ที่อ้างอิง slug และข้อมูลที่ merchant บันทึกไว้
 - `MerchantView.tsx` เป็นจุดจัดการข้อมูลบริการ หน้าขาย และ QR/link
 
+### External Backoffice contract กับ local ChatPOS implementation
+
+[CHATPOS Client Integration Guide](CHATPOS_CLIENT_INTEGRATION_GUIDE.md) เป็นเอกสารอ้างอิงสำหรับนำไปขอ contract และเชื่อมกับ PD/Agent Backoffice ไม่ใช่หลักฐานว่า endpoint ภายนอกถูก deploy หรือได้รับ sign-off แล้ว ส่วนสถานะงาน, owner และ external dependency ให้ติดตามใน [NEXT_STEPS_CHECKLIST.md](NEXT_STEPS_CHECKLIST.md)
+
+ก่อนเปิด feature หรือเปลี่ยน route ให้มี signed contract matrix จาก Backoffice ที่ยืนยัน endpoint, payload, scope, Store/amount ownership, response/error, idempotency, callback URL, signature, retry และ webhook owner ก่อนเสมอ ห้ามเปลี่ยน local implementation ให้เดาตามตัวอย่างใน guide เพียงอย่างเดียว
+
+| พื้นที่ | External target ใน Integration Guide | Local ChatPOS ที่มีใน repository | งานที่ต้องทำต่อ |
+|---|---|---|---|
+| Payment command | Candidate `POST /api/v1/transactions/{id}/payment`; Backoffice derive payment context และส่งต่อ LLGW | Browser เรียก `POST /api/v1/transactions`; server ส่ง payload ผ่าน `AGENT_PD_TRANSACTION_COMMAND_PATH` ซึ่ง default เป็น `/api/v1/transactions` | รอ Backoffice ยืนยัน path/payload แล้วทำ adapter, contract test และ staging E2E |
+| LLGW pay-in webhook | Target ให้ PD/Agent รับ LLGW, verify/dedupe/update payment state | ChatPOS ยังรับ `POST /api/webhooks/llgw/payment`, verify LLGW signature และ update local Transaction | ย้ายไป normalized callback/query หรือขอ architecture exception ก่อน production |
+| Normalized payment status | PD/Agent ส่ง signed payment-status webhook และเปิด status query ให้ partner | ChatPOS มี gated receiver ที่ `POST /api/webhooks/payment-status` ตรวจ HMAC, timestamp, Store/reference, dedupe และ project สถานะลง Transaction; ยังปิดเป็นค่าเริ่มต้น | ยืนยัน event schema/secret/retry แล้วเปิดใช้ใน staging, เพิ่ม reconcile และ retire/exception local LLGW receiver |
+| KYC phone OTP | Target มี Backoffice `/otp` และ `/otp/verify` ให้ Backoffice สร้าง/verify challenge | ยังไม่มี OTP adapter/route หรือ `KYC_MERCHANT_OTP_REQUIRED` config ใน ChatPOS | ยืนยัน external contract, SMS readiness และเพิ่ม server-only adapter ก่อนเปิด flow |
+| Commission settlement | Partner ส่ง signed settlement fact ไปยัง Backoffice-provided destination URL | ChatPOS สร้าง durable settlement event และ dispatch ไป `COMMISSION_EVENT_SOURCE_URL`; ไม่มี inbound `/api/webhooks/commission/settlement` route | ยืนยัน Finance mapping/destination และทดสอบ retry/dead-letter/reconciliation |
+
+สถานะของ local payment flow จึงต้องเรียกอย่างตรงไปตรงมาว่า `local implementation` หรือ `legacy receiver` จนกว่า external contract จะผ่าน staging. การมี `TRANSACTION_ROUTING_ENABLED=true` ไม่ได้ยืนยันว่า Backoffice รองรับ endpoint candidate หรือว่า webhook ownership ถูกย้ายแล้ว
+
+สิ่งที่เปิดใช้และตรวจสอบต่อใน repository ได้ทันทีคือ local transaction client ที่ `/api/v1/transactions`, local LLGW receiver ที่ `/api/webhooks/llgw/payment`, gated normalized receiver ที่ `/api/webhooks/payment-status`, stable `clientReference`, idempotency, signed settlement dispatch และ durable retry/dead-letter. สิ่งที่ยังเปิดใช้ไม่ได้จากเอกสารเพียงอย่างเดียวคือ target command path, Backoffice-owned LLGW flow, การเปิด normalized receiver ใน environment จริง, KYC OTP adapter และ commission destination; รายการเหล่านี้ต้องมี owner, signed contract และ staging evidence ก่อนเปลี่ยน feature flag หรือ route production
+
 ### Payment และ Developer Console
 
 `QuickPayView.tsx` และ `chatposApi.ts` ใช้ server-session API สำหรับ:
 
 - ส่ง transaction command ไปยัง PD/Agent Backoffice ผ่าน `/api/v1/transactions`
 - ตรวจสถานะ payment reference และ ownership
-- รับผลชำระผ่าน signed LLGW webhook ที่ server
+- รับผลชำระผ่าน local signed LLGW webhook ที่ server; นี่ไม่ใช่ normalized payment-status callback ตาม target external contract
 - ดู balance ตาม Store scope
 - เรียก payout prototype ที่ถูกจำกัดด้วย session และ role
 
@@ -440,7 +461,7 @@ await fetch('/api/db/health')
 await fetch('/api/v1/transactions/PAY-REF-100293', { credentials: 'include' })
 ```
 
-Signed payment callback จาก LLGW ใช้ `POST /api/webhooks/llgw/payment` พร้อม raw-body HMAC, timestamp และ event ID; callback นี้เป็น server-to-server route จึงไม่ใช้ browser session. Assignment callback จากระบบ PD/Agent ใช้ `POST /api/webhooks/assignment-status` ด้วย signature contract เดียวกันตาม Integration Guide
+Local signed payment callback จาก LLGW ใช้ `POST /api/webhooks/llgw/payment` พร้อม raw-body HMAC, timestamp และ event ID; callback นี้เป็น server-to-server route จึงไม่ใช้ browser session. Normalized payment-status callback จาก PD/Agent ใช้ `POST /api/webhooks/payment-status` พร้อม raw-body HMAC แบบเดียวกับ Assignment callback, event dedupe และ state projection แต่ยังปิดด้วย feature flag จนกว่า external contract จะผ่าน staging. Assignment callback จากระบบ PD/Agent ใช้ `POST /api/webhooks/assignment-status` ด้วย signature contract เดียวกันตาม Integration Guide
 
 ### Signed Backoffice Client
 

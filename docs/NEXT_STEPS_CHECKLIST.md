@@ -2,7 +2,7 @@
 
 รายการนี้เป็น checklist กลางสำหรับงานที่ต้องทำต่อของ ChatPOS และ integration กับ `chatpos.biz`, Agent/PD Backoffice และ LLGW แบ่งตาม dependency, owner และ Definition of Done
 
-> สถานะ sync ล่าสุด: 2026-08-19
+> สถานะ sync ล่าสุด: 2026-08-20
 >
 > - `[x]` implementation และหลักฐานตรวจในเครื่องครบสำหรับรายการนั้น แต่ยังไม่หมายถึง external sign-off หรือ production approval
 > - `[~]` มี implementation บางส่วนแล้ว แต่ยังขาด persistence, contract, test scope หรือ owner sign-off ที่จำเป็น
@@ -23,10 +23,12 @@
 ## Phase 0: ยืนยัน contract และขอบเขต
 
 - [ ] **P0 / Product + Backoffice:** ยืนยัน Base URL, Store credential, scopes, signing secret, callback secret และ environment ของ test/production
+- [ ] **P0 / Product + Backoffice:** ยืนยัน payment command endpoint, request/response payload, scope, Store/amount ownership, stable `clientReference` และ idempotency behavior ใน signed contract matrix; candidate ใน guide คือ `/api/v1/transactions/{id}/payment` แต่ local ChatPOS ยังใช้ `/api/v1/transactions`
+- [ ] **P0 / Architecture + Backoffice:** ยืนยันว่า LLGW pay-in webhook อยู่ที่ PD/Agent หรือ ChatPOS พร้อม normalized payment-status callback/query, callback URL, signature headers, retry, replay และ migration/rollback ownership
 - [~] **P0 / Architecture:** วาง integration client ไว้ใน custom API server และกำหนด server-only boundary แล้ว; ใช้ [Phase 0 Contract Decision Record](PHASE_0_CONTRACT_DECISION_RECORD.md) เป็น draft decision record แต่ยังต้องยืนยัน callback receiver กับทีมภายนอก โดยห้ามเก็บ secret ใน browser
 - [~] **P0 / Data:** มี initial schema และ migration สำหรับ assignment request, profile version, KYC document version, webhook event dedupe, idempotency record และ audit log แล้ว แต่ยังต้อง review/sign-off และเติมตารางเฉพาะของ bank account กับ withdrawal ตาม [Phase 0 Contract Decision Record](PHASE_0_CONTRACT_DECISION_RECORD.md)
 - [ ] **P0 / Compliance:** ยืนยัน field mapping ที่กระทบ KYC, retention, masking, document access และผู้มีสิทธิ์อนุมัติขั้นสุดท้าย
-- [ ] **เสร็จเมื่อ:** มี contract owner, data owner, environment matrix และ decision record ที่ทีม implement อ้างอิงได้
+- [ ] **เสร็จเมื่อ:** มี contract owner, data owner, environment matrix, signed payment/webhook decision และ decision record ที่ทีม implement อ้างอิงได้
 
 ## Phase 1: Integration foundation
 
@@ -56,18 +58,23 @@
 - [x] **P0 / Storage:** validate `private://` locator, MIME/size/SHA-256 และ unique request/checksum/version; ไม่ overwrite object หรือ reuse version เดิมใน local persistence แต่ยังต้องต่อ private storage adapter/scanning production
 - [x] **P1 / Frontend:** เพิ่ม KYC document timeline, version comparison, status, correction reason และ attach version ใหม่โดยไม่ overwrite version เดิมใน Merchant portal
 - [x] **P1 / Frontend:** เพิ่ม KYC Chat/Post พร้อม document attachment metadata, read status และ append-only message history
+- [ ] **P1 / Contract + Backend:** ยืนยัน KYC OTP endpoint, payload, SMS readiness response, challenge binding, rate limit และ `KYC_MERCHANT_OTP_REQUIRED` กับ Backoffice; local ChatPOS ยังไม่มี OTP adapter/route
 - [ ] **เสร็จเมื่อ:** profile replay/conflict, document replay/conflict, private access, version correction และ Agent review -> PD final decision ผ่าน staging
 
 ## Phase 4: Transaction routing และ settlement
 
-- [ ] **P0 / Contract:** ขอ command endpoint สำหรับสร้าง Transaction ผ่าน `chatpos.biz -> Backoffice -> LLGW`; ห้ามใช้ read-only payment endpoint แทน command
-- [x] **P0 / Backend:** เพิ่ม Backoffice transaction client และ stable `clientReference` พร้อม idempotency ก่อนส่งต่อคำสั่ง
+- [ ] **P0 / Contract:** ขอและลงนาม command endpoint สำหรับสร้าง Transaction ผ่าน `chatpos.biz -> Backoffice -> LLGW`; ห้ามใช้ read-only payment endpoint แทน command และต้องยืนยัน candidate `/api/v1/transactions/{id}/payment` กับ payload จริง
+- [x] **P0 / Backend:** มี local Backoffice transaction client, stable `clientReference` และ idempotency พร้อม server-only signing/retry แล้ว; local endpoint/payload ใช้ `/api/v1/transactions` ตาม repository ปัจจุบัน
+- [ ] **P0 / Contract + Backend:** หลัง Backoffice ยืนยัน endpoint/payload แล้ว ให้ปรับ adapter/path จาก local contract ไป target contract และเก็บ contract-test/staging E2E evidence
 - [x] **P0 / Backend:** ปิดหรือ gate direct payment creation จาก `chatpos.biz -> LLGW` และปรับ `QuickPayView`/`chatposApi.ts` ให้ใช้เส้นทางใหม่
-- [x] **P0 / Backend:** เพิ่ม LLGW payment webhook receiver ที่ `chatpos.biz` พร้อม raw-body signature, timestamp, event ID dedupe และ late/out-of-order handling
+- [x] **P0 / Backend:** มี local LLGW payment webhook receiver ที่ ChatPOS พร้อม raw-body signature, timestamp, event ID dedupe และ late/out-of-order handling; หลักฐานนี้ครอบคลุม local implementation เท่านั้น
+- [x] **P0 / Backend:** เพิ่ม gated normalized payment-status receiver ที่ `/api/webhooks/payment-status` พร้อม raw-body HMAC, timestamp, Store/reference validation, event dedupe และ Transaction projection; ค่าเริ่มต้นยังปิดและยังไม่ใช่ external sign-off
+- [ ] **P0 / Contract + Backend:** เมื่อยืนยันว่า Backoffice เป็น webhook owner ให้เปิด receiver ใน staging, เพิ่ม status query/reconcile evidence และ retire local direct LLGW receiver หรือบันทึก architecture exception ที่อนุมัติแล้ว
 - [ ] **P1 / Finance + Backoffice:** ยืนยัน `COMMISSION_EVENT_INGEST_ENABLED`, schema/field mapping และ reversal policy ก่อนส่ง settlement
-- [x] **P1 / Backend:** เพิ่ม signed final settlement event ไป `/api/webhooks/commission/settlement` เมื่อ Finance เปิด feature และรองรับ reversal conflict
-- [x] **P1 / Frontend:** แสดง payment reference/status ที่มาจาก Backoffice และไม่ expose gateway secret ใน Developer Console หรือ browser storage
-- [ ] **เสร็จเมื่อ:** sandbox success, failure, timeout, duplicate webhook, late webhook, payment confirmation และ settlement reconciliation ผ่าน end to end
+- [x] **P1 / Backend:** มี signed final settlement event และ durable retry/dead-letter แล้ว; local dispatch ใช้ `COMMISSION_EVENT_SOURCE_URL` และไม่เปิด inbound `/api/webhooks/commission/settlement` ใน ChatPOS
+- [ ] **P1 / Finance + Backend:** ยืนยัน Backoffice-provided destination URL, settlement schema, reversal และ reconciliation แล้วจึงเปิด commission dispatch ในแต่ละ environment
+- [x] **P1 / Frontend:** แสดง local payment reference/status และไม่ expose gateway secret ใน Developer Console หรือ browser storage
+- [ ] **เสร็จเมื่อ:** local implementation evidence ครบ และ sandbox success, failure, timeout, duplicate webhook, late webhook, payment confirmation และ settlement reconciliation ผ่านตาม external contract ที่ signed แล้ว
 
 ## Phase 5: Security, authorization และ production readiness
 
@@ -99,11 +106,11 @@
 - [ ] KYC document correction ใช้ document version ใหม่และไม่ overwrite version เดิม
 - [ ] Merchant onboarding ผ่านครบ: สมัครร้านค้า -> ส่ง Assignment request -> `PENDING_AGENT_ACCEPTANCE` -> Agent รับ -> ผูก Agent/PD -> signed Assignment callback
 - [ ] Agent review, ขอข้อมูลเพิ่ม, ส่ง Submission Package และ PD final approve/return/reject ผ่านครบทุกทางแยก
-- [ ] Transaction command วิ่งผ่าน `chatpos.biz -> Agent/PD Backoffice -> LLGW` เท่านั้น และ direct `chatpos.biz -> LLGW` payment creation ถูกปฏิเสธหรือไม่มี route ใช้งาน
-- [ ] Backoffice ตรวจ Store/PD/Agent ownership, signed request, idempotency และ stable `clientReference` ก่อน forward Transaction ไป LLGW
-- [ ] LLGW payment webhook ยิงตรงเข้า `chatpos.biz` พร้อมตรวจ signature/timestamp/event ID, durable dedupe และส่ง signed final settlement event กลับ Backoffice
+- [ ] Target contract: Transaction command endpoint/payload, ownership และ idempotency behavior ได้รับการยืนยันจาก Backoffice แล้ว
+- [ ] Target contract: LLGW payment webhook owner, normalized payment-status callback/query, signature, retry และ replay behavior ได้รับการยืนยันจาก Backoffice แล้ว
+- [ ] Local implementation: ChatPOS ใช้ target command path/payload และมี payment-status receiver/projection/reconcile แล้ว หรือมี architecture exception ที่อนุมัติเป็นลายลักษณ์อักษรสำหรับ local direct LLGW receiver
 - [ ] Commission event mapping/reversal/reconciliation ผ่าน Finance review หากเปิดใช้
-- [ ] LLGW payment sandbox success/failure/timeout/late webhook ผ่านตามเส้นทางใหม่ โดยพิสูจน์ทั้ง `Backoffice -> LLGW` และ `LLGW -> chatpos.biz`
+- [ ] LLGW payment sandbox success/failure/timeout/late webhook ผ่านตาม signed contract ที่ยืนยันแล้ว โดยพิสูจน์ทั้ง `Backoffice -> LLGW`, `LLGW -> webhook owner` และ normalized status ไปยัง `chatpos.biz`
 - [ ] Credential rotation และ emergency revoke drill ผ่าน
 - [ ] มี correlation ID, monitoring, alert owner และ support contact ทั้งสองฝั่ง
 
@@ -112,7 +119,9 @@
 - [ ] **รอ Backoffice:** ส่ง test/production Base URL, Store-scoped key, scopes, signing secret, callback secret และ key rotation contact
 - [ ] **รอ Backoffice:** ยืนยัน callback URL, retry schedule, timeout, response contract และ ownership ของ `ACCEPTED`/`REJECTED`/`EXPIRED`/`REASSIGNED`
 - [ ] **รอ Backoffice:** เปิดและทดสอบ `POST /api/v1/assignments/requests`, profile update และ KYC document intake ใน staging
-- [ ] **รอ Backoffice:** ส่ง transaction command contract, stable `clientReference` behavior และ ownership ของ payment reference/status
+- [ ] **รอ Backoffice:** ยืนยัน transaction command endpoint/payload, scope, Store/amount ownership, stable `clientReference`, idempotency conflict และ response/error contract
+- [ ] **รอ Backoffice:** ยืนยัน LLGW pay-in webhook ownership, normalized payment-status callback/query, callback URL/secret, event schema, retry, replay และ migration/rollback plan
+- [ ] **รอ Backoffice:** ยืนยัน KYC OTP endpoint/payload, SMS readiness/`503 NOT_READY`, challenge TTL/attempt binding, rate limit และ feature-flag contract
 - [ ] **รอ LLGW:** ยืนยัน webhook signature scheme, event types, timestamp window, retry behavior และ sandbox cases
 - [ ] **รอ Finance:** อนุมัติ `pdGrossBenefit`, ownership snapshot, reversal และ reconciliation mapping
 - [ ] **รอ Product/Compliance:** อนุมัติ field mapping ที่ทำให้ KYC review ใหม่, document retention และ final approval policy
@@ -125,7 +134,7 @@
 - [ ] Callback/webhook ใช้ raw body verification, constant-time comparison และ durable event-ID dedupe
 - [ ] Store ownership และ role/scope ถูกตรวจที่ server ไม่ใช่แค่ซ่อนปุ่มใน frontend
 - [ ] Profile update และ KYC document correction ไม่ overwrite snapshot/version เดิม
-- [ ] Transaction creation ไม่มีเส้นทาง `chatpos.biz -> LLGW` โดยตรง
+- [ ] Transaction creation ไม่มีเส้นทาง `chatpos.biz -> LLGW` โดยตรง และ local LLGW receiver สอดคล้องกับ webhook ownership decision ที่อนุมัติแล้ว
 - [ ] Agent ไม่สามารถอนุมัติ KYC ขั้นสุดท้ายแทน PD/ผู้มีอำนาจได้
 - [ ] มี monitoring, alert owner, retry/dead-letter, reconciliation และ incident runbook
 - [ ] Go-live checklist ใน [CHATPOS Client Integration Guide](CHATPOS_CLIENT_INTEGRATION_GUIDE.md) ผ่านครบ พร้อม Product/Compliance/Security/Backoffice sign-off

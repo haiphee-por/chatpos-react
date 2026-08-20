@@ -27,6 +27,7 @@ const {
   dispatchSettlementEvent,
   getTransaction,
   processPaymentWebhook,
+  verifyPaymentStatusWebhook,
   verifyLlgwWebhook,
   retryPendingSettlementEvents,
 } = require('./server/integration/transactionService.cjs');
@@ -204,6 +205,7 @@ function isPublicApiRequest(requestPath, method) {
   if (requestPath === '/api/health/ready' && method === 'GET') return true;
   if (requestPath === '/api/webhooks/assignment-status' && method === 'POST') return true;
   if (requestPath === '/api/webhooks/llgw/payment' && method === 'POST') return true;
+  if (requestPath === '/api/webhooks/payment-status' && method === 'POST') return true;
   return false;
 }
 
@@ -258,7 +260,8 @@ const server = http.createServer(async (req, res) => {
     url.startsWith('/api/v1') ||
     url.startsWith('/api/health') ||
     requestPath === '/api/webhooks/assignment-status' ||
-    requestPath === '/api/webhooks/llgw/payment'
+    requestPath === '/api/webhooks/llgw/payment' ||
+    requestPath === '/api/webhooks/payment-status'
   ) {
     res.setHeader('Content-Type', 'application/json');
     setSecurityHeaders(req, res);
@@ -1439,6 +1442,86 @@ const server = http.createServer(async (req, res) => {
 
         res.statusCode = 200;
         res.end(JSON.stringify({ success: true, message: 'KYC status updated successfully' }));
+        return;
+      }
+
+      // ── PHASE 4: LLGW payment webhook ───────────────────────────────
+      if (req.method === 'POST' && requestPath === '/api/webhooks/payment-status') {
+        if (!backofficeConfig.paymentStatusWebhookEnabled) {
+          res.statusCode = 503;
+          res.end(JSON.stringify({ success: false, error: { code: 'PAYMENT_STATUS_WEBHOOK_DISABLED', message: 'Payment status webhook is disabled' } }));
+          return;
+        }
+        const rawBody = await readRawBody(req);
+        try {
+          const verified = verifyPaymentStatusWebhook({
+            rawBody,
+            headers: req.headers,
+            secret: backofficeConfig.paymentStatusWebhookSecrets?.length
+              ? backofficeConfig.paymentStatusWebhookSecrets
+              : backofficeConfig.paymentStatusWebhookSecret,
+            toleranceSeconds: backofficeConfig.paymentStatusTimestampToleranceSeconds,
+          });
+          let body;
+          try {
+            body = JSON.parse(rawBody || '{}');
+          } catch {
+            throw new TransactionRoutingError('Payment status webhook body must be valid JSON', 'INVALID_WEBHOOK_JSON');
+          }
+          const result = await processPaymentWebhook({
+            pool,
+            rawBody,
+            body,
+            verified,
+            provider: 'backoffice-payment-status',
+            commissionConfig: {
+              enabled: backofficeConfig.commissionEventEnabled,
+              sourceUrl: backofficeConfig.commissionEventSourceUrl,
+              webhookSecret: backofficeConfig.commissionWebhookSecret,
+              grossBenefitField: backofficeConfig.commissionGrossBenefitField,
+            },
+          });
+          await writeAudit({
+            poolOrClient: pool,
+            actorId: null,
+            actorRole: 'backoffice',
+            action: 'PAYMENT_STATUS_WEBHOOK_PROCESSED',
+            targetType: 'transaction',
+            targetId: result.transaction?.id || body.transactionId || body.transactionReference,
+            after: { status: result.transaction?.status || null, duplicate: Boolean(result.duplicate), late: Boolean(result.late) },
+            requestId: verified.eventId,
+          });
+          let settlement = null;
+          if (result.settlementEvent) {
+            try {
+              settlement = await dispatchSettlementEvent({
+                pool,
+                eventId: result.settlementEvent.eventId,
+                config: {
+                  enabled: backofficeConfig.commissionEventEnabled,
+                  sourceUrl: backofficeConfig.commissionEventSourceUrl,
+                  webhookSecret: backofficeConfig.commissionWebhookSecret,
+                },
+              });
+              await writeAudit({ poolOrClient: pool, actorRole: 'system', action: 'SETTLEMENT_SENT', targetType: 'settlement_event', targetId: result.settlementEvent.eventId, after: { sent: Boolean(settlement.sent) }, requestId: verified.eventId });
+            } catch (settlementError) {
+              await writeAudit({ poolOrClient: pool, actorRole: 'system', action: 'SETTLEMENT_SEND_FAILED', targetType: 'settlement_event', targetId: result.settlementEvent.eventId, after: { code: settlementError.code || 'SETTLEMENT_SEND_FAILED' }, requestId: verified.eventId });
+              settlement = { sent: false, pending: true, code: settlementError.code || 'SETTLEMENT_SEND_FAILED' };
+            }
+          }
+          res.statusCode = 200;
+          res.end(JSON.stringify({
+            success: true,
+            duplicate: Boolean(result.duplicate),
+            late: Boolean(result.late),
+            transaction: result.transaction || null,
+            settlement,
+          }));
+        } catch (error) {
+          const statusCode = error.statusCode || 400;
+          res.statusCode = statusCode;
+          res.end(JSON.stringify({ success: false, error: { code: error.code || 'PAYMENT_STATUS_WEBHOOK_FAILED', message: error.message } }));
+        }
         return;
       }
 

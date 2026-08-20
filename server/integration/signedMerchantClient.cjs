@@ -84,6 +84,13 @@ function loadBackofficeConfig(env = process.env) {
     transactionCommandPath: String(env.AGENT_PD_TRANSACTION_COMMAND_PATH || '/api/v1/transactions'),
     llgwPaymentWebhookSecret: String(env.LLGW_PAYMENT_WEBHOOK_SECRET || ''),
     llgwPaymentWebhookSecrets: secretCandidates('LLGW_PAYMENT_WEBHOOK_SECRET', 'LLGW_PAYMENT_WEBHOOK_SECRET_PREVIOUS'),
+    paymentStatusWebhookSecret: String(env.PAYMENT_STATUS_WEBHOOK_SECRET || ''),
+    paymentStatusWebhookSecrets: secretCandidates('PAYMENT_STATUS_WEBHOOK_SECRET', 'PAYMENT_STATUS_WEBHOOK_SECRET_PREVIOUS'),
+    paymentStatusWebhookEnabled: parseBoolean(env.PAYMENT_STATUS_WEBHOOK_ENABLED, false),
+    paymentStatusTimestampToleranceSeconds: parsePositiveInteger(
+      env.PAYMENT_STATUS_TIMESTAMP_TOLERANCE_SECONDS,
+      DEFAULT_TIMESTAMP_TOLERANCE_SECONDS
+    ),
     llgwTimestampToleranceSeconds: parsePositiveInteger(
       env.LLGW_PAYMENT_TIMESTAMP_TOLERANCE_SECONDS,
       DEFAULT_TIMESTAMP_TOLERANCE_SECONDS

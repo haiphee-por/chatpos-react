@@ -280,25 +280,59 @@ function verifyLlgwWebhook({ rawBody, headers, secret, nowSeconds = Math.floor(D
   return { timestamp: timestampNumber, eventId, bodyDigest: sha256Hex(rawBody) };
 }
 
+function verifyPaymentStatusWebhook({ rawBody, headers, secret, nowSeconds = Math.floor(Date.now() / 1000), toleranceSeconds = DEFAULT_TIMESTAMP_TOLERANCE_SECONDS }) {
+  if (!secret) throw new TransactionRoutingError('Payment status webhook secret is not configured', 'PAYMENT_STATUS_SECRET_MISSING', 503);
+  const secrets = Array.isArray(secret) ? secret.filter(Boolean) : [secret];
+  const eventId = String(header(headers, 'x-chatpos-event-id') || '');
+  const timestamp = String(header(headers, 'x-chatpos-timestamp') || '');
+  const signature = String(header(headers, 'x-chatpos-signature') || '');
+  const timestampNumber = Number(timestamp);
+  if (!/^[A-Za-z0-9:_-]{8,128}$/.test(eventId)) {
+    throw new TransactionRoutingError('X-ChatPOS-Event-Id is required', 'EVENT_ID_REQUIRED', 401);
+  }
+  if (!/^\d{10}$/.test(timestamp) || Math.abs(nowSeconds - timestampNumber) > toleranceSeconds) {
+    throw new TransactionRoutingError('Payment status webhook timestamp is invalid or stale', 'STALE_WEBHOOK', 401);
+  }
+  if (!/^v1=[a-f0-9]{64}$/.test(signature)) {
+    throw new TransactionRoutingError('Payment status webhook signature is invalid', 'INVALID_WEBHOOK_SIGNATURE', 401);
+  }
+  const valid = secrets.some((candidate) => {
+    const expected = `v1=${crypto.createHmac('sha256', candidate).update(`${timestamp}.${rawBody}`, 'utf8').digest('hex')}`;
+    return safeEqual(signature, expected);
+  });
+  if (!valid) throw new TransactionRoutingError('Payment status webhook signature is invalid', 'INVALID_WEBHOOK_SIGNATURE', 401);
+  return { timestamp: timestampNumber, eventId, bodyDigest: sha256Hex(rawBody) };
+}
+
 function normalizeWebhookBody(body, eventId) {
   if (!body || typeof body !== 'object' || Array.isArray(body)) throw new TransactionRoutingError('Webhook body must be an object', 'INVALID_WEBHOOK_BODY');
   if (body.eventId && String(body.eventId) !== eventId) throw new TransactionRoutingError('Webhook event ID header does not match body', 'EVENT_ID_MISMATCH', 400);
-  const clientReference = body.clientReference || body.merchantReference || null;
+  const clientReference = body.clientReference || body.transactionReference || body.merchantReference || null;
   const paymentReference = body.paymentReference || body.reference || null;
-  if (!clientReference && !paymentReference) throw new TransactionRoutingError('clientReference or paymentReference is required', 'PAYMENT_REFERENCE_REQUIRED');
+  const transactionId = body.transactionId ? String(body.transactionId) : null;
+  if (!clientReference && !paymentReference && !transactionId) throw new TransactionRoutingError('transaction reference is required', 'PAYMENT_REFERENCE_REQUIRED');
   const occurredAt = body.occurredAt ? new Date(body.occurredAt) : new Date();
   if (Number.isNaN(occurredAt.getTime())) throw new TransactionRoutingError('occurredAt must be a valid date', 'INVALID_OCCURRED_AT');
-  const status = PAYMENT_STATUS_MAP.get(String(body.status || body.paymentStatus || '').toLowerCase());
+  const status = PAYMENT_STATUS_MAP.get(String(body.status || body.paymentStatus || body.providerStatus || '').toLowerCase());
   if (!status) throw new TransactionRoutingError('Webhook payment status is invalid', 'INVALID_PAYMENT_STATUS');
-  return { ...body, eventId, clientReference, paymentReference, status, occurredAt };
+  return {
+    ...body,
+    eventId,
+    clientReference,
+    paymentReference,
+    transactionId,
+    status,
+    occurredAt,
+    gatewayReference: body.gatewayReference || body.gatewayPaymentReference || null,
+  };
 }
 
-async function processPaymentWebhook({ pool, rawBody, body, verified, commissionConfig = {} }) {
+async function processPaymentWebhook({ pool, rawBody, body, verified, commissionConfig = {}, provider = 'llgw' }) {
   const webhook = normalizeWebhookBody(body, verified.eventId);
   return withTransaction(pool, async (client) => {
     const duplicate = await client.query(
       'SELECT "bodyDigest", status FROM payment_webhook_events WHERE provider = $1 AND "eventId" = $2 FOR UPDATE',
-      ['llgw', verified.eventId]
+      [provider, verified.eventId]
     );
     if (duplicate.rowCount > 0) {
       if (duplicate.rows[0].bodyDigest !== verified.bodyDigest) {
@@ -311,24 +345,35 @@ async function processPaymentWebhook({ pool, rawBody, body, verified, commission
       `SELECT t.*, s."currentAgentId" AS "agentId", s."currentPdId" AS "pdId"
        FROM "Transaction" t
        LEFT JOIN "Store" s ON s.id = t."storeId"
-       WHERE t."clientReference" = $1 OR t."backofficePaymentReference" = $2 OR t.reference = $1 OR t."gatewayReference" = $2
+       WHERE (
+         ($3::text IS NOT NULL AND t.id::text = $3)
+         OR t."clientReference" = $1
+         OR t."backofficePaymentReference" = $2
+         OR t.reference = $1
+         OR t."gatewayReference" = $2
+       )
+       AND ($4::text IS NULL OR t."storeId"::text = $4)
       LIMIT 1 FOR UPDATE OF t`,
-      [webhook.clientReference, webhook.paymentReference]
+      [webhook.clientReference, webhook.paymentReference, webhook.transactionId, body.storeId ? String(body.storeId) : null]
     );
     if (txnResult.rowCount === 0) throw new TransactionRoutingError('Transaction reference not found', 'TRANSACTION_NOT_FOUND', 404);
     const txn = txnResult.rows[0];
     await client.query(
       `INSERT INTO payment_webhook_events
         (provider, "eventId", "bodyDigest", "transactionId", status, "occurredAt", "payloadJson", "receivedAt")
-       VALUES ('llgw', $1, $2, $3, 'RECEIVED', $4, $5::jsonb, NOW())`,
-      [verified.eventId, verified.bodyDigest, txn.id, webhook.occurredAt.toISOString(), JSON.stringify(body)]
+       VALUES ($1, $2, $3, $4, 'RECEIVED', $5, $6::jsonb, NOW())`,
+      [provider, verified.eventId, verified.bodyDigest, txn.id, webhook.occurredAt.toISOString(), JSON.stringify(body)]
     );
+
+    if (body.storeId && String(body.storeId) !== String(txn.storeId)) {
+      throw new TransactionRoutingError('Payment status Store does not match transaction Store', 'STORE_REFERENCE_MISMATCH', 400);
+    }
 
     const previousOccurredAt = txn.lastPaymentOccurredAt ? new Date(txn.lastPaymentOccurredAt) : null;
     if (previousOccurredAt && webhook.occurredAt.getTime() <= previousOccurredAt.getTime()) {
       await client.query(
         `UPDATE payment_webhook_events SET status = 'IGNORED_LATE', "processedAt" = NOW()
-         WHERE provider = 'llgw' AND "eventId" = $1`, [verified.eventId]
+         WHERE provider = $1 AND "eventId" = $2`, [provider, verified.eventId]
       );
       return { duplicate: false, late: true, transaction: publicTransaction(txn) };
     }
@@ -339,7 +384,7 @@ async function processPaymentWebhook({ pool, rawBody, body, verified, commission
     if (!applyStatus) {
       await client.query(
         `UPDATE payment_webhook_events SET status = 'IGNORED_INVALID_TRANSITION', "processedAt" = NOW()
-         WHERE provider = 'llgw' AND "eventId" = $1`, [verified.eventId]
+         WHERE provider = $1 AND "eventId" = $2`, [provider, verified.eventId]
       );
       return { duplicate: false, late: false, invalidTransition: true, transaction: publicTransaction(txn) };
     }
@@ -363,7 +408,7 @@ async function processPaymentWebhook({ pool, rawBody, body, verified, commission
     }
     await client.query(
       `UPDATE payment_webhook_events SET status = 'PROCESSED', "processedAt" = NOW()
-       WHERE provider = 'llgw' AND "eventId" = $1`, [verified.eventId]
+       WHERE provider = $1 AND "eventId" = $2`, [provider, verified.eventId]
     );
     return { duplicate: false, late: false, transaction: publicTransaction(updateResult.rows[0]), settlementEvent };
   });
@@ -513,5 +558,6 @@ module.exports = {
   getTransaction,
   processPaymentWebhook,
   sha256Hex,
+  verifyPaymentStatusWebhook,
   verifyLlgwWebhook,
 };
