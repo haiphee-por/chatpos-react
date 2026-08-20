@@ -15,6 +15,17 @@ The Next.js application runs at `http://localhost:3000`. The PostgreSQL-backed A
 
 Set `CHATPOS_API_URL` when the API process is hosted elsewhere. Database settings remain in `.env` and are read by `server.cjs`.
 
+## Database setup
+
+Run migrations first, then load the repeatable demo dataset:
+
+```bash
+npm run db:migrate
+npm run db:seed
+```
+
+The seed creates demo accounts for Merchant, Agent, PD, Compliance, and Admin, plus KYC, assignment, catalog, payment, settlement, webhook, and audit data. The default password is `ChatPOS123!`; set `SEED_PASSWORD` before running the seed to use another password. Seed accounts use the `@chatpos.local` domain and should only be used in development or a disposable staging database.
+
 ## Production
 
 ```bash

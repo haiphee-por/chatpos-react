@@ -261,6 +261,63 @@ async function getTransaction({ pool, reference }) {
   return publicTransaction(result.rows[0]);
 }
 
+function transactionQueryPath(template, reference) {
+  const path = String(template || '/api/v1/transactions/{id}/payment');
+  if (!path.includes('{id}')) {
+    throw new TransactionRoutingError('Transaction query path must contain {id}', 'TRANSACTION_QUERY_PATH_INVALID', 500);
+  }
+  return path.replaceAll('{id}', encodeURIComponent(String(reference)));
+}
+
+function normalizedPaymentStatus(value) {
+  const normalized = String(value || '').toLowerCase();
+  return PAYMENT_STATUS_MAP.get(normalized) || normalized || 'pending';
+}
+
+function normalizePaymentQueryResponse(response, reference) {
+  const data = responseData(response);
+  const amount = Number(data.amount);
+  return {
+    id: data.id || null,
+    storeId: data.storeId || null,
+    reference: data.reference || data.clientReference || data.transactionReference || String(reference),
+    clientReference: data.clientReference || data.transactionReference || String(reference),
+    paymentReference: data.paymentReference || data.gatewayReference || null,
+    gatewayReference: data.gatewayReference || null,
+    amount: Number.isFinite(amount) ? amount : null,
+    currency: data.currency || 'THB',
+    channel: data.channel || data.paymentMethod || null,
+    paymentMethod: data.paymentMethod || data.channel || null,
+    paymentProvider: data.paymentProvider || data.provider || null,
+    providerStatus: data.providerStatus || data.status || null,
+    status: normalizedPaymentStatus(data.status || data.paymentStatus || data.providerStatus),
+    paidAt: data.paidAt || null,
+    failedAt: data.failedAt || null,
+    expiresAt: data.expiresAt || null,
+  };
+}
+
+async function getTransactionStatus({ backofficeClient, reference, requestId }) {
+  const normalizedReference = String(reference || '').trim();
+  if (!normalizedReference || normalizedReference.length > 128) {
+    throw new TransactionRoutingError('Transaction reference is invalid', 'TRANSACTION_REFERENCE_INVALID', 422);
+  }
+  if (!backofficeClient?.config?.transactionQueryPath) {
+    throw new TransactionRoutingError('Transaction query path is not configured', 'TRANSACTION_QUERY_PATH_MISSING', 503);
+  }
+  const response = await backofficeClient.request(transactionQueryPath(backofficeClient.config.transactionQueryPath, normalizedReference), {
+    method: 'GET',
+    requestId,
+    sourceRequestId: normalizedReference,
+  });
+  if (!response.ok) {
+    const data = responseData(response);
+    const code = data?.error?.code || data?.code || 'BACKOFFICE_TRANSACTION_QUERY_FAILED';
+    throw new TransactionRoutingError('Backoffice rejected the transaction query', code, response.status >= 500 ? 502 : response.status);
+  }
+  return normalizePaymentQueryResponse(response, normalizedReference);
+}
+
 function verifyLlgwWebhook({ rawBody, headers, secret, nowSeconds = Math.floor(Date.now() / 1000), toleranceSeconds = DEFAULT_TIMESTAMP_TOLERANCE_SECONDS }) {
   if (!secret) throw new TransactionRoutingError('LLGW webhook secret is not configured', 'WEBHOOK_SECRET_MISSING', 503);
   const secrets = Array.isArray(secret) ? secret.filter(Boolean) : [secret];
@@ -553,6 +610,7 @@ async function retryPendingSettlementEvents({ pool, config, limit = 20, fetchImp
 module.exports = {
   TransactionRoutingError,
   createTransactionCommand,
+  getTransactionStatus,
   dispatchSettlementEvent,
   retryPendingSettlementEvents,
   getTransaction,

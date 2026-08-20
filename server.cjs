@@ -26,11 +26,17 @@ const {
   createTransactionCommand,
   dispatchSettlementEvent,
   getTransaction,
+  getTransactionStatus,
   processPaymentWebhook,
   verifyPaymentStatusWebhook,
   verifyLlgwWebhook,
   retryPendingSettlementEvents,
 } = require('./server/integration/transactionService.cjs');
+const {
+  loadOtpConfig,
+  requestKycOtp,
+  verifyKycOtp,
+} = require('./server/integration/otpService.cjs');
 const {
   SecurityError,
   assertCaseAccess,
@@ -69,6 +75,7 @@ const pool = new Pool({
   connectionTimeoutMillis: 5000,
 });
 const backofficeConfig = loadBackofficeConfig();
+const otpConfig = loadOtpConfig();
 const assignmentBackofficeClient = createBackofficeClient({
   config: {
     ...backofficeConfig,
@@ -90,7 +97,7 @@ const kycDocumentBackofficeClient = createBackofficeClient({
 const transactionBackofficeClient = createBackofficeClient({
   config: {
     ...backofficeConfig,
-    enabled: backofficeConfig.enabled && backofficeConfig.transactionRoutingEnabled,
+    enabled: backofficeConfig.enabled && (backofficeConfig.transactionRoutingEnabled || backofficeConfig.transactionQueryRoutingEnabled),
   },
 });
 const metrics = {
@@ -429,6 +436,7 @@ const server = http.createServer(async (req, res) => {
 
       const documentRoute = requestPath.match(/^\/api\/v1\/kyc\/cases\/([^/]+)\/documents$/);
       if (documentRoute && req.method === 'POST') {
+        assertRole(principal, ['merchant']);
         await enforcePrincipalRateLimit({ principal, requestPath: '/api/v1/kyc/documents', limit: 20, windowSeconds: 300 });
         const caseStoreId = await assertCaseAccess({ pool, principal, caseId: documentRoute[1] });
         if (!backofficeConfig.enabled || !backofficeConfig.kycDocumentEnabled) {
@@ -460,6 +468,48 @@ const server = http.createServer(async (req, res) => {
         });
         res.statusCode = documentResult.replayed ? 200 : 201;
         res.end(JSON.stringify({ success: true, data: documentResult }));
+        return;
+      }
+
+      const otpRequestRoute = requestPath.match(/^\/api\/v1\/kyc\/cases\/([^/]+)\/otp$/);
+      if (otpRequestRoute && req.method === 'POST') {
+        assertRole(principal, ['merchant']);
+        await enforcePrincipalRateLimit({ pool, principal, requestPath: '/api/v1/kyc/otp/request', limit: 5, windowSeconds: 300 });
+        const body = await parseJsonBody(req);
+        const storeId = await assertCaseAccess({ pool, principal, caseId: otpRequestRoute[1] });
+        const requestId = String(req.headers['x-request-id'] || crypto.randomUUID());
+        const result = await requestKycOtp({
+          pool,
+          caseId: otpRequestRoute[1],
+          storeId,
+          body,
+          config: otpConfig,
+          requestId,
+        });
+        await writeAudit({ poolOrClient: pool, principal, action: 'KYC_OTP_REQUESTED', targetType: 'kyc_case', targetId: otpRequestRoute[1], after: result.challenge, requestId });
+        res.statusCode = 201;
+        res.end(JSON.stringify({ success: true, data: result }));
+        return;
+      }
+
+      const otpVerifyRoute = requestPath.match(/^\/api\/v1\/kyc\/cases\/([^/]+)\/otp\/verify$/);
+      if (otpVerifyRoute && req.method === 'POST') {
+        assertRole(principal, ['merchant']);
+        await enforcePrincipalRateLimit({ pool, principal, requestPath: '/api/v1/kyc/otp/verify', limit: 20, windowSeconds: 300 });
+        const body = await parseJsonBody(req);
+        const storeId = await assertCaseAccess({ pool, principal, caseId: otpVerifyRoute[1] });
+        const requestId = String(req.headers['x-request-id'] || crypto.randomUUID());
+        const result = await verifyKycOtp({
+          pool,
+          caseId: otpVerifyRoute[1],
+          storeId,
+          otp: body.otp,
+          config: otpConfig,
+          requestId,
+        });
+        await writeAudit({ poolOrClient: pool, principal, action: 'KYC_OTP_VERIFIED', targetType: 'kyc_case', targetId: otpVerifyRoute[1], after: result.challenge, requestId });
+        res.statusCode = 200;
+        res.end(JSON.stringify({ success: true, data: result }));
         return;
       }
 
@@ -1527,6 +1577,11 @@ const server = http.createServer(async (req, res) => {
 
       // ── PHASE 4: LLGW payment webhook ───────────────────────────────
       if (req.method === 'POST' && requestPath === '/api/webhooks/llgw/payment') {
+        if (!backofficeConfig.llgwPaymentWebhookEnabled) {
+          res.statusCode = 503;
+          res.end(JSON.stringify({ success: false, error: { code: 'LLGW_PAYMENT_WEBHOOK_DISABLED', message: 'LLGW payment webhook is disabled' } }));
+          return;
+        }
         const rawBody = await readRawBody(req);
         try {
           const verified = verifyLlgwWebhook({
@@ -1638,9 +1693,22 @@ const server = http.createServer(async (req, res) => {
       }
 
       // ── PHASE 4: transaction status ─────────────────────────────────
-      if (req.method === 'GET' && requestPath.startsWith('/api/v1/transactions/')) {
+      const transactionStatusRoute = requestPath.match(/^\/api\/v1\/transactions\/([^/]+)(?:\/payment)?$/);
+      if (req.method === 'GET' && transactionStatusRoute) {
         try {
-          const reference = decodeURIComponent(requestPath.replace('/api/v1/transactions/', ''));
+          const reference = decodeURIComponent(transactionStatusRoute[1]);
+          if (backofficeConfig.transactionQueryRoutingEnabled) {
+            const transaction = await getTransactionStatus({
+              backofficeClient: transactionBackofficeClient,
+              reference,
+              requestId: req.headers['x-request-id'] || undefined,
+            });
+            await assertStoreAccess({ pool, principal, storeId: transaction.storeId });
+            await writeAudit({ poolOrClient: pool, principal, action: 'TRANSACTION_STATUS_QUERIED', targetType: 'transaction', targetId: transaction.id || transaction.reference, requestId: req.headers['x-request-id'] || null });
+            res.statusCode = 200;
+            res.end(JSON.stringify({ success: true, transaction }));
+            return;
+          }
           const transaction = await getTransaction({ pool, reference });
           await assertStoreAccess({ pool, principal, storeId: transaction.storeId });
           await writeAudit({ poolOrClient: pool, principal, action: 'TRANSACTION_VIEWED', targetType: 'transaction', targetId: transaction.id, requestId: req.headers['x-request-id'] || null });

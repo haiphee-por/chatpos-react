@@ -99,9 +99,10 @@ npm run server
 
 ```bash
 npm run db:migrate
+npm run db:seed
 ```
 
-Migration หลักอยู่ที่ [`database/migrations/001_initial_chatpos_schema.sql`](../database/migrations/001_initial_chatpos_schema.sql) ถึง [`database/migrations/005_document_security.sql`](../database/migrations/005_document_security.sql) ครอบคลุมตาราง core ที่ `server.cjs` ใช้ รวมถึง Merchant KYC, assignment, profile/document version, server session, rate limit, audit, idempotency, webhook dedupe, settlement retry/dead-letter และ document scan quarantine. ตารางเหล่านี้เป็น durable schema; client helper แบบ in-memory ยังใช้เฉพาะ unit test และไม่ควรใช้แทน persistence layer จริง
+Migration หลักอยู่ที่ [`database/migrations/001_initial_chatpos_schema.sql`](../database/migrations/001_initial_chatpos_schema.sql) ถึง [`database/migrations/006_kyc_otp_challenges.sql`](../database/migrations/006_kyc_otp_challenges.sql) ครอบคลุมตาราง core ที่ `server.cjs` ใช้ รวมถึง Merchant KYC, assignment, profile/document version, server session, rate limit, audit, idempotency, webhook dedupe, settlement retry/dead-letter, document scan quarantine และ OTP challenge persistence. หลัง migration ให้ใช้ [`database/seed.cjs`](../database/seed.cjs) ผ่าน `npm run db:seed` เพื่อสร้างข้อมูลทดลองแบบ idempotent สำหรับทุก role และ workflow หลัก; ตั้ง `SEED_PASSWORD` ได้เมื่อต้องการเปลี่ยนรหัสผ่าน demo. ตารางเหล่านี้เป็น durable schema; client helper แบบ in-memory ยังใช้เฉพาะ unit test และไม่ควรใช้แทน persistence layer จริง
 
 ### Production
 
@@ -140,11 +141,16 @@ npm run lint
 | `AUTH_LOGIN_RATE_LIMIT` / `AUTH_LOGIN_RATE_WINDOW_SECONDS` | `server.cjs` | login limit ต่อ IP/email bucket |
 | `SETTLEMENT_RETRY_INTERVAL_MS` / `SETTLEMENT_MAX_ATTEMPTS` | `server.cjs` | durable settlement retry และ dead-letter policy |
 | `DOCUMENT_SCANNER_URL` / `DOCUMENT_SCANNER_TOKEN` / `DOCUMENT_SCANNER_TIMEOUT_MS` | `server/integration/documentSecurity.cjs` | scanner ไม่พร้อมจะ quarantine เอกสาร ไม่ถือว่าสแกนผ่าน |
+| `SMS_OTP_ENABLED` / `SMS_OTP_PROVIDER_READY` | `server/integration/otpService.cjs` | ต้องเป็น `true` ทั้งคู่จึงจะเรียก provider; ค่าเริ่มต้นปิดและ fail-closed เป็น `503 NOT_READY` |
+| `KYC_OTP_TTL_SECONDS` / `KYC_OTP_MAX_ATTEMPTS` / `KYC_OTP_RESEND_COOLDOWN_SECONDS` / `KYC_OTP_LOCK_SECONDS` | `server/integration/otpService.cjs` | TTL, จำนวนครั้งผิด, cooldown และระยะ lock ของ KYC challenge |
+| `LLGW_PAYMENT_WEBHOOK_ENABLED` | `server.cjs` | local LLGW receiver ปิดเป็นค่าเริ่มต้น; อย่าเปิดจนกว่า ownership/exception จะได้รับอนุมัติ |
 | `AGENT_PD_SIGNING_SECRET_PREVIOUS` / `AGENT_PD_CALLBACK_SECRET_PREVIOUS` | signed PD/Agent Backoffice integration | รับ secret เดิมชั่วคราวระหว่าง rotation แล้วต้องลบเพื่อ revoke |
 | `LLGW_PAYMENT_WEBHOOK_SECRET_PREVIOUS` | LLGW webhook verification | รับ secret เดิมชั่วคราวระหว่าง rotation แล้วต้องลบเพื่อ revoke |
 | `PAYMENT_STATUS_WEBHOOK_ENABLED` | normalized payment-status callback receiver | ปิดเป็นค่าเริ่มต้นจนกว่า external contract และ staging evidence จะผ่าน |
 | `PAYMENT_STATUS_WEBHOOK_SECRET(_PREVIOUS)` | normalized payment-status callback verification | secret manager เท่านั้น; รองรับ rotation ชั่วคราว |
 | `PAYMENT_STATUS_TIMESTAMP_TOLERANCE_SECONDS` | normalized payment-status callback verification | ค่าเริ่มต้น 300 วินาที |
+| `TRANSACTION_ROUTING_ENABLED` / `TRANSACTION_QUERY_ROUTING_ENABLED` | `server/integration/transactionService.cjs` | forward payment command และ query ไป Backoffice แบบ opt-in; ปิดเป็นค่าเริ่มต้น |
+| `AGENT_PD_TRANSACTION_COMMAND_PATH` / `AGENT_PD_TRANSACTION_QUERY_PATH` | signed Backoffice client | path placeholder ที่ต้องตรงกับ signed contract ก่อนเปิด routing |
 
 `.env.example` ยังมีตัวแปรชื่อ `VITE_API_URL` และ `VITE_APP_ENV` จากยุค Vite เดิม ซึ่งไม่ใช่ตัวแปรที่ Next routing ชุดปัจจุบันอ่านโดยตรง ให้ใช้ `CHATPOS_API_URL` และ `NEXT_PUBLIC_APP_URL` เป็นหลัก
 
@@ -257,7 +263,7 @@ flowchart TD
 6. หลังยืนยันสำเร็จให้บันทึก `phoneVerifiedAt` และออก registration session/server-side token ห้ามถือว่าแค่ส่ง OTP สำเร็จคือยืนยันตัวตนแล้ว
 7. การส่ง OTP ซ้ำต้อง invalidate OTP เดิมตาม policy และห้ามส่งรหัสผ่าน query string, browser storage หรือ log
 
-ค่า provider ปัจจุบันอยู่ใน `.env.example` เช่น `SMS_OTP_ENABLED`, `SMS_BASE_URL`, `SMS_BEARER_TOKEN`, `SMS_CALLBACK_SECRET` และ `SMS_REQUEST_TIMEOUT_MS` แต่ค่าเริ่มต้นยังปิดอยู่ (`false`) และ repository ยังไม่มี endpoint OTP production ที่ใช้จริง จึงต้องเพิ่ม OTP service, persistence, rate limiting และ provider adapter ก่อนเปิดใช้งาน
+ค่า provider ปัจจุบันอยู่ใน `.env.example` เช่น `SMS_OTP_ENABLED`, `SMS_BASE_URL`, `SMS_BEARER_TOKEN`, `SMS_CALLBACK_SECRET` และ `SMS_REQUEST_TIMEOUT_MS` แต่ค่าเริ่มต้นยังปิดอยู่ (`false`). Local KYC case OTP routes และ challenge persistence มีแล้วใน [`server.cjs`](../server.cjs), [`server/integration/otpService.cjs`](../server/integration/otpService.cjs) และ migration `006`; provider เริ่มต้นยังเป็น fail-closed `NOT_READY` stub จึงห้ามเปิด `SMS_OTP_PROVIDER_READY` จนกว่าจะมี adapter และ signed provider contract จริง
 
 #### 2. สร้างบัญชี Merchant และข้อมูลร้านค้า
 
@@ -269,7 +275,7 @@ flowchart TD
 - สร้าง `KycVerification` หรือ `merchant_kyc_cases` สถานะเริ่มต้น `draft`
 - บันทึก consent version และ audit event ของการสมัคร
 
-API ปัจจุบันคือ `POST /api/db/auth/register-merchant` และบันทึก `User`, `Store`, `MerchantIdentity` และ `KycVerification` แต่ยังไม่ได้บังคับ OTP ก่อนสร้างบัญชีอย่างสมบูรณ์ ควรเพิ่ม OTP service จริงและยืนยัน transaction rollback, email/phone uniqueness, abuse controls และ staging authorization ก่อนใช้ production
+API ปัจจุบันคือ `POST /api/db/auth/register-merchant` และบันทึก `User`, `Store`, `MerchantIdentity` และ `KycVerification` แต่ยังไม่ได้บังคับ KYC case OTP ก่อนสร้างบัญชีอย่างสมบูรณ์; OTP routes ปัจจุบันใช้กับ case ที่มีอยู่แล้วและจำกัด Merchant role. การบังคับ OTP ใน registration ต้องมี policy และ contract แยกต่างหาก รวมถึงยืนยัน transaction rollback, email/phone uniqueness, abuse controls และ staging authorization ก่อนใช้ production
 
 #### 3. กรอก KYC และข้อมูลธุรกิจ
 
@@ -353,7 +359,7 @@ API ปัจจุบันมี `GET /api/db/kyc` และ `POST /api/db/kyc
 
 | ขั้นตอน | สถานะปัจจุบัน | จุดที่ต้องทำต่อก่อน production |
 |---|---|---|
-| OTP สมัคร/ถอนผ่าน SMS | มี provider config ใน `.env.example` แต่ยังปิดและยังไม่มี service จริง | OTP persistence, hash, expiry, rate limit, SMS adapter, verify endpoint และ audit |
+| KYC case OTP ผ่าน SMS | มี route, challenge persistence, TTL, attempt limit, resend cooldown, lock และ audit foundation แต่ provider ถูกปิดและ fail-closed | ทำ provider adapter, signed provider contract, delivery/abuse monitoring และ staging E2E |
 | สร้าง Merchant/Store/KYC | มี `POST /api/db/auth/register-merchant`, core tables และ server session สำหรับ login | บังคับ OTP, transaction boundary, validation และ staging authorization |
 | KYC document/version | มี API, checksum, immutable version, private locator, quarantine/scanner status และ access audit | ต่อ private upload/scanner จริง, encryption at rest, review queue และ PostgreSQL E2E |
 | สินค้า | มี `Product` และ `/api/db/products` | ownership, validation, history และ production authorization |
@@ -388,21 +394,21 @@ API ปัจจุบันมี `GET /api/db/kyc` และ `POST /api/db/kyc
 
 ### External Backoffice contract กับ local ChatPOS implementation
 
-[CHATPOS Client Integration Guide](CHATPOS_CLIENT_INTEGRATION_GUIDE.md) เป็นเอกสารอ้างอิงสำหรับนำไปขอ contract และเชื่อมกับ PD/Agent Backoffice ไม่ใช่หลักฐานว่า endpoint ภายนอกถูก deploy หรือได้รับ sign-off แล้ว ส่วนสถานะงาน, owner และ external dependency ให้ติดตามใน [NEXT_STEPS_CHECKLIST.md](NEXT_STEPS_CHECKLIST.md)
+[CHATPOS Integration Handoff](CHATPOS_INTEGRATION_HANDOFF.md) เป็น canonical reference สำหรับ route, payload, ownership, readiness และ external contract status. [CHATPOS Client Integration Guide](CHATPOS_CLIENT_INTEGRATION_GUIDE.md) เป็นคู่มือ partner ที่ต้องสอดคล้องกับ handoff และไม่ใช่หลักฐานว่า endpoint ภายนอกถูก deploy หรือได้รับ sign-off แล้ว ส่วนสถานะงาน, owner และ external dependency ให้ติดตามใน [NEXT_STEPS_CHECKLIST.md](NEXT_STEPS_CHECKLIST.md)
 
 ก่อนเปิด feature หรือเปลี่ยน route ให้มี signed contract matrix จาก Backoffice ที่ยืนยัน endpoint, payload, scope, Store/amount ownership, response/error, idempotency, callback URL, signature, retry และ webhook owner ก่อนเสมอ ห้ามเปลี่ยน local implementation ให้เดาตามตัวอย่างใน guide เพียงอย่างเดียว
 
 | พื้นที่ | External target ใน Integration Guide | Local ChatPOS ที่มีใน repository | งานที่ต้องทำต่อ |
 |---|---|---|---|
 | Payment command | Candidate `POST /api/v1/transactions/{id}/payment`; Backoffice derive payment context และส่งต่อ LLGW | Browser เรียก `POST /api/v1/transactions`; server ส่ง payload ผ่าน `AGENT_PD_TRANSACTION_COMMAND_PATH` ซึ่ง default เป็น `/api/v1/transactions` | รอ Backoffice ยืนยัน path/payload แล้วทำ adapter, contract test และ staging E2E |
-| LLGW pay-in webhook | Target ให้ PD/Agent รับ LLGW, verify/dedupe/update payment state | ChatPOS ยังรับ `POST /api/webhooks/llgw/payment`, verify LLGW signature และ update local Transaction | ย้ายไป normalized callback/query หรือขอ architecture exception ก่อน production |
-| Normalized payment status | PD/Agent ส่ง signed payment-status webhook และเปิด status query ให้ partner | ChatPOS มี gated receiver ที่ `POST /api/webhooks/payment-status` ตรวจ HMAC, timestamp, Store/reference, dedupe และ project สถานะลง Transaction; ยังปิดเป็นค่าเริ่มต้น | ยืนยัน event schema/secret/retry แล้วเปิดใช้ใน staging, เพิ่ม reconcile และ retire/exception local LLGW receiver |
-| KYC phone OTP | Target มี Backoffice `/otp` และ `/otp/verify` ให้ Backoffice สร้าง/verify challenge | ยังไม่มี OTP adapter/route หรือ `KYC_MERCHANT_OTP_REQUIRED` config ใน ChatPOS | ยืนยัน external contract, SMS readiness และเพิ่ม server-only adapter ก่อนเปิด flow |
+| LLGW pay-in webhook | Target ให้ PD/Agent รับ LLGW, verify/dedupe/update payment state | ChatPOS มี local `POST /api/webhooks/llgw/payment` แต่ gate ด้วย `LLGW_PAYMENT_WEBHOOK_ENABLED=false` เป็นค่าเริ่มต้น | ยืนยัน ownership หรือ architecture exception ก่อนเปิด receiver ใน environment ใด ๆ |
+| Normalized payment status | PD/Agent ส่ง signed payment-status webhook และเปิด status query ให้ partner | ChatPOS มี gated receiver ที่ `POST /api/webhooks/payment-status` และ signed payment query adapter; ทั้งคู่ปิดเป็นค่าเริ่มต้น | ยืนยัน event schema/path/secret/retry แล้วเปิดใช้ใน staging, เพิ่ม reconcile และ retire/exception local LLGW receiver |
+| KYC phone OTP | Target มี Backoffice `/otp` และ `/otp/verify` ให้ Backoffice สร้าง/verify challenge | ChatPOS มี Merchant-only KYC case routes, PostgreSQL challenge persistence และ fail-closed provider stub; ยังไม่มี provider adapter จริง | ยืนยัน external OTP contract, SMS readiness, lock policy และทำ staging delivery E2E ก่อนเปิด |
 | Commission settlement | Partner ส่ง signed settlement fact ไปยัง Backoffice-provided destination URL | ChatPOS สร้าง durable settlement event และ dispatch ไป `COMMISSION_EVENT_SOURCE_URL`; ไม่มี inbound `/api/webhooks/commission/settlement` route | ยืนยัน Finance mapping/destination และทดสอบ retry/dead-letter/reconciliation |
 
-สถานะของ local payment flow จึงต้องเรียกอย่างตรงไปตรงมาว่า `local implementation` หรือ `legacy receiver` จนกว่า external contract จะผ่าน staging. การมี `TRANSACTION_ROUTING_ENABLED=true` ไม่ได้ยืนยันว่า Backoffice รองรับ endpoint candidate หรือว่า webhook ownership ถูกย้ายแล้ว
+สถานะของ local payment flow จึงต้องเรียกอย่างตรงไปตรงมาว่า `local implementation` หรือ `legacy receiver` จนกว่า external contract จะผ่าน staging. การมี `TRANSACTION_ROUTING_ENABLED=true` หรือ `TRANSACTION_QUERY_ROUTING_ENABLED=true` ไม่ได้ยืนยันว่า Backoffice รองรับ path/payload จริง หรือว่า webhook ownership ถูกย้ายแล้ว
 
-สิ่งที่เปิดใช้และตรวจสอบต่อใน repository ได้ทันทีคือ local transaction client ที่ `/api/v1/transactions`, local LLGW receiver ที่ `/api/webhooks/llgw/payment`, gated normalized receiver ที่ `/api/webhooks/payment-status`, stable `clientReference`, idempotency, signed settlement dispatch และ durable retry/dead-letter. สิ่งที่ยังเปิดใช้ไม่ได้จากเอกสารเพียงอย่างเดียวคือ target command path, Backoffice-owned LLGW flow, การเปิด normalized receiver ใน environment จริง, KYC OTP adapter และ commission destination; รายการเหล่านี้ต้องมี owner, signed contract และ staging evidence ก่อนเปลี่ยน feature flag หรือ route production
+สิ่งที่มีใน repository คือ local transaction client ที่ `/api/v1/transactions`, signed payment query adapter, gated normalized receiver ที่ `/api/webhooks/payment-status`, Merchant-only KYC OTP routes, stable `clientReference`, idempotency, signed settlement dispatch และ durable retry/dead-letter. Local LLGW receiver ที่ `/api/webhooks/llgw/payment` มีไว้เป็น gated migration/exception path และปิดเป็นค่าเริ่มต้น. สิ่งที่ยังเปิดใช้ไม่ได้จากเอกสารเพียงอย่างเดียวคือ target command/query path และ payload, Backoffice-owned LLGW flow, การเปิด normalized receiver ใน environment จริง, KYC OTP provider adapter และ commission destination; รายการเหล่านี้ต้องมี owner, signed contract และ staging evidence ก่อนเปลี่ยน feature flag หรือ route production
 
 ### Payment และ Developer Console
 
@@ -410,7 +416,8 @@ API ปัจจุบันมี `GET /api/db/kyc` และ `POST /api/db/kyc
 
 - ส่ง transaction command ไปยัง PD/Agent Backoffice ผ่าน `/api/v1/transactions`
 - ตรวจสถานะ payment reference และ ownership
-- รับผลชำระผ่าน local signed LLGW webhook ที่ server; นี่ไม่ใช่ normalized payment-status callback ตาม target external contract
+- อ่านสถานะผ่าน local transaction query หรือ signed payment query adapter เมื่อ `TRANSACTION_QUERY_ROUTING_ENABLED=true`
+- รับผลชำระผ่าน normalized payment-status callback ที่ถูก gate ด้วย `PAYMENT_STATUS_WEBHOOK_ENABLED`; local signed LLGW webhook เป็น migration/exception path ที่ปิดด้วย `LLGW_PAYMENT_WEBHOOK_ENABLED`
 - ดู balance ตาม Store scope
 - เรียก payout prototype ที่ถูกจำกัดด้วย session และ role
 
@@ -450,6 +457,8 @@ API ปัจจุบันมี `GET /api/db/kyc` และ `POST /api/db/kyc
 | `GET` | `/balance` | ดู balance และจำนวนธุรกรรม |
 | `POST` | `/transactions` | ส่งคำสั่งสร้าง transaction ไปยัง PD/Agent Backoffice พร้อม idempotency |
 | `GET` | `/transactions/:reference` | อ่าน transaction status ตาม Store ownership |
+| `POST` | `/kyc/cases/:caseId/otp` | ขอ OTP สำหรับ KYC case; Merchant-only และตอบ `503 NOT_READY` จนกว่า provider พร้อม |
+| `POST` | `/kyc/cases/:caseId/otp/verify` | ตรวจ OTP สำหรับ KYC case; Merchant-only |
 | `POST` | `/auth` | deprecated; browser token minting ถูกปิดด้วย `410 API_TOKEN_DEPRECATED` |
 | `POST` | `/payouts` | สร้าง payout |
 | `GET` | `/developer/logs` | ดู webhook event logs |

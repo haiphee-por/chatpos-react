@@ -16,7 +16,8 @@
 - `P1`: งานสำคัญที่ต้องทำก่อนขยาย usage หรือเปิด feature ครบชุด
 - `รอภายนอก`: ต้องรอ Backoffice, LLGW, Finance หรือ Product/Compliance
 - ใช้ `[x]` เมื่อ implementation และ test evidence ใน repository ครบ; งานที่ยังรอ external contract, owner sign-off หรือ production hardening ให้ใช้ `[~]` หรือคง `[ ]` ตามสถานะ
-- รายละเอียด API contract และตัวอย่าง signing อยู่ใน [CHATPOS Client Integration Guide](CHATPOS_CLIENT_INTEGRATION_GUIDE.md)
+- เอกสารอ้างอิงกลางด้าน route, payload, ownership และ readiness อยู่ใน [CHATPOS Integration Handoff](CHATPOS_INTEGRATION_HANDOFF.md)
+- รายละเอียด API contract และตัวอย่าง signing อยู่ใน [CHATPOS Client Integration Guide](CHATPOS_CLIENT_INTEGRATION_GUIDE.md) ซึ่งต้องสอดคล้องกับ handoff
 - รายละเอียด architecture และจุดแก้ใน repository อยู่ใน [Developer Guide](DEVELOPER_GUIDE.md)
 - Phase 0 contract matrix, decision record และ sign-off template อยู่ใน [Phase 0 Contract Decision Record](PHASE_0_CONTRACT_DECISION_RECORD.md)
 
