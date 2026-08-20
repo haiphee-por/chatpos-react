@@ -158,6 +158,7 @@ async function createAssignmentRequest({ pool, backofficeClient, storeId, source
     const response = await backofficeClient.request('/api/v1/assignments/requests', {
       method: 'POST',
       body: payload,
+      storeId: input.storeId,
       idempotencyKey,
       requestId,
       sourceRequestId: input.sourceRequestId,
@@ -297,8 +298,7 @@ async function resolveTarget(client, body, assignment = null) {
   return { agentId: agent?.id || null, pdId: pd?.id || null };
 }
 
-async function processAssignmentCallback({ pool, rawBody, headers, callbackSecret, nowSeconds = Math.floor(Date.now() / 1000) }) {
-  const verified = verifyAssignmentCallback({ rawBody, headers, callbackSecret, nowSeconds });
+async function processAssignmentCallback({ pool, rawBody, headers, callbackSecret, callbackSecretResolver, nowSeconds = Math.floor(Date.now() / 1000) }) {
   let body;
   try {
     body = JSON.parse(rawBody);
@@ -308,10 +308,14 @@ async function processAssignmentCallback({ pool, rawBody, headers, callbackSecre
   if (!body || typeof body !== 'object' || Array.isArray(body)) {
     throw new AssignmentError('Callback body must be an object', 'INVALID_BODY');
   }
+  if (!isUuid(body.storeId)) throw new AssignmentError('Callback storeId must be a UUID', 'INVALID_STORE_ID');
+  const resolvedCallbackSecret = callbackSecretResolver
+    ? await callbackSecretResolver(body.storeId)
+    : callbackSecret;
+  const verified = verifyAssignmentCallback({ rawBody, headers, callbackSecret: resolvedCallbackSecret, nowSeconds });
   if (body.eventId !== verified.eventId) {
     throw new AssignmentError('Callback event ID header does not match body', 'EVENT_ID_MISMATCH');
   }
-  if (!isUuid(body.storeId)) throw new AssignmentError('Callback storeId must be a UUID', 'INVALID_STORE_ID');
   if (!String(body.assignmentRequestId || '').trim()) {
     throw new AssignmentError('assignmentRequestId is required', 'ASSIGNMENT_REQUEST_ID_REQUIRED');
   }

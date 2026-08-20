@@ -201,6 +201,7 @@ async function createTransactionCommand({ pool, backofficeClient, storeId, body,
     response = await backofficeClient.request(backofficeClient.config.transactionCommandPath || '/api/v1/transactions', {
       method: 'POST',
       body: command,
+      storeId: input.storeId,
       idempotencyKey: input.idempotencyKey,
       requestId,
       sourceRequestId: input.clientReference || local.row.reference,
@@ -297,7 +298,7 @@ function normalizePaymentQueryResponse(response, reference) {
   };
 }
 
-async function getTransactionStatus({ backofficeClient, reference, requestId }) {
+async function getTransactionStatus({ backofficeClient, storeId, reference, requestId }) {
   const normalizedReference = String(reference || '').trim();
   if (!normalizedReference || normalizedReference.length > 128) {
     throw new TransactionRoutingError('Transaction reference is invalid', 'TRANSACTION_REFERENCE_INVALID', 422);
@@ -307,6 +308,7 @@ async function getTransactionStatus({ backofficeClient, reference, requestId }) 
   }
   const response = await backofficeClient.request(transactionQueryPath(backofficeClient.config.transactionQueryPath, normalizedReference), {
     method: 'GET',
+    storeId,
     requestId,
     sourceRequestId: normalizedReference,
   });

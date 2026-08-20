@@ -59,7 +59,8 @@
 - [x] **P0 / Storage:** validate `private://` locator, MIME/size/SHA-256 และ unique request/checksum/version; ไม่ overwrite object หรือ reuse version เดิมใน local persistence แต่ยังต้องต่อ private storage adapter/scanning production
 - [x] **P1 / Frontend:** เพิ่ม KYC document timeline, version comparison, status, correction reason และ attach version ใหม่โดยไม่ overwrite version เดิมใน Merchant portal
 - [x] **P1 / Frontend:** เพิ่ม KYC Chat/Post พร้อม document attachment metadata, read status และ append-only message history
-- [ ] **P1 / Contract + Backend:** ยืนยัน KYC OTP endpoint, payload, SMS readiness response, challenge binding, rate limit และ `KYC_MERCHANT_OTP_REQUIRED` กับ Backoffice; local ChatPOS ยังไม่มี OTP adapter/route
+- [ ] **P1 / Contract + Backend:** ยืนยัน KYC OTP endpoint, payload, readiness response, challenge binding, rate limit และ `KYC_MERCHANT_OTP_REQUIRED` กับ Backoffice; PD/Agent เป็นผู้จัดการ SMS และ ChatPOS ไม่ถือ SMS credential
+- [x] **P1 / Security:** เพิ่ม Store-scoped Backoffice credential mapping ใน `backoffice_store_credentials`; database เก็บเฉพาะ `keyId` และ secret reference ไม่เก็บ secret จริง
 - [ ] **เสร็จเมื่อ:** profile replay/conflict, document replay/conflict, private access, version correction และ Agent review -> PD final decision ผ่าน staging
 
 ## Phase 4: Transaction routing และ settlement
@@ -118,11 +119,12 @@
 ## งานที่ต้องรอหรือทำร่วมกับทีมภายนอก
 
 - [ ] **รอ Backoffice:** ส่ง test/production Base URL, Store-scoped key, scopes, signing secret, callback secret และ key rotation contact
+- [ ] **รอ Platform/Backoffice:** provision mapping ต่อ `ChatPOS Store` และ `Backoffice Store`, `Key ID`, secret references และ environment ใน `backoffice_store_credentials`; production ต้องใช้ managed secret resolver
 - [ ] **รอ Backoffice:** ยืนยัน callback URL, retry schedule, timeout, response contract และ ownership ของ `ACCEPTED`/`REJECTED`/`EXPIRED`/`REASSIGNED`
 - [ ] **รอ Backoffice:** เปิดและทดสอบ `POST /api/v1/assignments/requests`, profile update และ KYC document intake ใน staging
 - [ ] **รอ Backoffice:** ยืนยัน transaction command endpoint/payload, scope, Store/amount ownership, stable `clientReference`, idempotency conflict และ response/error contract
 - [ ] **รอ Backoffice:** ยืนยัน LLGW pay-in webhook ownership, normalized payment-status callback/query, callback URL/secret, event schema, retry, replay และ migration/rollback plan
-- [ ] **รอ Backoffice:** ยืนยัน KYC OTP endpoint/payload, SMS readiness/`503 NOT_READY`, challenge TTL/attempt binding, rate limit และ feature-flag contract
+- [ ] **รอ Backoffice:** ยืนยัน KYC OTP endpoint/payload, readiness/`503 NOT_READY`, challenge TTL/attempt binding, rate limit และ feature-flag contract โดยให้ PD/Agent เป็นผู้ส่งและตรวจ OTP
 - [ ] **รอ LLGW:** ยืนยัน webhook signature scheme, event types, timestamp window, retry behavior และ sandbox cases
 - [ ] **รอ Finance:** อนุมัติ `pdGrossBenefit`, ownership snapshot, reversal และ reconciliation mapping
 - [ ] **รอ Product/Compliance:** อนุมัติ field mapping ที่ทำให้ KYC review ใหม่, document retention และ final approval policy

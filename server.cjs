@@ -7,6 +7,7 @@ const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const QRCode = require('qrcode');
 const { createBackofficeClient, loadBackofficeConfig } = require('./server/integration/signedMerchantClient.cjs');
+const { createStoreCredentialResolver } = require('./server/integration/storeBackofficeCredentials.cjs');
 const {
   AssignmentError,
   createAssignmentRequest,
@@ -76,29 +77,39 @@ const pool = new Pool({
 });
 const backofficeConfig = loadBackofficeConfig();
 const otpConfig = loadOtpConfig();
+const storeCredentialResolver = createStoreCredentialResolver({
+  pool,
+  fallbackConfig: backofficeConfig,
+  environment: process.env.AGENT_PD_CREDENTIAL_ENVIRONMENT,
+});
+const resolveBackofficeCredential = (storeId) => storeCredentialResolver.resolve(storeId);
 const assignmentBackofficeClient = createBackofficeClient({
   config: {
     ...backofficeConfig,
     enabled: backofficeConfig.enabled && backofficeConfig.assignmentEnabled,
   },
+  credentialResolver: resolveBackofficeCredential,
 });
 const profileBackofficeClient = createBackofficeClient({
   config: {
     ...backofficeConfig,
     enabled: backofficeConfig.enabled && backofficeConfig.profileUpdateEnabled,
   },
+  credentialResolver: resolveBackofficeCredential,
 });
 const kycDocumentBackofficeClient = createBackofficeClient({
   config: {
     ...backofficeConfig,
     enabled: backofficeConfig.enabled && backofficeConfig.kycDocumentEnabled,
   },
+  credentialResolver: resolveBackofficeCredential,
 });
 const transactionBackofficeClient = createBackofficeClient({
   config: {
     ...backofficeConfig,
     enabled: backofficeConfig.enabled && (backofficeConfig.transactionRoutingEnabled || backofficeConfig.transactionQueryRoutingEnabled),
   },
+  credentialResolver: resolveBackofficeCredential,
 });
 const metrics = {
   startedAt: new Date().toISOString(),
@@ -353,6 +364,7 @@ const server = http.createServer(async (req, res) => {
           pool,
           rawBody,
           headers: req.headers,
+          callbackSecretResolver: storeCredentialResolver.resolveCallbackSecrets,
           callbackSecret: backofficeConfig.callbackSecrets?.length ? backofficeConfig.callbackSecrets : backofficeConfig.callbackSecret,
         });
         res.statusCode = callbackResult.statusCode || 200;
@@ -1700,6 +1712,7 @@ const server = http.createServer(async (req, res) => {
           if (backofficeConfig.transactionQueryRoutingEnabled) {
             const transaction = await getTransactionStatus({
               backofficeClient: transactionBackofficeClient,
+              storeId: principal.storeId,
               reference,
               requestId: req.headers['x-request-id'] || undefined,
             });
