@@ -18,7 +18,6 @@ export function App() {
 
   useEffect(() => {
     fetchDbHealth().then(setDbHealth).catch(() => {})
-    fetchDbStats().then(setDbStats).catch(() => {})
   }, [])
 
   // The server session is authoritative; localStorage is only a display cache.
@@ -29,7 +28,12 @@ export function App() {
     getServerSession()
       .then((session) => {
         setCurrentUser(session.success ? session.user : null)
-        if (session.success && session.user) setStoredUser(session.user)
+        if (session.success && session.user) {
+          setStoredUser(session.user)
+          if (session.user.role === 'admin' || session.user.role === 'compliance') {
+            fetchDbStats().then(setDbStats).catch(() => {})
+          }
+        }
       })
       .catch(() => setCurrentUser(null))
       .finally(() => setSessionReady(true))
