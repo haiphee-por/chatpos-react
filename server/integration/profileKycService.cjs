@@ -133,11 +133,12 @@ function profileSnapshot(row) {
   };
 }
 
-async function callBackoffice(backofficeClient, path, method, body, idempotencyKey, requestId, sourceRequestId) {
+async function callBackoffice(backofficeClient, path, method, body, idempotencyKey, requestId, sourceRequestId, storeId) {
   if (!backofficeClient) return null;
   const response = await backofficeClient.request(path, {
     method,
     body,
+    storeId,
     idempotencyKey,
     requestId,
     sourceRequestId,
@@ -205,7 +206,8 @@ async function updateStoreProfile({ pool, backofficeClient, storeId, body, idemp
     commandBody,
     normalizedIdempotencyKey,
     requestId,
-    sourceRequestId
+    sourceRequestId,
+    storeId
   );
 
   const client = await pool.connect();
@@ -370,7 +372,7 @@ async function intakeKycDocument({ pool, backofficeClient, storeId, caseId, body
   const sourceRequestId = String(body.sourceRequestId || requestId || crypto.randomUUID());
   const commandBody = { sourceRequestId, caseId, ...metadata };
   const digest = bodyDigest(commandBody);
-  const remoteResult = await callBackoffice(backofficeClient, `/api/v1/kyc/cases/${caseId}/documents`, 'POST', commandBody, normalizedIdempotencyKey, requestId, sourceRequestId);
+  const remoteResult = await callBackoffice(backofficeClient, `/api/v1/kyc/cases/${caseId}/documents`, 'POST', commandBody, normalizedIdempotencyKey, requestId, sourceRequestId, storeId);
 
   const client = await pool.connect();
   try {

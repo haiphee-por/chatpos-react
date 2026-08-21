@@ -71,6 +71,10 @@ function loadBackofficeConfig(env = process.env) {
   return {
     baseUrl: String(env.AGENT_PD_BACKOFFICE_BASE_URL || '').replace(/\/$/, ''),
     storeId: String(env.AGENT_PD_STORE_ID || ''),
+    chatposStoreId: String(env.AGENT_PD_CHATPOS_STORE_ID || ''),
+    keyId: String(env.AGENT_PD_KEY_ID || ''),
+    credentialEnvironment: String(env.AGENT_PD_CREDENTIAL_ENVIRONMENT || env.CHATPOS_ENVIRONMENT || env.NODE_ENV || 'development'),
+    keyIdHeaderName: String(env.AGENT_PD_KEY_ID_HEADER || 'X-ChatPOS-Key-Id'),
     bearerSecret: String(env.AGENT_PD_BEARER_SECRET || ''),
     signingSecret: String(env.AGENT_PD_SIGNING_SECRET || ''),
     signingSecrets: secretCandidates('AGENT_PD_SIGNING_SECRET', 'AGENT_PD_SIGNING_SECRET_PREVIOUS'),
@@ -457,23 +461,29 @@ class SignedMerchantApiClient {
     this.nonceFactory = options.nonceFactory || createNonce;
     this.requestIdFactory = options.requestIdFactory || createRequestId;
     this.logger = options.logger || createStructuredLogger();
+    this.credentialResolver = options.credentialResolver || null;
   }
 
   async request(pathOrUrl, options = {}) {
     if (!this.config.enabled) throw new IntegrationDisabledError();
+    const requestConfig = this.credentialResolver
+      ? await this.credentialResolver(options.storeId, this.config)
+      : this.config;
+    if (!requestConfig.enabled) throw new IntegrationDisabledError();
     if (typeof this.fetchImpl !== 'function') {
       throw new IntegrationError('Global fetch is not available', 'FETCH_UNAVAILABLE');
     }
-    if (!this.config.baseUrl && !/^https?:\/\//i.test(pathOrUrl)) {
+    if (!requestConfig.baseUrl && !/^https?:\/\//i.test(pathOrUrl)) {
       throw new IntegrationError('Backoffice base URL is not configured', 'BASE_URL_MISSING');
     }
-    if (!this.config.bearerSecret) throw new IntegrationError('Bearer secret is not configured', 'BEARER_SECRET_MISSING');
-    if (!this.config.signingSecret) throw new IntegrationError('Signing secret is not configured', 'SIGNING_SECRET_MISSING');
+    if (!requestConfig.bearerSecret) throw new IntegrationError('Bearer secret is not configured', 'BEARER_SECRET_MISSING');
+    if (!requestConfig.signingSecret) throw new IntegrationError('Signing secret is not configured', 'SIGNING_SECRET_MISSING');
 
     const {
       method = 'GET',
       body,
       rawBody,
+      storeId,
       idempotencyKey = '',
       requestId = this.requestIdFactory(),
       sourceRequestId = null,
@@ -487,8 +497,8 @@ class SignedMerchantApiClient {
     const exactBody = rawBody !== undefined ? String(rawBody) : serializeBody(body);
     const url = /^https?:\/\//i.test(pathOrUrl)
       ? String(pathOrUrl)
-      : new URL(String(pathOrUrl).replace(/^\/?/, '/'), `${this.config.baseUrl}/`).toString();
-    const maxAttempts = this.config.maxRetries + 1;
+      : new URL(String(pathOrUrl).replace(/^\/?/, '/'), `${requestConfig.baseUrl}/`).toString();
+    const maxAttempts = requestConfig.maxRetries + 1;
 
     for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
       const timestamp = this.nowSeconds();
@@ -498,7 +508,7 @@ class SignedMerchantApiClient {
         url,
         rawBody: exactBody,
         idempotencyKey,
-        signingSecret: this.config.signingSecret,
+        signingSecret: requestConfig.signingSecret,
         timestamp,
         nonce,
       });
@@ -506,13 +516,16 @@ class SignedMerchantApiClient {
         ...customHeaders,
         Accept: 'application/json',
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${this.config.bearerSecret}`,
+        Authorization: `Bearer ${requestConfig.bearerSecret}`,
         'Idempotency-Key': idempotencyKey,
         'X-ChatPOS-Timestamp': signed.timestamp,
         'X-ChatPOS-Nonce': signed.nonce,
         'X-ChatPOS-Signature': signed.signature,
         'X-Request-Id': requestId,
       };
+      if (requestConfig.keyId) {
+        headers[requestConfig.keyIdHeaderName || 'X-ChatPOS-Key-Id'] = requestConfig.keyId;
+      }
       const startedAt = Date.now();
 
       try {
@@ -524,7 +537,7 @@ class SignedMerchantApiClient {
             headers,
             body: exactBody || undefined,
           },
-          this.config.timeoutMs,
+          requestConfig.timeoutMs,
           signal
         );
         const retryable = isRetryableStatus(response.status);
@@ -546,9 +559,9 @@ class SignedMerchantApiClient {
           await this.sleep(
             calculateRetryDelay(
               attempt,
-              this.config.retryBaseDelayMs,
+              requestConfig.retryBaseDelayMs,
               retryAfterMs,
-              this.config.maxRetryDelayMs,
+              requestConfig.maxRetryDelayMs,
               this.random
             )
           );
@@ -580,7 +593,7 @@ class SignedMerchantApiClient {
         });
         if (!retryable || attempt >= maxAttempts - 1) throw error;
         await this.sleep(
-          calculateRetryDelay(attempt, this.config.retryBaseDelayMs, 0, this.config.maxRetryDelayMs, this.random)
+          calculateRetryDelay(attempt, requestConfig.retryBaseDelayMs, 0, requestConfig.maxRetryDelayMs, this.random)
         );
       }
     }

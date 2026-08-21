@@ -102,7 +102,7 @@ npm run db:migrate
 npm run db:seed
 ```
 
-Migration หลักอยู่ที่ [`database/migrations/001_initial_chatpos_schema.sql`](../database/migrations/001_initial_chatpos_schema.sql) ถึง [`database/migrations/006_kyc_otp_challenges.sql`](../database/migrations/006_kyc_otp_challenges.sql) ครอบคลุมตาราง core ที่ `server.cjs` ใช้ รวมถึง Merchant KYC, assignment, profile/document version, server session, rate limit, audit, idempotency, webhook dedupe, settlement retry/dead-letter, document scan quarantine และ OTP challenge persistence. หลัง migration ให้ใช้ [`database/seed.cjs`](../database/seed.cjs) ผ่าน `npm run db:seed` เพื่อสร้างข้อมูลทดลองแบบ idempotent สำหรับทุก role และ workflow หลัก; ตั้ง `SEED_PASSWORD` ได้เมื่อต้องการเปลี่ยนรหัสผ่าน demo. ตารางเหล่านี้เป็น durable schema; client helper แบบ in-memory ยังใช้เฉพาะ unit test และไม่ควรใช้แทน persistence layer จริง
+Migration หลักอยู่ที่ [`database/migrations/001_initial_chatpos_schema.sql`](../database/migrations/001_initial_chatpos_schema.sql) ถึง [`database/migrations/007_store_backoffice_credentials.sql`](../database/migrations/007_store_backoffice_credentials.sql) ครอบคลุมตาราง core ที่ `server.cjs` ใช้ รวมถึง Merchant KYC, assignment, profile/document version, server session, rate limit, audit, idempotency, webhook dedupe, settlement retry/dead-letter, document scan quarantine, OTP challenge persistence และ Store-scoped Backoffice credential mapping. หลัง migration ให้ใช้ [`database/seed.cjs`](../database/seed.cjs) ผ่าน `npm run db:seed` เพื่อสร้างข้อมูลทดลองแบบ idempotent สำหรับทุก role และ workflow หลัก; ตั้ง `SEED_PASSWORD` ได้เมื่อต้องการเปลี่ยนรหัสผ่าน demo. ตารางเหล่านี้เป็น durable schema; client helper แบบ in-memory ยังใช้เฉพาะ unit test และไม่ควรใช้แทน persistence layer จริง
 
 ### Production
 
@@ -141,8 +141,11 @@ npm run lint
 | `AUTH_LOGIN_RATE_LIMIT` / `AUTH_LOGIN_RATE_WINDOW_SECONDS` | `server.cjs` | login limit ต่อ IP/email bucket |
 | `SETTLEMENT_RETRY_INTERVAL_MS` / `SETTLEMENT_MAX_ATTEMPTS` | `server.cjs` | durable settlement retry และ dead-letter policy |
 | `DOCUMENT_SCANNER_URL` / `DOCUMENT_SCANNER_TOKEN` / `DOCUMENT_SCANNER_TIMEOUT_MS` | `server/integration/documentSecurity.cjs` | scanner ไม่พร้อมจะ quarantine เอกสาร ไม่ถือว่าสแกนผ่าน |
-| `SMS_OTP_ENABLED` / `SMS_OTP_PROVIDER_READY` | `server/integration/otpService.cjs` | ต้องเป็น `true` ทั้งคู่จึงจะเรียก provider; ค่าเริ่มต้นปิดและ fail-closed เป็น `503 NOT_READY` |
-| `KYC_OTP_TTL_SECONDS` / `KYC_OTP_MAX_ATTEMPTS` / `KYC_OTP_RESEND_COOLDOWN_SECONDS` / `KYC_OTP_LOCK_SECONDS` | `server/integration/otpService.cjs` | TTL, จำนวนครั้งผิด, cooldown และระยะ lock ของ KYC challenge |
+| `KYC_OTP_TTL_SECONDS` / `KYC_OTP_MAX_ATTEMPTS` / `KYC_OTP_RESEND_COOLDOWN_SECONDS` / `KYC_OTP_LOCK_SECONDS` | `server/integration/otpService.cjs` | policy ของ local KYC challenge; การส่งและตรวจ SMS เป็นความรับผิดชอบของ PD/Agent และยังไม่เปิดใน scope ปัจจุบัน |
+| `AGENT_PD_BACKOFFICE_BASE_URL` / `AGENT_PD_INTEGRATION_ENABLED` | `server/integration/signedMerchantClient.cjs` | upstream base URL และ global integration gate; Store-scoped mapping ยังต้องเลือก credential ต่อ request |
+| `AGENT_PD_CHATPOS_STORE_ID` / `AGENT_PD_STORE_ID` / `AGENT_PD_KEY_ID` | `server/integration/signedMerchantClient.cjs` | transitional single-Store fallback เท่านั้น; `AGENT_PD_CHATPOS_STORE_ID` คือ local Store และ `AGENT_PD_STORE_ID` คือ Backoffice Store |
+| `AGENT_PD_CREDENTIAL_ENVIRONMENT` / `AGENT_PD_KEY_ID_HEADER` | `server/integration/storeBackofficeCredentials.cjs` / signed client | environment ของ mapping และชื่อ header Key ID ต้องตรงกับ signed contract |
+| `backoffice_store_credentials` | `server/integration/storeBackofficeCredentials.cjs` | mapping ต่อ Store; เก็บ Base URL, Backoffice Store ID, Key ID และ secret reference เท่านั้น ไม่เก็บ secret จริง |
 | `LLGW_PAYMENT_WEBHOOK_ENABLED` | `server.cjs` | local LLGW receiver ปิดเป็นค่าเริ่มต้น; อย่าเปิดจนกว่า ownership/exception จะได้รับอนุมัติ |
 | `AGENT_PD_SIGNING_SECRET_PREVIOUS` / `AGENT_PD_CALLBACK_SECRET_PREVIOUS` | signed PD/Agent Backoffice integration | รับ secret เดิมชั่วคราวระหว่าง rotation แล้วต้องลบเพื่อ revoke |
 | `LLGW_PAYMENT_WEBHOOK_SECRET_PREVIOUS` | LLGW webhook verification | รับ secret เดิมชั่วคราวระหว่าง rotation แล้วต้องลบเพื่อ revoke |
@@ -201,7 +204,7 @@ Phase 2 มี assignment service ใน `server/integration/assignmentService.c
 
 Merchant portal แสดงสถานะ `PENDING_ADMIN_ASSIGNMENT`, `PENDING_AGENT_ACCEPTANCE`, `ACCEPTED`, `REJECTED`, `EXPIRED` และ `REASSIGNED` พร้อม next action และจะแสดง Agent/PD เฉพาะเมื่อ status เป็น `ACCEPTED` การสมัคร Merchant จะส่ง assignment request หลังสร้าง Store สำเร็จ โดยรองรับทั้งการระบุเบอร์ Agent และการเว้นว่างให้ Admin จัดสรร หาก `AGENT_PD_INTEGRATION_ENABLED` หรือ `AGENT_PD_ASSIGNMENT_ENABLED` ยังปิดอยู่ การสมัครบัญชียังสำเร็จแต่จะไม่ forward assignment ไป Backoffice
 
-Phase 2 command/callback ยังใช้ `AGENT_PD_STORE_ID` ได้เฉพาะเป็น configuration ของ server-side PD/Agent Backoffice integration ไม่ใช่ browser authority. Browser request ใช้ server session และ API ตรวจ Store/Case ownership จากฐานข้อมูล; `X-Store-Id`, `X-Actor-Id` และ `X-Actor-Role` ไม่ได้รับความเชื่อถือและไม่อยู่ใน CORS allowlist แล้ว. ต้องทดสอบ command/callback กับ PD/Agent Backoffice staging จริง รวมถึง receiver downtime, secret rotation และ retry recovery
+Phase 2 command/callback ใช้ `storeId` จาก server-side authorization เพื่อ resolve mapping ใน `backoffice_store_credentials`; `AGENT_PD_*` แบบ global เหลือไว้เฉพาะ transitional single-Store fallback ที่ต้องกำหนด `AGENT_PD_CHATPOS_STORE_ID` ให้ตรงกับ local Store. Browser request ใช้ server session และ API ตรวจ Store/Case ownership จากฐานข้อมูล; `X-Store-Id`, `X-Actor-Id` และ `X-Actor-Role` ไม่ได้รับความเชื่อถือและไม่อยู่ใน CORS allowlist แล้ว. ต้องทดสอบ command/callback กับ PD/Agent Backoffice staging จริง รวมถึง receiver downtime, secret rotation และ retry recovery
 
 Phase 3 เพิ่ม `profileKycService.cjs` สำหรับ profile update, KYC document intake และ KYC Chat/Post โดย profile รับเฉพาะ nested `profile` allowlist ตาม contract, ใช้ `expectedProfileVersion`, `Idempotency-Key` และ snapshot ใน `merchant_profile_versions`; conflict ตอบ `PROFILE_VERSION_CONFLICT` และ replay ของ payload เดิมไม่เพิ่ม version ซ้ำ การแก้ field ที่กระทบ KYC จะเก็บ submission snapshot เดิมแบบไม่ overwrite, เปลี่ยน case เป็น `WAITING_AGENT_REVIEW`, อัปเดต `KycVerification`, สร้าง notification ให้ Agent และเขียน audit
 
@@ -263,7 +266,7 @@ flowchart TD
 6. หลังยืนยันสำเร็จให้บันทึก `phoneVerifiedAt` และออก registration session/server-side token ห้ามถือว่าแค่ส่ง OTP สำเร็จคือยืนยันตัวตนแล้ว
 7. การส่ง OTP ซ้ำต้อง invalidate OTP เดิมตาม policy และห้ามส่งรหัสผ่าน query string, browser storage หรือ log
 
-ค่า provider ปัจจุบันอยู่ใน `.env.example` เช่น `SMS_OTP_ENABLED`, `SMS_BASE_URL`, `SMS_BEARER_TOKEN`, `SMS_CALLBACK_SECRET` และ `SMS_REQUEST_TIMEOUT_MS` แต่ค่าเริ่มต้นยังปิดอยู่ (`false`). Local KYC case OTP routes และ challenge persistence มีแล้วใน [`server.cjs`](../server.cjs), [`server/integration/otpService.cjs`](../server/integration/otpService.cjs) และ migration `006`; provider เริ่มต้นยังเป็น fail-closed `NOT_READY` stub จึงห้ามเปิด `SMS_OTP_PROVIDER_READY` จนกว่าจะมี adapter และ signed provider contract จริง
+SMS/OTP delivery เป็นความรับผิดชอบของ PD/Agent Backoffice โดย ChatPOS ไม่เก็บ SMS credential และไม่เรียก SMS provider โดยตรง. Local KYC case OTP routes และ challenge persistence มีแล้วใน [`server.cjs`](../server.cjs), [`server/integration/otpService.cjs`](../server/integration/otpService.cjs) และ migration `006` แต่ยังปิดไว้จนกว่าจะยืนยัน signed Backoffice OTP contract, endpoint, payload, callback/verification และ staging E2E ที่เกี่ยวข้อง
 
 #### 2. สร้างบัญชี Merchant และข้อมูลร้านค้า
 
@@ -359,7 +362,7 @@ API ปัจจุบันมี `GET /api/db/kyc` และ `POST /api/db/kyc
 
 | ขั้นตอน | สถานะปัจจุบัน | จุดที่ต้องทำต่อก่อน production |
 |---|---|---|
-| KYC case OTP ผ่าน SMS | มี route, challenge persistence, TTL, attempt limit, resend cooldown, lock และ audit foundation แต่ provider ถูกปิดและ fail-closed | ทำ provider adapter, signed provider contract, delivery/abuse monitoring และ staging E2E |
+| KYC case OTP ผ่าน PD/Agent | มี route, challenge persistence, TTL, attempt limit, resend cooldown, lock และ audit foundation แต่ flow ยังปิด | ยืนยัน Backoffice OTP contract และทำ staging E2E โดยให้ PD/Agent เป็นผู้จัดการ SMS |
 | สร้าง Merchant/Store/KYC | มี `POST /api/db/auth/register-merchant`, core tables และ server session สำหรับ login | บังคับ OTP, transaction boundary, validation และ staging authorization |
 | KYC document/version | มี API, checksum, immutable version, private locator, quarantine/scanner status และ access audit | ต่อ private upload/scanner จริง, encryption at rest, review queue และ PostgreSQL E2E |
 | สินค้า | มี `Product` และ `/api/db/products` | ownership, validation, history และ production authorization |
@@ -405,6 +408,12 @@ API ปัจจุบันมี `GET /api/db/kyc` และ `POST /api/db/kyc
 | Normalized payment status | PD/Agent ส่ง signed payment-status webhook และเปิด status query ให้ partner | ChatPOS มี gated receiver ที่ `POST /api/webhooks/payment-status` และ signed payment query adapter; ทั้งคู่ปิดเป็นค่าเริ่มต้น | ยืนยัน event schema/path/secret/retry แล้วเปิดใช้ใน staging, เพิ่ม reconcile และ retire/exception local LLGW receiver |
 | KYC phone OTP | Target มี Backoffice `/otp` และ `/otp/verify` ให้ Backoffice สร้าง/verify challenge | ChatPOS มี Merchant-only KYC case routes, PostgreSQL challenge persistence และ fail-closed provider stub; ยังไม่มี provider adapter จริง | ยืนยัน external OTP contract, SMS readiness, lock policy และทำ staging delivery E2E ก่อนเปิด |
 | Commission settlement | Partner ส่ง signed settlement fact ไปยัง Backoffice-provided destination URL | ChatPOS สร้าง durable settlement event และ dispatch ไป `COMMISSION_EVENT_SOURCE_URL`; ไม่มี inbound `/api/webhooks/commission/settlement` route | ยืนยัน Finance mapping/destination และทดสอบ retry/dead-letter/reconciliation |
+
+### Store-scoped Backoffice credentials
+
+ตาราง `backoffice_store_credentials` ใช้ map `ChatPOS Store` ไปยัง `Backoffice Store` แยกตาม environment. ค่า `bearerSecretRef`, `signingSecretRef` และ `callbackSecretRef` เป็น reference ไปยัง managed secret resolver เท่านั้น; ห้ามใส่ secret จริงใน database, seed, `.env.example`, log หรือ request body. Resolver จะ fail-closed ถ้า Store ไม่มี mapping ที่ active หรือ secret reference ถูก resolve ไม่ได้
+
+สำหรับ local/staging ชั่วคราว resolver รองรับ reference รูปแบบ `env:VARIABLE_NAME`; deployment ที่ mount secret จาก managed secret manager รองรับ `file:/run/secrets/name`. Production ที่มี secret manager API ควร inject `secretResolver` ของ platform เพิ่มเติม. `AGENT_PD_*` แบบ global รองรับได้เพียง Store เดียวที่ระบุทั้ง `AGENT_PD_CHATPOS_STORE_ID` และ `AGENT_PD_STORE_ID` และไม่ควรใช้เป็นรูปแบบ multi-Store production
 
 สถานะของ local payment flow จึงต้องเรียกอย่างตรงไปตรงมาว่า `local implementation` หรือ `legacy receiver` จนกว่า external contract จะผ่าน staging. การมี `TRANSACTION_ROUTING_ENABLED=true` หรือ `TRANSACTION_QUERY_ROUTING_ENABLED=true` ไม่ได้ยืนยันว่า Backoffice รองรับ path/payload จริง หรือว่า webhook ownership ถูกย้ายแล้ว
 
