@@ -10511,3 +10511,369 @@ button:active,
   color: #64748b;
   margin: 0;
 }
+
+.mh-home-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.mh-home-eyebrow {
+  margin: 0;
+  color: #129665;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: .12em;
+}
+
+.mh-data-note,
+.mh-balance-unavailable,
+.mh-sub-meta {
+  color: #78968a;
+  font-size: 11px;
+}
+
+.mh-data-note {
+  margin: 4px 0 0;
+}
+
+.mh-language-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 36px;
+  padding: 0 10px;
+  border: 1px solid #cfe1d8;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #28745c;
+}
+
+.mh-language-control select,
+.merchant-store-select {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  outline: 0;
+}
+
+.merchant-store-name-button {
+  display: block;
+  max-width: 155px;
+  overflow: hidden;
+  margin-top: 3px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 800;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.merchant-store-select {
+  display: block;
+  max-width: 155px;
+  margin-top: 3px;
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.merchant-store-select option {
+  color: #15322a;
+}
+
+.merchant-store-settings {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.mh-stale-notice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 13px;
+  border: 1px solid #f4d18a;
+  border-radius: 8px;
+  background: #fffbeb;
+  color: #8a5a06;
+  font-size: 11px;
+}
+
+.mh-stale-notice span,
+.mh-stale-notice button,
+.mh-refresh-button,
+.mh-state-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.mh-stale-notice button,
+.mh-refresh-button,
+.mh-state-action {
+  border: 0;
+  background: transparent;
+  color: #8a5a06;
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.mh-home-state {
+  display: grid;
+  place-items: center;
+  min-height: 420px;
+  padding: 36px 20px;
+  border: 1px solid #dcebe4;
+  border-radius: 12px;
+  background: #ffffff;
+  color: #55776a;
+  text-align: center;
+}
+
+.mh-home-state h2 {
+  margin: 12px 0 4px;
+  color: #15382d;
+  font-size: 19px;
+}
+
+.mh-home-state p {
+  max-width: 460px;
+  margin: 0;
+  font-size: 12px;
+}
+
+.mh-state-action {
+  margin-top: 18px;
+  padding: 9px 13px;
+  border: 1px solid #b8ddca;
+  border-radius: 7px;
+  background: #effbf5;
+  color: #13744f;
+}
+
+.mh-balance-unavailable {
+  margin: -8px 0 16px;
+}
+
+.mh-sub-card {
+  min-width: 0;
+}
+
+.mh-sub-meta {
+  max-width: 135px;
+  margin-left: 10px;
+  text-align: right;
+}
+
+button.mh-app-card {
+  width: 100%;
+  border: 0;
+  text-align: left;
+}
+
+.mh-app-card:focus-visible,
+.mh-mgmt-item:focus-visible,
+.mh-main-amount-tappable:focus-visible,
+.mh-merchant-id-pill:focus-visible,
+.mh-store-badge-btn:focus-visible,
+.mh-language-control:focus-within,
+.merchant-store-settings:focus-visible,
+.merchant-store-name-button:focus-visible,
+.merchant-store-select:focus-visible,
+.mh-bottom-item:focus-visible,
+.mh-refresh-button:focus-visible,
+.mh-state-action:focus-visible {
+  outline: 3px solid #f59e0b;
+  outline-offset: 2px;
+}
+
+.mh-app-transactions {
+  background: linear-gradient(135deg, #6d4ac4 0%, #49308f 100%);
+}
+
+.mh-app-benefits {
+  background: linear-gradient(135deg, #d97706 0%, #a94e00 100%);
+}
+
+.mh-app-stoppay {
+  background: linear-gradient(135deg, #c93636 0%, #8e2020 100%);
+}
+
+.mh-home-data-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: #78968a;
+  font-size: 10px;
+}
+
+.mh-refresh-button {
+  padding: 5px 8px;
+  border: 1px solid #cfe1d8;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #28745c;
+}
+
+.mh-refresh-button:disabled,
+.mn-footer-action:disabled,
+.mh-merchant-id-pill:disabled {
+  opacity: .5;
+  cursor: not-allowed;
+}
+
+.mh-loading-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.mh-skeleton {
+  position: relative;
+  overflow: hidden;
+  border-radius: 16px;
+  background: #e1eee8;
+}
+
+.mh-skeleton::after {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgb(255 255 255 / 60%), transparent);
+  content: '';
+  animation: mhSkeleton 1.4s infinite;
+}
+
+.mh-skeleton-header { height: 128px; }
+.mh-skeleton-balance { height: 218px; }
+.mh-skeleton-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+.mh-skeleton-card { height: 110px; }
+.mh-skeleton-list { height: 280px; }
+
+@keyframes mhSkeleton {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(100%); }
+}
+
+.mn-item {
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+}
+
+.mn-empty {
+  display: grid;
+  place-items: center;
+  gap: 8px;
+  min-height: 220px;
+  color: #78968a;
+  text-align: center;
+}
+
+.mn-empty strong {
+  color: #345c4c;
+  font-size: 14px;
+}
+
+.mn-empty span {
+  font-size: 11px;
+}
+
+.mh-notification-trigger {
+  position: fixed;
+  right: 24px;
+  bottom: 84px;
+  z-index: 55;
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border: 1px solid #b8ddca;
+  border-radius: 50%;
+  background: #ffffff;
+  color: #28745c;
+  box-shadow: 0 6px 18px rgb(35 90 68 / 15%);
+  cursor: pointer;
+}
+
+.mh-notification-trigger b {
+  position: absolute;
+  top: -4px;
+  right: -3px;
+  display: grid;
+  place-items: center;
+  width: 17px;
+  height: 17px;
+  border-radius: 50%;
+  background: #ef476f;
+  color: #ffffff;
+  font-size: 9px;
+}
+
+@media (max-width: 720px) {
+  .mh-home-toolbar,
+  .mh-home-data-footer,
+  .mh-stale-notice {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .mh-language-control {
+    align-self: stretch;
+  }
+
+  .mh-language-control select {
+    flex: 1;
+  }
+
+  .mh-skeleton-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .mh-sub-card {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .mh-sub-meta {
+    max-width: none;
+    margin-left: 0;
+    text-align: left;
+  }
+
+  .mh-notification-trigger {
+    right: 16px;
+    bottom: 78px;
+  }
+}
+
+.mh-store-card.is-closed {
+  background: linear-gradient(135deg, #64748b 0%, #475569 100%);
+}
+
+.mn-loading {
+  display: grid;
+  place-items: center;
+  gap: 8px;
+  min-height: 220px;
+  color: #78968a;
+  font-size: 11px;
+}

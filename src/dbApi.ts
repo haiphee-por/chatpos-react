@@ -196,6 +196,12 @@ export interface DbTransactionRow {
   store_name: string | null
 }
 
+export interface DbFetchResult<T> {
+  data: T
+  error: string | null
+  fetchedAt: string | null
+}
+
 export interface DbProductRow {
   id: string
   name: string
@@ -363,6 +369,16 @@ export async function fetchDbStores(): Promise<DbStoreRow[]> {
   }
 }
 
+export async function fetchDbStoresResult(): Promise<DbFetchResult<DbStoreRow[]>> {
+  try {
+    const res = await fetchDbApi<{ success: boolean; data: DbStoreRow[] }>('/stores')
+    return { data: res.data || [], error: null, fetchedAt: new Date().toISOString() }
+  } catch (err: any) {
+    console.error('Failed to fetch stores with status:', err)
+    return { data: [], error: err?.message || 'โหลดข้อมูลร้านค้าไม่สำเร็จ', fetchedAt: null }
+  }
+}
+
 /**
  * Fetch Merchant-Agent assignment state from PostgreSQL.
  */
@@ -506,6 +522,16 @@ export async function fetchDbTransactions(): Promise<DbTransactionRow[]> {
   } catch (err) {
     console.error('Failed to fetch real transactions:', err)
     return []
+  }
+}
+
+export async function fetchDbTransactionsResult(): Promise<DbFetchResult<DbTransactionRow[]>> {
+  try {
+    const res = await fetchDbApi<{ success: boolean; data: DbTransactionRow[] }>('/transactions')
+    return { data: res.data || [], error: null, fetchedAt: new Date().toISOString() }
+  } catch (err: any) {
+    console.error('Failed to fetch transactions with status:', err)
+    return { data: [], error: err?.message || 'โหลดประวัติธุรกรรมไม่สำเร็จ', fetchedAt: null }
   }
 }
 

@@ -2,7 +2,9 @@ import { useState, useEffect } from 'react'
 import { ProfileSettingsModal } from './ProfileSettingsModal'
 import { MerchantKycView } from './MerchantKycView'
 import { DeveloperConsoleView } from './DeveloperConsoleView'
-import { fetchDbAssignments, fetchDbProducts, fetchDbStores, getStoredUser, clearStoredUser, logoutUser, type AuthUser, type DbAssignmentRow, type DbStoreRow } from './dbApi'
+import { fetchDbAssignments, fetchDbProducts, fetchDbStoresResult, getStoredUser, clearStoredUser, logoutUser, type AuthUser, type DbAssignmentRow, type DbStoreRow } from './dbApi'
+import { MerchantHome as MerchantHomeDashboard, MerchantBottomNavigation, type StoreLoadState } from './MerchantHomeView'
+import { merchantNavItems } from './merchantNavigation'
 import { generatePromptPayQrDataUrl, generateUrlQrDataUrl, getStoredPromptPayId, setStoredPromptPayId } from './promptpay'
 import { checkTransactionStatus, createTransactionCommand } from './chatposApi'
 import {
@@ -200,20 +202,7 @@ function speakBalance(amount: string) {
   }
 }
 
-const navItems = [
-  { id: 'home', label: 'ภาพรวมร้านค้า', icon: LayoutDashboard },
-  { id: 'pos', label: 'ขายหน้าร้าน (POS)', icon: CreditCard },
-  { id: 'payment', label: 'คิดเงินด่วน', icon: QrCode },
-  { id: 'orders', label: 'ออเดอร์', icon: ClipboardList },
-  { id: 'products', label: 'สินค้า / สต็อก', icon: Package },
-  { id: 'services', label: 'บริการ', icon: Clock },
-  { id: 'salespage', label: 'เซลเพจ', icon: Globe },
-  { id: 'reports', label: 'รายงานการเงิน', icon: ReceiptText },
-  { id: 'wallet', label: 'กระเป๋าเงิน', icon: WalletCards },
-  { id: 'kyc', label: 'KYC และเอกสาร', icon: FileCheck2 },
-  { id: 'developer', label: 'โหมดนักพัฒนา', icon: Code },
-  { id: 'settings', label: 'ตั้งค่าร้านค้า', icon: Settings },
-]
+const navItems = merchantNavItems
 
 export type CatalogItem = {
   id: string
@@ -316,16 +305,44 @@ export function MerchantView() {
   // Real Database Session & Store State
   const [currentUser] = useState<AuthUser | null>(() => getStoredUser())
   const [selectedStore, setSelectedStore] = useState<DbStoreRow | null>(null)
+  const [availableStores, setAvailableStores] = useState<DbStoreRow[]>([])
+  const [storeState, setStoreState] = useState<StoreLoadState>({ status: 'loading', error: null, fetchedAt: null })
+
+  const loadStores = async () => {
+    setStoreState((previous) => ({ ...previous, status: 'loading', error: null }))
+    const result = await fetchDbStoresResult()
+    if (result.error) {
+      setStoreState((previous) => ({ ...previous, status: previous.fetchedAt ? 'ready' : 'error', error: result.error }))
+      return
+    }
+    const stores = result.data
+    setAvailableStores(stores)
+    setStoreState({ status: stores.length ? 'ready' : 'empty', error: null, fetchedAt: result.fetchedAt })
+    if (stores.length > 0) {
+      const userStoreId = currentUser?.store?.id
+      const matched = userStoreId ? stores.find((s) => s.id === userStoreId) : stores[0]
+      setSelectedStore(matched || stores[0])
+    } else {
+      setSelectedStore(null)
+    }
+  }
 
   useEffect(() => {
-    fetchDbStores().then((stores) => {
-      if (stores.length > 0) {
-        const userStoreId = currentUser?.store?.id
-        const matched = userStoreId ? stores.find((s) => s.id === userStoreId) : stores[0]
-        setSelectedStore(matched || stores[0])
-      }
-    })
+    loadStores()
   }, [currentUser])
+
+  const handleStoreChange = (storeId: string) => {
+    const nextStore = availableStores.find((store) => store.id === storeId)
+    if (nextStore) setSelectedStore(nextStore)
+  }
+
+  useEffect(() => {
+    if (availableStores.length && !selectedStore) {
+      const userStoreId = currentUser?.store?.id
+      const matched = userStoreId ? availableStores.find((store) => store.id === userStoreId) : availableStores[0]
+      setSelectedStore(matched || availableStores[0])
+    }
+  }, [availableStores, currentUser, selectedStore])
 
   // Dynamic names & metadata from DB
   const displayStoreName = currentUser?.store?.name || selectedStore?.name || 'สาขาใหญ่'
@@ -380,14 +397,20 @@ export function MerchantView() {
           <span>MERCHANT PORTAL</span>
         </div>
       </div>
-      <div className="merchant-store" onClick={() => setProfileModalOpen(true)} style={{ cursor: 'pointer' }} title="คลิกเพื่อตั้งค่าโปรไฟล์ร้านค้า">
+      <div className="merchant-store" title="เลือกสาขาร้านค้า">
         <Store size={16} />
         <div>
           <span>สาขาปัจจุบัน</span>
-          <strong>{displayStoreName} ⚙️</strong>
+          {availableStores.length > 1 ? (
+            <select className="merchant-store-select" value={selectedStore?.id || ''} onChange={(event) => handleStoreChange(event.target.value)} aria-label="เลือกสาขาร้านค้า">
+              {availableStores.map((store) => <option key={store.id} value={store.id}>{store.name}</option>)}
+            </select>
+          ) : (
+            <button className="merchant-store-name-button" onClick={() => setProfileModalOpen(true)} type="button">{displayStoreName}</button>
+          )}
           <small>{displayStoreBranch} · {displayStoreCode}</small>
         </div>
-        <ChevronRight size={15} />
+        <button className="merchant-store-settings" onClick={() => setProfileModalOpen(true)} type="button" aria-label="เปิดการตั้งค่าร้านค้า"><ChevronRight size={15} /></button>
       </div>
       <nav>
         {navItems.map(({ id, label, icon: NavIcon }) => (
@@ -460,16 +483,23 @@ export function MerchantView() {
             <h1>{current.label}</h1>
           </div>
           <div className="merchant-actions">
-            <button aria-label="การแจ้งเตือน" className="merchant-icon-button" onClick={() => setNotificationsOpen((value) => !value)} type="button">
+            <button aria-label="การแจ้งเตือนจะแสดงในหน้า Home" className="merchant-icon-button" onClick={() => navigate('home')} type="button">
               <Bell size={18} />
-              <b>3</b>
             </button>
             <div className="merchant-top-avatar">PB</div>
           </div>
         </header>
         <main className="merchant-content">
           {active === 'home' ? (
-            <MerchantHome onNavigate={navigate} storeId={selectedStore?.id || currentUser?.store?.id || null} />
+            <MerchantHomeDashboard
+              onNavigate={navigate}
+              storeId={selectedStore?.id || currentUser?.store?.id || null}
+              selectedStore={selectedStore}
+              currentUser={currentUser}
+              storeState={storeState}
+              onRetryStores={loadStores}
+              onOpenProfile={() => setProfileModalOpen(true)}
+            />
           ) : active === 'pos' ? (
             <PosView onNavigate={navigate} />
           ) : active === 'payment' ? (
@@ -497,8 +527,7 @@ export function MerchantView() {
           )}
         </main>
 
-        {/* Global Mobile Bottom Navigation Bar */}
-        <nav className="mh-global-bottom-bar">
+        {false && <nav className="mh-global-bottom-bar">
           <button
             className={`mh-bottom-item ${active === 'orders' ? 'active' : ''}`}
             onClick={() => navigate('orders')}
@@ -554,11 +583,12 @@ export function MerchantView() {
             <Settings size={18} />
             <span>ตั้งค่า</span>
           </button>
-        </nav>
+        </nav>}
+        <MerchantBottomNavigation active={active} onNavigate={navigate} />
       </div>
 
       {/* Full-Screen Notifications Overlay (Root Portal Level) */}
-      {notificationsOpen && (
+      {false && notificationsOpen && (
         <div className="mn-fullscreen-overlay">
           <div className="mn-fullscreen-backdrop" onClick={() => setNotificationsOpen(false)} />
           <div className="mn-fullscreen-card">
@@ -775,7 +805,7 @@ function MerchantAssignmentStatus({ storeId }: { storeId: string | null }) {
   )
 }
 
-function MerchantHome({ onNavigate, storeId }: { onNavigate: (id: string) => void; storeId: string | null }) {
+function LegacyMerchantHome({ onNavigate, storeId }: { onNavigate: (id: string) => void; storeId: string | null }) {
   const [showBalance, setShowBalance] = useState(true)
   const [copiedId, setCopiedId] = useState(false)
   const [now, setNow] = useState(() => new Date())
@@ -3670,6 +3700,10 @@ function MerchantSection({ active, label }: { active: string; label: string }) {
     services: { title: 'บริการคิวร้านค้า', description: 'จัดการบริการคิว และรายการชำระแล้ว', icon: Clock },
     reports: { title: 'รายงานการเงิน', description: 'วิเคราะห์ยอดขายตามช่วงเวลาและช่องทาง', icon: ReceiptText },
     wallet: { title: 'กระเป๋าเงิน', description: 'ยอดรายรับ ยอดถอนได้ และประวัติการถอนเงิน', icon: WalletCards },
+    transactions: { title: 'ประวัติธุรกรรม', description: 'ค้นหาและตรวจสอบสถานะการชำระเงินตามรายการจริง', icon: ReceiptText },
+    benefits: { title: 'สิทธิพิเศษ', description: 'จัดการสิทธิประโยชน์และแคมเปญที่เปิดให้ร้านค้า', icon: Sparkles },
+    stoppay: { title: 'STOPPAY', description: 'ตรวจสอบสถานะการรับเงินและเหตุผลเมื่อมีการระงับตาม policy', icon: ShieldAlert },
+    billing: { title: 'บิล', description: 'ตรวจสอบค่าบริการแพลตฟอร์มและรอบเคลียร์ริ่ง', icon: ReceiptText },
     settings: { title: 'ตั้งค่าร้านค้า', description: 'จัดการข้อมูลร้าน สาขา และสิทธิ์ทีมงาน', icon: Settings }
   }
   const item = content[active] ?? { title: label, description: 'จัดการข้อมูลร้านค้าของคุณ', icon: Store }

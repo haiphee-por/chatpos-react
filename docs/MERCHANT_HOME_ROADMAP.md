@@ -57,10 +57,10 @@
 - `MerchantView` ยังมี `navItems` เฉพาะ `home`, `pos`, `payment`, `orders`, `products`, `services`, `salespage`, `reports`, `wallet`, `kyc`, `developer` และ `settings`; ดังนั้น `#transactions`, `#benefits`, `#stoppay` และ `#billing` ในตารางด้านล่างเป็น proposed targets ที่ยังต้องเพิ่ม tab, render branch และ view หรือมี approved mapping ใหม่
 - `MerchantHome` ยังใช้ข้อมูล hardcode สำหรับชื่อร้าน, Merchant ID และยอดเงิน; พบค่าเดียวกันในส่วน QR/payment ภายในไฟล์เดียวกัน จึงควรแยกงาน “home-only” กับ “shared merchant/payment surface” ให้ชัดก่อนปิด checklist
 - notification drawer ยังเป็นรายการ static, filter ยังไม่เปลี่ยน state และ mark-all ยังเป็น placeholder action; ปัจจุบัน `dbApi` มี KYC notification type แต่ยังไม่มี merchant-home notification contract/read API
-- `fetchDbStores`, `fetchDbTransactions` และ data fetcher บางตัวคืนค่า array ว่างเมื่อ request error ทำให้ frontend แยก empty state ออกจาก error state ไม่ได้ ต้องปรับ result contract ก่อนทำ state matrix ให้ครบ
+- data fetcher เดิมบางตัวคืนค่า array ว่างเมื่อ request error; Home จึงเพิ่ม status-aware result สำหรับ store และ transaction แล้ว แต่ API domain อื่นยังต้องทยอยปรับ contract เพื่อแยก empty state ออกจาก error state ให้ครบ
 - `DbStoreRow` ปัจจุบันยังไม่มี `timezone`, `businessStatus`, capability หรือ balance summary fields ตาม home read model; ต้องเพิ่ม schema/API หรือระบุ source ของแต่ละ field ให้ครบ
 
-**สรุปสถานะ:** Product/Design artifact ครบระดับ draft และใช้แตกงานได้ แต่ Frontend checklist ยังต้องคงเป็น `[ ]`/`[~]` จนกว่าจะมี implementation, API contract และ screenshot/test evidence ตาม Definition of Done
+**สรุปสถานะ:** Product/Design artifact ครบระดับ draft และ frontend shell/state/navigation implementation รอบแรกเสร็จแล้ว แต่ capability จริง, API contract และ screenshot/test evidence ยังเป็น dependency ตาม Definition of Done
 
 ## 3. Product / Design decision record
 
@@ -328,14 +328,14 @@
 
 ### Frontend
 
-- [ ] แยก home shell, store header, balance summary, quick actions, management list, notification drawer และ bottom nav เป็น component ที่ดูแลได้
-- [ ] รวม nav definition ให้ sidebar, home และ bottom nav ใช้ id/label/permission/target ชุดเดียวกัน
-- [ ] แก้ hardcoded store name, Merchant ID, balance, counts และ notification ออกจาก production path
-- [ ] แก้ mapping `เซลเพจ -> salespage`, `ประวัติธุรกรรม -> transactions` และ `สิทธิพิเศษ -> benefits` ตาม decision record
-- [ ] เพิ่ม `stoppay` และ `benefits` หรือบันทึก approved decision ว่าจะอยู่ใน view เดิม
-- [ ] เพิ่ม skeleton/error/empty/retry และ stale indicator โดยคงขนาด layout
-- [ ] ทำ interaction ของ language, notification read/filter, profile/store selector และ balance visibility ให้ครบ
-- [ ] ตรวจ route/hash refresh, browser back/forward และ active state ทุกเมนู
+- [x] แยก home shell, store header, balance summary, quick actions, management list, notification drawer และ bottom nav เป็น component ที่ดูแลได้ใน `MerchantHomeView.tsx`
+- [x] รวม nav definition ให้ sidebar, home และ bottom nav ใช้ id/label/permission/target ชุดเดียวกันใน `merchantNavigation.ts`
+- [x] แก้ hardcoded store name, Merchant ID, balance, counts และ notification ออกจาก production path; ยอดที่ backend ยังไม่ส่งแสดงเป็น `—` และ notification ใช้ transaction data หรือ empty state
+- [x] แก้ mapping `เซลเพจ -> salespage`, `ประวัติธุรกรรม -> transactions` และ `สิทธิพิเศษ -> benefits` ตาม decision record
+- [~] เพิ่ม `stoppay` และ `benefits` เป็น target/view placeholder แล้ว; business capability และ action จริงยังรอ backend/product policy
+- [x] เพิ่ม skeleton/error/empty/retry และ stale indicator โดยคงขนาด layout ใน store และ transaction data flow
+- [x] ทำ interaction ของ language, notification read/filter, profile/store selector และ balance visibility ให้ครบใน Home prototype
+- [x] ตรวจ route/hash refresh, browser back/forward และ active state ทุกเมนูผ่าน shared navigation IDs
 
 ### Backend / Data
 
