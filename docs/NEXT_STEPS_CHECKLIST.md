@@ -29,10 +29,10 @@
 - [x] **P0 / Product + Design:** บันทึก working scope ว่าภาพอ้างอิงคือ authenticated `/merchant#home` และ public `/` ยังคงเป็น marketing landing; formal Product sign-off ยังเป็น dependency
 - [~] **P0 / Product:** มี role-based owner และ proposed behavior ของ STOPPAY, ประวัติธุรกรรม, สิทธิพิเศษ, รายรับ และบิลแล้ว แต่ยังต้อง assign owner รายบุคคลและยืนยัน policy
 - [x] **P0 / Frontend:** ทำ navigation map กลางให้ sidebar, quick-action cards และ bottom navigation ใช้ target/permission ชุดเดียวกัน; แก้ salespage และ placeholder mapping ที่ผิด
-- [ ] **P0 / Backend:** ยืนยัน home read model สำหรับ store context, balance summary, unread notifications, counts, capabilities และ freshness โดยตรวจ session/Store ownership ที่ server
+- [~] **P0 / Backend:** implement home read model สำหรับ store context, balance summary, unread notifications, counts, capabilities และ freshness พร้อมตรวจ session/Store ownership แล้ว; API owner sign-off ยัง pending
 - [~] **P0 / Frontend + Design:** มี annotated wireframe, responsive rules, state matrix และ visual/accessibility acceptance criteria แล้ว; screenshot evidence ยังรอ QA
 - [~] **P1 / Frontend + Backend:** store name, Merchant ID, counts และยอดรับที่คำนวณได้ใช้ข้อมูลจริงพร้อม retry/stale state แล้ว; balance aggregate และ notification persistence ยังรอ backend contract
-- [ ] **P1 / Backend + Payment/Finance:** ออกแบบ transaction history, revenue/wallet/billing semantics และ STOPPAY state transition ก่อนเปิด action จริง
+- [~] **P1 / Backend + Payment/Finance:** implement transaction history semantics และ STOPPAY transition contract แล้ว; revenue/wallet/billing source กับ Finance/Payment sign-off ยัง pending
 - [~] **P1 / Frontend:** เพิ่ม target และ placeholder สำหรับ transactions, benefits และ STOPPAY แล้ว; dedicated workflow/action จริงยังรอ backend/product policy
 - [ ] **P1 / QA + Security:** ทดสอบ viewport, role/Store isolation, session expiry, balance masking, notification idempotency, accessibility และไม่ให้ secret/PII หลุด client/log
 - [ ] **เสร็จเมื่อ:** เมนูในภาพทุกตัวมี target และ capability ที่ยืนยันแล้ว, ข้อมูลสำคัญมาจาก server, visual/interaction evidence ผ่าน mobile+desktop และ Product/Design/Backend/QA sign-off

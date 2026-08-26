@@ -227,7 +227,19 @@
 - `benefits`: campaign/benefit id, title, status, expiresAt, target
 - `capabilities`: `canViewBalance`, `canCreatePayment`, `canStopPay`, `canManageProducts`, `canViewKyc`
 
-ชื่อ endpoint และ schema เป็น proposal ต้องยืนยันร่วมกับ API owner ก่อน implement; ห้ามถือรายการนี้เป็น external contract ที่ sign แล้ว
+Backend implementation รอบนี้กำหนด contract ภายในดังนี้; ยังต้องผ่าน API owner, Finance และ Payment owner sign-off ก่อนถือเป็น external contract:
+
+| Endpoint | Scope / behavior | Freshness / mutation rule |
+|---|---|---|
+| `GET /api/db/home?storeId=` | Store context, payment summary, counts, quick-action capability, STOPPAY state | `no-store`, PostgreSQL snapshot, client stale threshold 60 วินาที |
+| `GET /api/db/capabilities?storeId=` | capability flags ของ Store | อ่านจาก `merchant_home_capabilities`; default ปิด capability ที่ยังไม่เปิด |
+| `GET /api/db/notifications?storeId=&category=&unreadOnly=` | notification ที่ recipient และ Store ตรงกับ session พร้อม pagination | `page`/`limit` bounded; ไม่แสดง notification ที่ไม่มี Store scope |
+| `POST /api/db/notifications/:id/read` และ `/read-all` | mark read แบบทำซ้ำได้โดยไม่เปลี่ยนผลลัพธ์ | ตรวจ recipient + Store ownership และเขียน audit |
+| `GET /api/db/benefits?storeId=` | active และยังไม่หมดอายุ benefits พร้อม pagination | source คือ `merchant_benefits`; ไม่มีการ claim ใน read endpoint |
+| `GET/POST /api/db/stoppay` | อ่าน state และทำ transition ตาม role | mutation ต้องใช้ `Idempotency-Key`, lock row, event + audit อยู่ transaction เดียวกัน |
+| `GET /api/db/transactions` | payment/refund/payout/adjustment พร้อม status/channel/date filters | scope ตาม session, `page`/`limit` bounded, sort ตาม `occurredAt` |
+
+`availableBalance` ยังส่งเป็น `null` พร้อม `balanceStatus: not_available` จนกว่า Finance/Payment owner จะยืนยัน ledger source และ reconciliation rule
 
 ### 5.2 Interaction และ state
 
@@ -292,6 +304,14 @@
 - วัด performance ของ home และ image asset; กำหนด retry/backoff เมื่อ dashboard API ช้า
 - เปิดใช้ด้วย feature flag หรือ staged rollout พร้อม rollback plan, monitoring และ owner
 
+### Backend migration rollout policy
+
+- `008_merchant_home_contract.sql` ทำงานแบบ transaction ต่อ migration และใช้ `IF NOT EXISTS`/`ADD COLUMN IF NOT EXISTS` เพื่อให้ rerun ได้อย่างปลอดภัย
+- ก่อนเปิด route ใหม่ต้องสำรองฐานข้อมูลและตรวจ row count/index ของ `notifications`, `Transaction`, `merchant_home_capabilities`, `merchant_benefits` และ STOPPAY tables ใน staging
+- Rollback ระหว่าง rollout ให้ปิด feature flag/route ก่อน แล้ว restore backup หรือใช้ forward migration แก้ข้อมูล; migration runner ยังไม่มี automatic down migration จึงห้ามทำ destructive `DROP` ใน production
+- `audit_logs`, transaction และ STOPPAY events เป็น append-only evidence; ห้าม purge ด้วย application endpoint
+- Notification retention, payment/settlement retention และเอกสาร KYC ต้องยืนยันกับ Compliance/Finance/Payment owner ก่อนกำหนด TTL จริง; ระหว่างรอ sign-off ให้เก็บตาม policy เดิมและ monitor storage growth
+
 ## 7. Definition of Done
 
 ถือว่า Merchant Home รุ่นตามภาพพร้อมส่งต่อเมื่อ:
@@ -339,14 +359,14 @@
 
 ### Backend / Data
 
-- [ ] ออกแบบและยืนยัน home read model พร้อม source, freshness และ cache policy
-- [ ] เพิ่ม/ปรับ endpoint สำหรับ summary, unread notification, benefits และ capability flags ตาม contract
-- [ ] บังคับ session, role และ Store ownership ที่ทุก endpoint ที่ home เรียก
-- [ ] ทำ notification read/mark-all แบบ idempotent พร้อม audit ที่เหมาะสม
-- [ ] แยก transaction/order/payment/refund/payout semantics และกำหนด query/filter/pagination
-- [ ] ออกแบบ STOPPAY state transition, idempotency, audit, approval และ recovery ก่อนทำปุ่ม action
-- [ ] ยืนยันข้อมูล revenue/wallet/billing กับ Finance และ payment owner
-- [ ] เพิ่ม migration เฉพาะเมื่อมี durable state ใหม่ และจัดทำ rollback/retention plan
+- [x] ออกแบบและ implement home read model พร้อม source, freshness และ cache policy; API owner sign-off ยัง pending
+- [x] เพิ่ม/ปรับ endpoint สำหรับ summary, unread notification, benefits และ capability flags ตาม contract
+- [x] บังคับ session, role และ Store ownership ที่ทุก endpoint ที่ home เรียก
+- [x] ทำ notification read/mark-all แบบ idempotent พร้อม audit ที่เหมาะสม
+- [x] แยก transaction/order/payment/refund/payout semantics และกำหนด query/filter/pagination ใน transaction contract
+- [x] ออกแบบ STOPPAY state transition, idempotency, audit, approval และ recovery ก่อนทำปุ่ม action
+- [~] ยืนยันข้อมูล revenue/wallet/billing กับ Finance และ payment owner; balance ledger/reconciliation ยังไม่มี source ที่ sign-off แล้ว
+- [~] เพิ่ม migration `008_merchant_home_contract.sql` สำหรับ durable state แล้ว; production rollback rehearsal และ retention policy ยัง pending
 
 ### QA / Security / Operations
 

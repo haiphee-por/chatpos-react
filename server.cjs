@@ -267,6 +267,39 @@ async function enforcePrincipalRateLimit({ principal, requestPath, limit = 60, w
   });
 }
 
+function requestQuery(url) {
+  return new URL(`http://127.0.0.1${url}`).searchParams;
+}
+
+function boundedInteger(value, fallback, min, max) {
+  const parsed = Number.parseInt(value, 10);
+  return Number.isInteger(parsed) ? Math.min(max, Math.max(min, parsed)) : fallback;
+}
+
+function requestIdempotencyKey(req, body = {}) {
+  return String(req.headers['idempotency-key'] || body.idempotencyKey || '').trim();
+}
+
+const stoppayTransitions = {
+  merchant: {
+    request_pause: { from: ['ACTIVE'], to: 'PAUSE_REQUESTED' },
+    request_resume: { from: ['PAUSED'], to: 'RESUME_REQUESTED' },
+    request_recovery: { from: ['SUSPENDED'], to: 'RECOVERY_REQUESTED' },
+  },
+  admin: {
+    approve_pause: { from: ['PAUSE_REQUESTED'], to: 'PAUSED' },
+    approve_resume: { from: ['RESUME_REQUESTED'], to: 'ACTIVE' },
+    suspend: { from: ['ACTIVE', 'PAUSED', 'RESUME_REQUESTED'], to: 'SUSPENDED' },
+    restore: { from: ['RECOVERY_REQUESTED', 'SUSPENDED'], to: 'ACTIVE' },
+  },
+  compliance: {
+    approve_pause: { from: ['PAUSE_REQUESTED'], to: 'PAUSED' },
+    approve_resume: { from: ['RESUME_REQUESTED'], to: 'ACTIVE' },
+    suspend: { from: ['ACTIVE', 'PAUSED', 'RESUME_REQUESTED'], to: 'SUSPENDED' },
+    restore: { from: ['RECOVERY_REQUESTED', 'SUSPENDED'], to: 'ACTIVE' },
+  },
+};
+
 const server = http.createServer(async (req, res) => {
   const url = req.url || '';
 
@@ -974,6 +1007,243 @@ const server = http.createServer(async (req, res) => {
         return;
       }
 
+      if (requestPath === '/api/db/home' && req.method === 'GET') {
+        const query = requestQuery(url);
+        const storeId = await resolveAuthorizedStore({ principal, requestedStoreId: query.get('storeId') });
+        const [storeResult, summaryResult, notificationResult] = await Promise.all([
+          pool.query(`
+            SELECT s.id, s.name, s."storeType", s."isActive", s.timezone, s.currency,
+              mi."merchantId",
+              CASE WHEN s."storeType" = 'MAIN' THEN 'สาขาหลัก' ELSE COALESCE('สาขา' || s."storeType", 'สาขาหลัก') END AS branch,
+              CASE WHEN s."isActive" THEN 'open' ELSE 'closed' END AS "businessStatus"
+            FROM "Store" s
+            LEFT JOIN "MerchantIdentity" mi ON mi."clientId" = s.id
+            WHERE s.id = $1
+            LIMIT 1`, [storeId]),
+          pool.query(`
+            SELECT
+              COUNT(*) FILTER (WHERE t."occurredAt" >= CURRENT_DATE AND t.status IN ('completed', 'paid', 'succeeded', 'settled'))::integer AS "todayTransactionCount",
+              COALESCE(SUM(t.amount) FILTER (WHERE t."occurredAt" >= CURRENT_DATE AND t.status IN ('completed', 'paid', 'succeeded', 'settled')), 0) AS "todayGrossAmount",
+              COALESCE(SUM(t.fee) FILTER (WHERE t."occurredAt" >= CURRENT_DATE AND t.status IN ('completed', 'paid', 'succeeded', 'settled')), 0) AS "todayFeeAmount",
+              COALESCE(SUM(t."netAmount") FILTER (WHERE t."occurredAt" >= CURRENT_DATE AND t.status IN ('completed', 'paid', 'succeeded', 'settled')), 0) AS "todayNetAmount",
+              COUNT(*) FILTER (WHERE t.status IN ('pending', 'processing'))::integer AS "pendingTransactionCount",
+              COALESCE(SUM(t."netAmount") FILTER (WHERE t.status IN ('pending', 'processing')), 0) AS "pendingNetAmount",
+              MAX(t."occurredAt") AS "latestTransactionAt"
+            FROM "Transaction" t
+            WHERE t."storeId" = $1`, [storeId]),
+          pool.query(`
+            SELECT COUNT(*)::integer AS count
+            FROM notifications
+            WHERE "storeId" = $1 AND "recipientId" = $2 AND "readAt" IS NULL`, [storeId, principal.id]),
+        ]);
+        if (storeResult.rowCount === 0) {
+          throw new SecurityError('Store was not found', 'STORE_NOT_FOUND', 404);
+        }
+        const [capabilityResult, stoppayResult] = await Promise.all([
+          pool.query(`SELECT "canViewBalance", "canViewTransactions", "canUseBenefits", "canUseStopPay", "canViewBilling", "updatedAt" FROM merchant_home_capabilities WHERE "storeId" = $1`, [storeId]),
+          pool.query(`SELECT status, reason, "version", "updatedAt" FROM merchant_stoppay_controls WHERE "storeId" = $1`, [storeId]),
+        ]);
+        const capability = capabilityResult.rows[0] || {
+          canViewBalance: false,
+          canViewTransactions: true,
+          canUseBenefits: false,
+          canUseStopPay: false,
+          canViewBilling: false,
+          updatedAt: null,
+        };
+        res.statusCode = 200;
+        res.end(JSON.stringify({
+          success: true,
+          data: {
+            store: storeResult.rows[0],
+            user: {
+              id: principal.id,
+              displayName: principal.name,
+              role: principal.role,
+              allowedActions: Object.keys(stoppayTransitions[principal.role] || {}),
+            },
+            summary: {
+              ...summaryResult.rows[0],
+              availableBalance: null,
+              balanceStatus: 'not_available',
+              totalBalance: null,
+              receivedToday: summaryResult.rows[0].todayNetAmount,
+              availableToWithdraw: null,
+              pendingAmount: summaryResult.rows[0].pendingNetAmount,
+              asOf: summaryResult.rows[0].latestTransactionAt,
+            },
+            counts: {
+              unreadNotifications: notificationResult.rows[0]?.count || 0,
+              openOrders: null,
+              queueWaiting: null,
+              lowStockItems: null,
+            },
+            unreadNotificationCount: notificationResult.rows[0]?.count || 0,
+            quickActions: [
+              { id: 'transactions', target: '#transactions', enabled: capability.canViewTransactions, disabledReason: capability.canViewTransactions ? null : 'TRANSACTION_VIEW_FORBIDDEN' },
+              { id: 'benefits', target: '#benefits', enabled: capability.canUseBenefits, disabledReason: capability.canUseBenefits ? null : 'BENEFITS_NOT_ENABLED' },
+              { id: 'stoppay', target: '#stoppay', enabled: capability.canUseStopPay, disabledReason: capability.canUseStopPay ? null : 'STOPPAY_NOT_ENABLED' },
+              { id: 'billing', target: '#billing', enabled: capability.canViewBilling, disabledReason: capability.canViewBilling ? null : 'BILLING_NOT_ENABLED' },
+            ],
+            capabilities: { ...capability, canStopPay: capability.canUseStopPay },
+            stoppay: stoppayResult.rows[0] || { status: 'ACTIVE', reason: null, version: 1, updatedAt: null },
+            freshness: {
+              generatedAt: new Date().toISOString(),
+              source: 'postgresql',
+              cachePolicy: 'no-store',
+              staleAfterSeconds: 60,
+              timezone: storeResult.rows[0].timezone || 'Asia/Bangkok',
+            },
+          },
+        }));
+        return;
+      }
+
+      if (requestPath === '/api/db/capabilities' && req.method === 'GET') {
+        const query = requestQuery(url);
+        const storeId = await resolveAuthorizedStore({ principal, requestedStoreId: query.get('storeId') });
+        const result = await pool.query(`
+          SELECT "canViewBalance", "canViewTransactions", "canUseBenefits", "canUseStopPay", "canViewBilling", "metadataJson", "updatedAt"
+          FROM merchant_home_capabilities WHERE "storeId" = $1`, [storeId]);
+        res.statusCode = 200;
+        res.end(JSON.stringify({ success: true, data: result.rows[0] || { canViewBalance: false, canViewTransactions: true, canUseBenefits: false, canUseStopPay: false, canViewBilling: false, metadataJson: {}, updatedAt: null } }));
+        return;
+      }
+
+      if (requestPath === '/api/db/benefits' && req.method === 'GET') {
+        const query = requestQuery(url);
+        const storeId = await resolveAuthorizedStore({ principal, requestedStoreId: query.get('storeId') });
+        const page = boundedInteger(query.get('page'), 1, 1, 1000000);
+        const limit = boundedInteger(query.get('limit'), 20, 1, 100);
+        const offset = (page - 1) * limit;
+        const result = await pool.query(`
+          SELECT id, code, title, description, status, eligible, "startsAt", "expiresAt", "metadataJson", "updatedAt",
+            COUNT(*) OVER()::integer AS "totalCount"
+          FROM merchant_benefits
+          WHERE "storeId" = $1 AND status = 'ACTIVE'
+            AND ("startsAt" IS NULL OR "startsAt" <= NOW())
+            AND ("expiresAt" IS NULL OR "expiresAt" > NOW())
+          ORDER BY COALESCE("expiresAt", 'infinity'::timestamptz), "createdAt" DESC
+          LIMIT $2 OFFSET $3`, [storeId, limit, offset]);
+        res.statusCode = 200;
+        res.end(JSON.stringify({ success: true, data: result.rows, pagination: { page, limit, total: result.rows[0]?.totalCount || 0 } }));
+        return;
+      }
+
+      if (requestPath === '/api/db/notifications' && req.method === 'GET') {
+        const query = requestQuery(url);
+        const storeId = await resolveAuthorizedStore({ principal, requestedStoreId: query.get('storeId') });
+        const page = boundedInteger(query.get('page'), 1, 1, 1000000);
+        const limit = boundedInteger(query.get('limit'), 20, 1, 100);
+        const offset = (page - 1) * limit;
+        const category = String(query.get('category') || '').trim();
+        const unreadOnly = query.get('unreadOnly') === 'true';
+        const values = [storeId, principal.id];
+        const filters = ['"storeId" = $1', '"recipientId" = $2'];
+        if (category && ['orders', 'finance', 'kyc', 'system'].includes(category)) {
+          values.push(category);
+          filters.push(`category = $${values.length}`);
+        }
+        if (unreadOnly) filters.push('"readAt" IS NULL');
+        values.push(limit, offset);
+        const result = await pool.query(`
+          SELECT id, category, type, title, message, "actionTarget", "metadataJson", "readAt", "createdAt", "updatedAt",
+            COUNT(*) OVER()::integer AS "totalCount"
+          FROM notifications
+          WHERE ${filters.join(' AND ')}
+          ORDER BY "createdAt" DESC
+          LIMIT $${values.length - 1} OFFSET $${values.length}`, values);
+        res.statusCode = 200;
+        res.end(JSON.stringify({ success: true, data: result.rows, pagination: { page, limit, total: result.rows[0]?.totalCount || 0 } }));
+        return;
+      }
+
+      const notificationReadRoute = requestPath.match(/^\/api\/db\/notifications\/([^/]+)\/read$/);
+      if (notificationReadRoute && req.method === 'POST') {
+        const query = requestQuery(url);
+        const storeId = await resolveAuthorizedStore({ principal, requestedStoreId: query.get('storeId') });
+        const result = await pool.query(`
+          UPDATE notifications
+          SET "readAt" = COALESCE("readAt", NOW()), "updatedAt" = NOW()
+          WHERE id = $1 AND "storeId" = $2 AND "recipientId" = $3
+          RETURNING id, "readAt", "updatedAt"`, [notificationReadRoute[1], storeId, principal.id]);
+        if (result.rowCount === 0) throw new SecurityError('Notification was not found', 'NOTIFICATION_NOT_FOUND', 404);
+        await writeAudit({ poolOrClient: pool, principal, action: 'NOTIFICATION_READ', targetType: 'notification', targetId: notificationReadRoute[1], requestId: req.headers['x-request-id'] || null });
+        res.statusCode = 200;
+        res.end(JSON.stringify({ success: true, data: result.rows[0] }));
+        return;
+      }
+
+      if (requestPath === '/api/db/notifications/read-all' && req.method === 'POST') {
+        const query = requestQuery(url);
+        const storeId = await resolveAuthorizedStore({ principal, requestedStoreId: query.get('storeId') });
+        const result = await pool.query(`
+          UPDATE notifications SET "readAt" = COALESCE("readAt", NOW()), "updatedAt" = NOW()
+          WHERE "storeId" = $1 AND "recipientId" = $2 AND "readAt" IS NULL`, [storeId, principal.id]);
+        await writeAudit({ poolOrClient: pool, principal, action: 'NOTIFICATIONS_READ_ALL', targetType: 'store', targetId: storeId, after: { count: result.rowCount }, requestId: req.headers['x-request-id'] || null });
+        res.statusCode = 200;
+        res.end(JSON.stringify({ success: true, data: { markedCount: result.rowCount } }));
+        return;
+      }
+
+      if (requestPath === '/api/db/stoppay' && req.method === 'GET') {
+        const query = requestQuery(url);
+        const storeId = await resolveAuthorizedStore({ principal, requestedStoreId: query.get('storeId') });
+        const result = await pool.query(`SELECT "storeId", status, reason, "version", "updatedBy", "updatedAt" FROM merchant_stoppay_controls WHERE "storeId" = $1`, [storeId]);
+        res.statusCode = 200;
+        res.end(JSON.stringify({ success: true, data: result.rows[0] || { storeId, status: 'ACTIVE', reason: null, version: 1, updatedBy: null, updatedAt: null }, transitions: stoppayTransitions[principal.role] || {} }));
+        return;
+      }
+
+      if (requestPath === '/api/db/stoppay' && req.method === 'POST') {
+        assertRole(principal, ['merchant', 'admin', 'compliance']);
+        await enforcePrincipalRateLimit({ principal, requestPath, limit: 20, windowSeconds: 300 });
+        const body = await parseJsonBody(req);
+        const idempotencyKey = requestIdempotencyKey(req, body);
+        if (!idempotencyKey || idempotencyKey.length > 200) {
+          throw new SecurityError('Idempotency-Key is required', 'IDEMPOTENCY_KEY_REQUIRED', 400);
+        }
+        const action = String(body.action || '').trim();
+        const transition = stoppayTransitions[principal.role]?.[action];
+        if (!transition) throw new SecurityError('STOPPAY action is not allowed for this role', 'STOPPAY_ACTION_FORBIDDEN', 403);
+        const storeId = await resolveAuthorizedStore({ principal, requestedStoreId: body.storeId });
+        const client = await pool.connect();
+        try {
+          await client.query('BEGIN');
+          const existingEvent = await client.query(`SELECT "eventId", "toStatus", "createdAt" FROM merchant_stoppay_events WHERE "storeId" = $1 AND "idempotencyKey" = $2`, [storeId, idempotencyKey]);
+          if (existingEvent.rowCount > 0) {
+            await client.query('COMMIT');
+            res.statusCode = 200;
+            res.end(JSON.stringify({ success: true, idempotentReplay: true, data: existingEvent.rows[0] }));
+            return;
+          }
+          if (principal.role === 'merchant') {
+            const capability = await client.query(`SELECT "canUseStopPay" FROM merchant_home_capabilities WHERE "storeId" = $1`, [storeId]);
+            if (capability.rowCount > 0 && capability.rows[0].canUseStopPay !== true) throw new SecurityError('STOPPAY is not enabled for this Store', 'STOPPAY_NOT_ENABLED', 403);
+          }
+          await client.query(`INSERT INTO merchant_stoppay_controls ("storeId") VALUES ($1) ON CONFLICT ("storeId") DO NOTHING`, [storeId]);
+          const current = await client.query(`SELECT status, reason, "version" FROM merchant_stoppay_controls WHERE "storeId" = $1 FOR UPDATE`, [storeId]);
+          const currentState = current.rows[0];
+          if (!transition.from.includes(currentState.status)) throw new SecurityError(`STOPPAY cannot transition from ${currentState.status}`, 'STOPPAY_INVALID_TRANSITION', 409);
+          const reason = String(body.reason || '').trim().slice(0, 1000) || null;
+          const eventId = crypto.randomUUID();
+          await client.query(`
+            INSERT INTO merchant_stoppay_events ("storeId", "eventId", "idempotencyKey", action, "fromStatus", "toStatus", reason, "actorId", "actorRole", "requestId")
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`, [storeId, eventId, idempotencyKey, action, currentState.status, transition.to, reason, principal.id, principal.role, req.headers['x-request-id'] || null]);
+          await client.query(`UPDATE merchant_stoppay_controls SET status = $2, reason = $3, "version" = "version" + 1, "lastEventId" = $4, "updatedBy" = $5, "updatedAt" = NOW() WHERE "storeId" = $1`, [storeId, transition.to, reason, eventId, principal.id]);
+          await writeAudit({ poolOrClient: client, principal, action: 'STOPPAY_TRANSITION', targetType: 'stoppay_control', targetId: storeId, reason, before: { status: currentState.status, version: currentState.version }, after: { status: transition.to, eventId }, requestId: req.headers['x-request-id'] || null });
+          await client.query('COMMIT');
+          res.statusCode = 201;
+          res.end(JSON.stringify({ success: true, idempotentReplay: false, data: { eventId, storeId, status: transition.to, action, reason } }));
+        } catch (error) {
+          await client.query('ROLLBACK');
+          throw error;
+        } finally {
+          client.release();
+        }
+        return;
+      }
+
       // ── 7. GET /api/db/assignments ────────────────────────────────
       if (requestPath === '/api/db/assignments' && req.method === 'GET') {
         const query = new URL(`http://127.0.0.1${url}`).searchParams;
@@ -1207,6 +1477,8 @@ const server = http.createServer(async (req, res) => {
             s."payoutBankName",
             s."payoutAccountNumber",
             s."payoutAccountName",
+            s.timezone,
+            s.currency,
             s."createdAt",
             s."updatedAt",
             mi."merchantId",
@@ -1288,20 +1560,52 @@ const server = http.createServer(async (req, res) => {
 
       // ── 11. GET /api/db/transactions ───────────────────────────────
       if (url === '/api/db/transactions' || url.startsWith('/api/db/transactions?')) {
+        const query = requestQuery(url);
         const transactionScopeValues = [];
-        let transactionScopeClause = '';
-        if (principal.role === 'merchant') {
+        const filters = [];
+        const requestedStoreId = query.get('storeId');
+        if (requestedStoreId) {
+          const storeId = await resolveAuthorizedStore({ principal, requestedStoreId });
+          transactionScopeValues.push(storeId);
+          filters.push(`t."storeId" = $${transactionScopeValues.length}`);
+        } else if (principal.role === 'merchant') {
           transactionScopeValues.push(principal.id);
-          transactionScopeClause = 'WHERE s."userId" = $1';
+          filters.push(`s."userId" = $${transactionScopeValues.length}`);
         } else if (principal.role === 'agent') {
           transactionScopeValues.push(principal.id);
-          transactionScopeClause = 'WHERE s."currentAgentId" IN (SELECT id FROM "Agent" WHERE "userId" = $1)';
+          filters.push(`s."currentAgentId" IN (SELECT id FROM "Agent" WHERE "userId" = $${transactionScopeValues.length})`);
         } else if (principal.role === 'pd') {
           transactionScopeValues.push(principal.id);
-          transactionScopeClause = 'WHERE s."currentPdId" IN (SELECT id FROM "ProvincialDirector" WHERE "userId" = $1)';
+          filters.push(`s."currentPdId" IN (SELECT id FROM "ProvincialDirector" WHERE "userId" = $${transactionScopeValues.length})`);
         } else {
           assertRole(principal, ['admin', 'compliance']);
         }
+        const filterValues = [
+          ['status', ['pending', 'processing', 'completed', 'paid', 'succeeded', 'settled', 'failed', 'refunded', 'cancelled']],
+          ['channel', ['promptpay', 'cash', 'card', 'bank_transfer', 'wallet']],
+          ['transactionType', ['payment', 'refund', 'payout', 'adjustment']],
+        ];
+        filterValues.forEach(([key, allowed]) => {
+          const value = query.get(key);
+          if (value && allowed.includes(value)) {
+            transactionScopeValues.push(value);
+            filters.push(`t."${key}" = $${transactionScopeValues.length}`);
+          }
+        });
+        const from = query.get('from');
+        const to = query.get('to');
+        if (from && !Number.isNaN(Date.parse(from))) {
+          transactionScopeValues.push(from);
+          filters.push(`COALESCE(t."occurredAt", t."createdAt") >= $${transactionScopeValues.length}`);
+        }
+        if (to && !Number.isNaN(Date.parse(to))) {
+          transactionScopeValues.push(to);
+          filters.push(`COALESCE(t."occurredAt", t."createdAt") < $${transactionScopeValues.length}`);
+        }
+        const page = boundedInteger(query.get('page'), 1, 1, 1000000);
+        const limit = boundedInteger(query.get('limit'), 50, 1, 100);
+        const offset = (page - 1) * limit;
+        transactionScopeValues.push(limit, offset);
         const result = await pool.query(`
           SELECT 
             t.id,
@@ -1316,16 +1620,23 @@ const server = http.createServer(async (req, res) => {
             t.note,
             t."paymentMethod",
             t."isSettled",
+            t.currency,
+            t."transactionType",
+            t."refundOfId",
+            t."payoutReference",
+            COALESCE(t."occurredAt", t."createdAt") AS "occurredAt",
+            t."paidAt",
             t."createdAt",
-            s.name as store_name
+            s.name as store_name,
+            COUNT(*) OVER()::integer AS "totalCount"
           FROM "Transaction" t
           LEFT JOIN "Store" s ON t."storeId" = s.id
-          ${transactionScopeClause}
-          ORDER BY t."createdAt" DESC
-          LIMIT 100;
+          ${filters.length ? `WHERE ${filters.join(' AND ')}` : ''}
+          ORDER BY COALESCE(t."occurredAt", t."createdAt") DESC
+          LIMIT $${transactionScopeValues.length - 1} OFFSET $${transactionScopeValues.length};
         `, transactionScopeValues);
         res.statusCode = 200;
-        res.end(JSON.stringify({ success: true, count: result.rows.length, data: result.rows }));
+        res.end(JSON.stringify({ success: true, count: result.rows.length, data: result.rows, pagination: { page, limit, total: result.rows[0]?.totalCount || 0 } }));
         return;
       }
 
@@ -1345,30 +1656,56 @@ const server = http.createServer(async (req, res) => {
             tableName = 'คิดเงินหน้าร้าน',
             note = 'ชำระเงินผ่านระบบ PromptPay QR',
             origin = 'POS',
+            transactionType = 'payment',
           } = body;
+          const idempotencyKey = requestIdempotencyKey(req, body);
+          if (!idempotencyKey || idempotencyKey.length > 200) {
+            res.statusCode = 400;
+            res.end(JSON.stringify({ success: false, code: 'IDEMPOTENCY_KEY_REQUIRED', error: 'Idempotency-Key is required' }));
+            return;
+          }
+          if (transactionType !== 'payment') {
+            res.statusCode = 400;
+            res.end(JSON.stringify({ success: false, code: 'TRANSACTION_TYPE_NOT_ALLOWED', error: 'Only payment records may be created by this endpoint' }));
+            return;
+          }
 
           const id = crypto.randomUUID();
           const reference = `TXN-${Date.now().toString().slice(-8)}`;
-          const parsedAmount = parseFloat(amount) || 0;
+          const parsedAmount = Number.parseFloat(amount);
+          if (!Number.isFinite(parsedAmount) || parsedAmount <= 0 || parsedAmount > 1000000000000) {
+            res.statusCode = 400;
+            res.end(JSON.stringify({ success: false, code: 'AMOUNT_INVALID', error: 'amount must be greater than zero' }));
+            return;
+          }
           const fee = 0;
-          const netAmount = parsedAmount;
+          const netAmount = parsedAmount.toFixed(2);
 
-          // Find a target storeId if not provided
           const targetStoreId = await resolveAuthorizedStore({ principal, requestedStoreId: storeId });
+          const existing = await pool.query(`
+            SELECT * FROM "Transaction"
+            WHERE "storeId" = $1 AND "idempotencyKey" = $2
+            LIMIT 1`, [targetStoreId, idempotencyKey]);
+          if (existing.rowCount > 0) {
+            res.statusCode = 200;
+            res.end(JSON.stringify({ success: true, idempotentReplay: true, transaction: existing.rows[0] }));
+            return;
+          }
 
           const insertRes = await pool.query(
             `
             INSERT INTO "Transaction" (
               id, reference, amount, fee, "netAmount", channel, status,
-              "storeId", "userId", currency, "kitchenStatus", origin,
+              "storeId", "userId", currency, "transactionType", "kitchenStatus", origin,
               "paymentMethod", "paymentMethodLabel", "customerName", "customerPhone",
-              "tableName", note, "createdAt", "updatedAt", "paidAt"
+              "tableName", note, "idempotencyKey", "createdAt", "updatedAt", "paidAt", "occurredAt"
             ) VALUES (
               $1, $2, $3, $4, $5, $6, $7,
-              $8, $9, $10, $11, $12,
-              $13, $14, $15, $16,
-              $17, $18, NOW(), NOW(), NOW()
+              $8, $9, $10, $11, $12, $13,
+              $14, $15, $16, $17,
+              $18, $19, $20, NOW(), NOW(), NOW(), NOW()
             )
+            ON CONFLICT ("storeId", "idempotencyKey") WHERE "idempotencyKey" IS NOT NULL DO NOTHING
             RETURNING *;
             `,
             [
@@ -1379,6 +1716,7 @@ const server = http.createServer(async (req, res) => {
               netAmount,
               channel,
               'completed',
+              transactionType,
               targetStoreId,
               principal.id,
               'THB',
@@ -1390,11 +1728,20 @@ const server = http.createServer(async (req, res) => {
               customerPhone,
               tableName,
               note,
+              idempotencyKey,
             ]
           );
 
+          if (insertRes.rowCount === 0) {
+            const replay = await pool.query(`SELECT * FROM "Transaction" WHERE "storeId" = $1 AND "idempotencyKey" = $2 LIMIT 1`, [targetStoreId, idempotencyKey]);
+            res.statusCode = 200;
+            res.end(JSON.stringify({ success: true, idempotentReplay: true, transaction: replay.rows[0] || null }));
+            return;
+          }
+
+          await writeAudit({ poolOrClient: pool, principal, action: 'TRANSACTION_CREATED', targetType: 'transaction', targetId: id, after: { storeId: targetStoreId, transactionType, amount: netAmount }, requestId: req.headers['x-request-id'] || null });
           res.statusCode = 200;
-          res.end(JSON.stringify({ success: true, transaction: insertRes.rows[0] }));
+          res.end(JSON.stringify({ success: true, idempotentReplay: false, transaction: insertRes.rows[0] }));
           return;
         } catch (err) {
           console.error('Error creating real transaction:', err);

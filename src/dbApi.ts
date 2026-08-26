@@ -75,6 +75,8 @@ export interface DbStoreRow {
   agent_code: string | null
   pd_code: string | null
   pd_name: string | null
+  timezone?: string
+  currency?: string
 }
 
 export interface DbAssignmentRow {
@@ -192,8 +194,70 @@ export interface DbTransactionRow {
   note: string | null
   paymentMethod: string | null
   isSettled: boolean
+  currency?: string
+  transactionType?: 'payment' | 'refund' | 'payout' | 'adjustment' | string
+  refundOfId?: string | null
+  payoutReference?: string | null
+  occurredAt?: string
+  paidAt?: string | null
   createdAt: string
   store_name: string | null
+}
+
+export interface DbHomeReadModel {
+  store: DbStoreRow
+  user: {
+    id: string
+    displayName: string | null
+    role: string
+    allowedActions: string[]
+  }
+  summary: {
+    todayTransactionCount: number
+    todayGrossAmount: string
+    todayFeeAmount: string
+    todayNetAmount: string
+    pendingTransactionCount: number
+    pendingNetAmount: string
+    latestTransactionAt: string | null
+    availableBalance: string | null
+    balanceStatus: 'available' | 'not_available' | string
+    totalBalance: string | null
+    receivedToday: string
+    availableToWithdraw: string | null
+    pendingAmount: string
+    asOf: string | null
+  }
+  counts: {
+    unreadNotifications: number
+    openOrders: number | null
+    queueWaiting: number | null
+    lowStockItems: number | null
+  }
+  unreadNotificationCount: number
+  quickActions: Array<{ id: string; target: string; enabled: boolean; disabledReason: string | null }>
+  capabilities: {
+    canViewBalance: boolean
+    canViewTransactions: boolean
+    canUseBenefits: boolean
+    canUseStopPay: boolean
+    canViewBilling: boolean
+    canStopPay?: boolean
+    updatedAt: string | null
+  }
+  stoppay: {
+    status: string
+    reason: string | null
+    version: number
+    updatedAt: string | null
+  }
+  freshness: {
+    generatedAt: string
+    source: string
+    cachePolicy: string
+    staleAfterSeconds: number
+    timezone: string
+  }
 }
 
 export interface DbFetchResult<T> {
@@ -535,6 +599,95 @@ export async function fetchDbTransactionsResult(): Promise<DbFetchResult<DbTrans
   }
 }
 
+export interface DbNotificationRow {
+  id: string
+  category: string
+  type: string
+  title: string
+  message: string
+  actionTarget: string | null
+  metadataJson: Record<string, unknown>
+  readAt: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface DbBenefitRow {
+  id: string
+  code: string
+  title: string
+  description: string
+  status: string
+  eligible: boolean
+  startsAt: string | null
+  expiresAt: string | null
+  metadataJson: Record<string, unknown>
+  updatedAt: string
+}
+
+export interface DbStoppayState {
+  storeId: string
+  status: string
+  reason: string | null
+  version: number
+  updatedBy: string | null
+  updatedAt: string | null
+}
+
+export async function fetchDbHomeResult(storeId: string): Promise<DbFetchResult<DbHomeReadModel | null>> {
+  try {
+    const res = await fetchDbApi<{ success: boolean; data: DbHomeReadModel }>(`/home?storeId=${encodeURIComponent(storeId)}`)
+    return { data: res.data || null, error: null, fetchedAt: new Date().toISOString() }
+  } catch (err: any) {
+    console.error('Failed to fetch Home read model:', err)
+    return { data: null, error: err?.message || 'โหลดข้อมูล Home ไม่สำเร็จ', fetchedAt: null }
+  }
+}
+
+export async function fetchDbNotificationsResult(storeId: string, options: { page?: number; limit?: number; category?: string; unreadOnly?: boolean } = {}): Promise<DbFetchResult<DbNotificationRow[]>> {
+  try {
+    const query = new URLSearchParams({ storeId, page: String(options.page || 1), limit: String(options.limit || 20) })
+    if (options.category) query.set('category', options.category)
+    if (options.unreadOnly) query.set('unreadOnly', 'true')
+    const res = await fetchDbApi<{ success: boolean; data: DbNotificationRow[] }>(`/notifications?${query.toString()}`)
+    return { data: res.data || [], error: null, fetchedAt: new Date().toISOString() }
+  } catch (err: any) {
+    console.error('Failed to fetch notifications:', err)
+    return { data: [], error: err?.message || 'โหลดการแจ้งเตือนไม่สำเร็จ', fetchedAt: null }
+  }
+}
+
+export async function markDbNotificationRead(id: string, storeId: string) {
+  return fetchDbApi<{ success: boolean; data: Pick<DbNotificationRow, 'id' | 'readAt' | 'updatedAt'> }>(`/notifications/${encodeURIComponent(id)}/read?storeId=${encodeURIComponent(storeId)}`, { method: 'POST' })
+}
+
+export async function markAllDbNotificationsRead(storeId: string) {
+  return fetchDbApi<{ success: boolean; data: { markedCount: number } }>(`/notifications/read-all?storeId=${encodeURIComponent(storeId)}`, { method: 'POST' })
+}
+
+export async function fetchDbBenefitsResult(storeId: string, page = 1, limit = 20): Promise<DbFetchResult<DbBenefitRow[]>> {
+  try {
+    const res = await fetchDbApi<{ success: boolean; data: DbBenefitRow[] }>(`/benefits?storeId=${encodeURIComponent(storeId)}&page=${page}&limit=${limit}`)
+    return { data: res.data || [], error: null, fetchedAt: new Date().toISOString() }
+  } catch (err: any) {
+    console.error('Failed to fetch benefits:', err)
+    return { data: [], error: err?.message || 'โหลดสิทธิพิเศษไม่สำเร็จ', fetchedAt: null }
+  }
+}
+
+export async function fetchDbStoppay(storeId: string): Promise<DbStoppayState> {
+  const res = await fetchDbApi<{ success: boolean; data: DbStoppayState }>(`/stoppay?storeId=${encodeURIComponent(storeId)}`)
+  return res.data
+}
+
+export async function transitionDbStoppay(payload: { storeId: string; action: string; reason?: string; idempotencyKey: string }) {
+  return fetchDbApi<{ success: boolean; idempotentReplay: boolean; data: DbStoppayState & { eventId: string; action: string } }>('/stoppay', {
+    method: 'POST',
+    headers: { 'Idempotency-Key': payload.idempotencyKey },
+    body: JSON.stringify(payload),
+  })
+}
+
 /**
  * Record Real Payment Transaction into DB
  */
@@ -549,10 +702,13 @@ export async function createDbTransaction(payload: {
   tableName?: string
   note?: string
   origin?: string
+  transactionType?: 'payment' | 'refund' | 'payout' | 'adjustment'
+  idempotencyKey: string
 }): Promise<{ success: boolean; transaction?: DbTransactionRow; error?: string }> {
   try {
     return await fetchDbApi<{ success: boolean; transaction?: DbTransactionRow; error?: string }>('/transactions/create', {
       method: 'POST',
+      headers: { 'Idempotency-Key': payload.idempotencyKey },
       body: JSON.stringify(payload),
     })
   } catch (err: any) {

@@ -294,9 +294,9 @@ async function updateStoreProfile({ pool, backofficeClient, storeId, body, idemp
         );
       }
       await client.query(
-        `INSERT INTO notifications ("recipientId", "caseId", type, title, message)
-         VALUES ($1, $2, 'PROFILE_CHANGED_KYC_REVIEW', 'ข้อมูลร้านค้าเปลี่ยน ต้องตรวจ KYC ใหม่', $3)`,
-        [String(kycCase.assignedAgentId || store.userId), kycCase.id, 'มีข้อมูลร้านค้าที่กระทบ KYC ถูกแก้ไข ระบบส่งกลับให้ Agent ตรวจสอบอีกครั้งแล้ว']
+        `INSERT INTO notifications ("recipientId", "storeId", "caseId", type, category, title, message, "actionTarget")
+         VALUES ($1, $2, $3, 'PROFILE_CHANGED_KYC_REVIEW', 'kyc', 'ข้อมูลร้านค้าเปลี่ยน ต้องตรวจ KYC ใหม่', $4, '#kyc')`,
+        [String(kycCase.assignedAgentId || store.userId), storeId, kycCase.id, 'มีข้อมูลร้านค้าที่กระทบ KYC ถูกแก้ไข ระบบส่งกลับให้ Agent ตรวจสอบอีกครั้งแล้ว']
       );
     }
 
