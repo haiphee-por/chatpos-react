@@ -1,6 +1,7 @@
 const crypto = require('crypto');
 
 const DEFAULT_TIMESTAMP_TOLERANCE_SECONDS = 300;
+const PAYMENT_STATUS_EVENT_TYPE = 'payment.status.changed';
 const PAYMENT_STATUS_MAP = new Map([
   ['pending', 'pending'],
   ['created', 'pending'],
@@ -343,11 +344,18 @@ function verifyPaymentStatusWebhook({ rawBody, headers, secret, nowSeconds = Mat
   if (!secret) throw new TransactionRoutingError('Payment status webhook secret is not configured', 'PAYMENT_STATUS_SECRET_MISSING', 503);
   const secrets = Array.isArray(secret) ? secret.filter(Boolean) : [secret];
   const eventId = String(header(headers, 'x-chatpos-event-id') || '');
+  const eventType = String(header(headers, 'x-chatpos-event-type') || '');
   const timestamp = String(header(headers, 'x-chatpos-timestamp') || '');
   const signature = String(header(headers, 'x-chatpos-signature') || '');
   const timestampNumber = Number(timestamp);
   if (!/^[A-Za-z0-9:_-]{8,128}$/.test(eventId)) {
     throw new TransactionRoutingError('X-ChatPOS-Event-Id is required', 'EVENT_ID_REQUIRED', 401);
+  }
+  if (!eventType) {
+    throw new TransactionRoutingError('X-ChatPOS-Event-Type is required', 'EVENT_TYPE_REQUIRED', 401);
+  }
+  if (eventType !== PAYMENT_STATUS_EVENT_TYPE) {
+    throw new TransactionRoutingError('Unsupported payment status webhook event type', 'UNSUPPORTED_EVENT_TYPE', 400);
   }
   if (!/^\d{10}$/.test(timestamp) || Math.abs(nowSeconds - timestampNumber) > toleranceSeconds) {
     throw new TransactionRoutingError('Payment status webhook timestamp is invalid or stale', 'STALE_WEBHOOK', 401);
@@ -360,12 +368,13 @@ function verifyPaymentStatusWebhook({ rawBody, headers, secret, nowSeconds = Mat
     return safeEqual(signature, expected);
   });
   if (!valid) throw new TransactionRoutingError('Payment status webhook signature is invalid', 'INVALID_WEBHOOK_SIGNATURE', 401);
-  return { timestamp: timestampNumber, eventId, bodyDigest: sha256Hex(rawBody) };
+  return { timestamp: timestampNumber, eventId, eventType, bodyDigest: sha256Hex(rawBody) };
 }
 
-function normalizeWebhookBody(body, eventId) {
+function normalizeWebhookBody(body, eventId, eventType = null) {
   if (!body || typeof body !== 'object' || Array.isArray(body)) throw new TransactionRoutingError('Webhook body must be an object', 'INVALID_WEBHOOK_BODY');
   if (body.eventId && String(body.eventId) !== eventId) throw new TransactionRoutingError('Webhook event ID header does not match body', 'EVENT_ID_MISMATCH', 400);
+  if (eventType && body.eventType !== eventType) throw new TransactionRoutingError('Webhook event type header does not match body', 'EVENT_TYPE_MISMATCH', 400);
   const clientReference = body.clientReference || body.transactionReference || body.merchantReference || null;
   const paymentReference = body.paymentReference || body.reference || null;
   const transactionId = body.transactionId ? String(body.transactionId) : null;
@@ -387,7 +396,7 @@ function normalizeWebhookBody(body, eventId) {
 }
 
 async function processPaymentWebhook({ pool, rawBody, body, verified, commissionConfig = {}, provider = 'llgw' }) {
-  const webhook = normalizeWebhookBody(body, verified.eventId);
+  const webhook = normalizeWebhookBody(body, verified.eventId, verified.eventType || null);
   return withTransaction(pool, async (client) => {
     const duplicate = await client.query(
       'SELECT "bodyDigest", status FROM payment_webhook_events WHERE provider = $1 AND "eventId" = $2 FOR UPDATE',

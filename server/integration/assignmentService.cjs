@@ -11,6 +11,7 @@ const ASSIGNMENT_STATUSES = new Set([
 ]);
 const CALLBACK_STATUSES = new Set(['ACCEPTED', 'REJECTED', 'EXPIRED', 'REASSIGNED', 'ASSIGNED_FOR_ACCEPTANCE']);
 const CALLBACK_PROVIDER = 'agent_pd_backoffice';
+const CALLBACK_EVENT_TYPE = 'assignment.status.changed';
 const DEFAULT_TIMESTAMP_TOLERANCE_SECONDS = 300;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -235,9 +236,14 @@ function verifyAssignmentCallback({ rawBody, headers, callbackSecret, nowSeconds
   if (!callbackSecret) throw new AssignmentError('Assignment callback secret is not configured', 'CALLBACK_SECRET_MISSING', 503);
   const callbackSecrets = Array.isArray(callbackSecret) ? callbackSecret.filter(Boolean) : [callbackSecret];
   const eventId = getHeader(headers, 'x-chatpos-event-id');
+  const eventType = getHeader(headers, 'x-chatpos-event-type');
   const timestamp = getHeader(headers, 'x-chatpos-timestamp');
   const signature = getHeader(headers, 'x-chatpos-signature');
   if (!eventId) throw new AssignmentError('X-ChatPOS-Event-Id is required', 'EVENT_ID_REQUIRED');
+  if (!eventType) throw new AssignmentError('X-ChatPOS-Event-Type is required', 'EVENT_TYPE_REQUIRED');
+  if (eventType !== CALLBACK_EVENT_TYPE) {
+    throw new AssignmentError('Unsupported assignment callback event type', 'UNSUPPORTED_EVENT_TYPE');
+  }
   if (!/^\d{10}$/.test(timestamp) || Math.abs(nowSeconds - Number(timestamp)) > timestampToleranceSeconds) {
     throw new AssignmentError('Callback timestamp is outside the allowed clock skew', 'STALE_TIMESTAMP', 401);
   }
@@ -249,7 +255,7 @@ function verifyAssignmentCallback({ rawBody, headers, callbackSecret, nowSeconds
     return safeEqual(signature, expected);
   });
   if (!valid) throw new AssignmentError('Callback signature is invalid', 'INVALID_SIGNATURE', 401);
-  return { eventId, timestamp: Number(timestamp) };
+  return { eventId, eventType, timestamp: Number(timestamp) };
 }
 
 function normalizeCallbackStatus(status) {
@@ -316,6 +322,9 @@ async function processAssignmentCallback({ pool, rawBody, headers, callbackSecre
   if (body.eventId !== verified.eventId) {
     throw new AssignmentError('Callback event ID header does not match body', 'EVENT_ID_MISMATCH');
   }
+  if (body.eventType !== verified.eventType) {
+    throw new AssignmentError('Callback event type header does not match body', 'EVENT_TYPE_MISMATCH');
+  }
   if (!String(body.assignmentRequestId || '').trim()) {
     throw new AssignmentError('assignmentRequestId is required', 'ASSIGNMENT_REQUEST_ID_REQUIRED');
   }
@@ -353,13 +362,13 @@ async function processAssignmentCallback({ pool, rawBody, headers, callbackSecre
       `INSERT INTO integration_webhook_events
         (provider, "eventId", "eventType", "bodyDigest", status, "payloadJson", "receivedAt", "processedAt")
        VALUES ($1, $2, $3, $4, $5, $6::jsonb, NOW(), NOW())`,
-      [CALLBACK_PROVIDER, verified.eventId, body.eventType || 'assignment.status.changed', bodyDigest, isLate ? 'IGNORED_LATE' : 'RECEIVED', JSON.stringify(body)]
+      [CALLBACK_PROVIDER, verified.eventId, verified.eventType, bodyDigest, isLate ? 'IGNORED_LATE' : 'RECEIVED', JSON.stringify(body)]
     );
     await client.query(
       `INSERT INTO agent_assignment_events
         ("assignmentId", "eventId", "eventType", status, "payloadJson", "requestId", "createdAt")
        VALUES ($1, $2, $3, $4, $5::jsonb, $6, NOW())`,
-      [assignment.id, verified.eventId, body.eventType || 'assignment.status.changed', isLate ? 'IGNORED_LATE' : status, JSON.stringify(body), verified.eventId]
+      [assignment.id, verified.eventId, verified.eventType, isLate ? 'IGNORED_LATE' : status, JSON.stringify(body), verified.eventId]
     );
 
     if (isLate) {

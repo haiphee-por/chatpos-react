@@ -158,8 +158,7 @@ Credential ออกแยกต่อ Store และใช้ข้าม Stor
 | Environment | `test` หรือ `production` |
 | Store ID / Merchant ID | ID ที่ตกลงร่วมกัน |
 | Credential owner | ชื่อทีม/ระบบ ไม่ใช้ชื่อบุคคลเป็น secret label |
-| Assignment callback URL | `https://client.example.com/webhooks/assignment-status` |
-| Payment status webhook URL | `https://client.example.com/webhooks/payment-status` |
+| Merchant webhook URL | `https://merchant.example.test/api/webhooks/chatpos` (ลงทะเบียนใน Assignment request) |
 | Outbound IP/CIDR | เตรียมไว้สำหรับ IP allowlist เมื่อ enforcement พร้อม |
 
 ทีม Backoffice จะส่งมอบ:
@@ -170,8 +169,7 @@ Credential ออกแยกต่อ Store และใช้ข้าม Stor
 | Bearer secret | ระบุ API key | secret manager เท่านั้น |
 | Signing secret | HMAC request signature | secret manager เท่านั้น |
 | Key ID/prefix | support และ rotation โดยไม่เปิด secret | config/log ได้ |
-| Assignment callback secret | verify callback จาก Backoffice | secret manager เท่านั้น |
-| Payment status webhook secret | verify normalized payment status callback จาก PD/Agent | secret manager เท่านั้น |
+| Merchant webhook secret | verify Assignment, ownership, KYC, Store และ payment events | secret manager เท่านั้น; คืนจาก Assignment registration ครั้งแรก |
 | Commission webhook secret | sign settlement event; ส่งเมื่อ integration นี้ได้รับอนุมัติ | secret manager เท่านั้น |
 
 ห้ามส่ง bearer/signing/webhook secret ผ่าน ticket, email, source code, URL, browser storage หรือ application log
@@ -327,17 +325,21 @@ POST /api/v1/assignments/requests
 ```json
 {
   "agentPhone": "0812345678",
-  "sourceRequestId": "merchant-assignment-01JEXAMPLE0001"
+  "sourceRequestId": "merchant-assignment-01JEXAMPLE0001",
+  "webhookUrl": "https://merchant.example.test/api/webhooks/chatpos"
 }
 ```
 
-กรณี Merchant ยังไม่มี Agent หรือไม่ต้องการระบุ Agent ให้ส่ง `sourceRequestId` อย่างเดียว:
+กรณี Merchant ยังไม่มี Agent หรือไม่ต้องการระบุ Agent ให้ส่ง `webhookUrl` และ `sourceRequestId` โดยไม่ต้องส่ง `agentPhone`:
 
 ```json
 {
-  "sourceRequestId": "merchant-assignment-01JEXAMPLE0002"
+  "sourceRequestId": "merchant-assignment-01JEXAMPLE0002",
+  "webhookUrl": "https://merchant.example.test/api/webhooks/chatpos"
 }
 ```
+
+`webhookUrl` เป็น required, ต้องเป็น HTTPS ที่ไม่มี credentials หรือ fragment และอนุญาต localhost เฉพาะ development. ระบบ normalize URL และผูก subscription กับ Store จาก API key; ห้ามส่ง `storeId` เพื่อเลือก tenant. การเรียกครั้งแรกจะสร้าง callback secret แยกจาก secret ที่ใช้ sign API request และคืน `webhookSecret` เพียงครั้งนั้น. Secret ถูกเก็บ encrypted ใน Backoffice และต้องถูกเก็บต่อใน server-side secret manager ของ Merchant. ถ้า response ครั้งแรกหาย ให้ retry ด้วย `Idempotency-Key`, `sourceRequestId` และ raw body เดิมเพื่อ exact replay; ห้ามสร้าง request ใหม่ด้วย source ID อื่นเพื่อกู้ secret
 
 ตัวอย่างเรียก API:
 
@@ -350,6 +352,7 @@ const idempotencyKey = "assignment:store-123:attempt-1";
 const rawBody = JSON.stringify({
   agentPhone: "0812345678",
   sourceRequestId: "merchant-assignment-01JEXAMPLE0001",
+  webhookUrl: "https://merchant.example.test/api/webhooks/chatpos",
 });
 const signed = signMerchantRequest({
   method: "POST",
@@ -372,6 +375,23 @@ const response = await fetch(url, {
     "X-Request-Id": "req-01JEXAMPLE0001",
   },
 });
+```
+
+Response ใหม่จะคืน `webhookUrl`; `webhookSecret` จะมีเฉพาะการสร้าง subscription ครั้งแรกหรือ exact idempotent replay ที่กู้ response เดิม. Merchant ต้องเก็บ secret โดยไม่เขียนลง log, browser storage, source control หรือ URL:
+
+```json
+{
+  "success": true,
+  "data": {
+    "id": "assignment-request-id",
+    "status": "PENDING_AGENT_ACCEPTANCE",
+    "webhookUrl": "https://merchant.example.test/api/webhooks/chatpos",
+    "webhookSecret": "one-time-callback-secret",
+    "idempotentReplay": false,
+    "agent": { "code": "AG001" },
+    "pd": { "code": "PD001" }
+  }
+}
 ```
 
 ### 5.2 Success response
@@ -515,7 +535,7 @@ Success response:
 }
 ```
 
-OTP เป็นตัวเลข 4–10 หลักตาม server validation เพราะ SMSUP ไม่กำหนดความยาวตายตัว มีอายุ 5 นาที, จำกัดความพยายามผิด 5 ครั้ง และจำกัดการขอรหัสใหม่ 1 ครั้งต่อ 60 วินาทีต่อ KYC Case. `challengeId` ต้องเป็น UUID ที่ได้จาก response ของ request เท่านั้น ห้ามสร้างหรือแก้ค่าเอง
+OTP เป็นตัวเลข 6 หลักตามการตั้งค่า SMSUP (`Pin Length=6`) และมีอายุ 60 วินาทีตาม `Expire Time=60`; ระบบยังคงจำกัดความพยายามผิด 5 ครั้ง และจำกัดการขอรหัสใหม่ 1 ครั้งต่อ 60 วินาทีต่อ KYC Case. `challengeId` ต้องเป็น UUID ที่ได้จาก response ของ request เท่านั้น ห้ามสร้างหรือแก้ค่าเอง
 
 `otp` ต้องอยู่ใน request body ที่ sign จาก server ของ partner เท่านั้น และห้ามเขียนลง log, analytics event, URL, cookie หรือ browser storage ถาวร เมื่อ request timeout ให้ retry ด้วย body และ `Idempotency-Key` เดิม แต่สร้าง timestamp, nonce และ signature ใหม่ตามหัวข้อ 4.2
 
@@ -539,7 +559,7 @@ Error ที่ partner ต้อง map เป็นพฤติกรรมด
 
 1. `READY_TO_VERIFY`: แสดงเบอร์ masked, ข้อความว่าจะส่งรหัสไปยังเบอร์ที่ลงทะเบียน และปุ่ม `ส่งรหัสยืนยัน`
 2. `SMS_PENDING`: disable ปุ่มซ้ำ แสดง loading และห้ามเปลี่ยน case/เบอร์ระหว่าง request
-3. `CODE_SENT`: แสดงช่องตัวเลข 4–10 หลัก, expiry ที่มาจาก `expiresAt`, cooldown 60 วินาทีก่อนเริ่มคำขอใหม่ และปุ่ม `ยืนยัน`
+3. `CODE_SENT`: แสดงช่องตัวเลข 6 หลัก, expiry ที่มาจาก `expiresAt`, cooldown 60 วินาทีก่อนเริ่มคำขอใหม่ และปุ่ม `ยืนยัน`
 4. `VERIFYING`: disable submit และป้องกัน double click; partner ต้องใช้ idempotency key เดิมสำหรับ operation เดิม
 5. `VERIFIED`: แสดงเครื่องหมายยืนยันและเวลาโดยย่อ แล้วให้ผู้สมัครกลับไปทำเอกสาร/รอ Agent review; ห้ามใช้ข้อความว่า KYC approved
 6. `RETRY_REQUIRED`: ใช้กับ expired หรือ payload changed; ล้าง OTP ที่กรอกและเริ่ม challenge ใหม่ตาม error ที่ได้รับ
@@ -549,13 +569,14 @@ Client API ไม่มี dedicated resend endpoint; หากต้องก�
 
 ห้ามใช้ UI ที่ขอ OTP ก่อนรู้ `caseId`, ให้ผู้สมัครเลือกเบอร์ปลายทางเอง, แสดงเบอร์เต็ม, เริ่มคำขอใหม่ทุกครั้งโดยไม่รอ cooldown, หรือแสดง KYC approved ทันทีหลัง verify OTP สำเร็จ
 
-## 6. รับ Assignment Status Callback
+## 6. รับ Merchant Webhook
 
-Backoffice ส่ง callback ไป URL ที่ตกลงไว้พร้อม headers:
+Merchant ต้องเปิด HTTPS receiver เช่น `POST /api/webhooks/chatpos` และลงทะเบียน URL นี้พร้อมกับการสร้าง Assignment request. Backoffice ส่งทุก event ไปยัง URL ที่ลงทะเบียนไว้พร้อม headers:
 
 ```http
 Content-Type: application/json
 X-ChatPOS-Event-Id: <event-id>
+X-ChatPOS-Event-Type: <event-type>
 X-ChatPOS-Timestamp: <unix-seconds>
 X-ChatPOS-Signature: v1=<lowercase-hmac-sha256-hex>
 ```
@@ -566,6 +587,7 @@ Body ตัวอย่าง:
 {
   "eventId": "event-id",
   "eventType": "assignment.status.changed",
+  "schemaVersion": 1,
   "assignmentRequestId": "assignment-request-id",
   "storeId": "store-id",
   "status": "ACCEPTED",
@@ -574,7 +596,7 @@ Body ตัวอย่าง:
 }
 ```
 
-สถานะที่อาจได้รับคือ `ACCEPTED`, `REJECTED`, `EXPIRED` และ `REASSIGNED`; บางสถานะมี `reason`
+สถานะที่อาจได้รับคือ `PENDING_AGENT_ACCEPTANCE`, `ACCEPTED`, `REJECTED`, `EXPIRED` และ `REASSIGNED`; บางสถานะมี `reason`. `X-ChatPOS-Event-Type` ต้องตรงกับ `body.eventType` และ `X-ChatPOS-Event-Id` ต้องตรงกับ `body.eventId`
 
 วิธี verify:
 
@@ -602,21 +624,37 @@ function verifyAssignmentCallback(input: {
 Receiver ต้องทำตามลำดับ:
 
 1. อ่าน raw body ก่อน JSON parsing
-2. verify timestamp และ signature
-3. ตรวจ `X-ChatPOS-Event-Id` ให้ตรงกับ `body.eventId`
-4. insert/dedupe event ID ใน transaction เดียวกับการเปลี่ยน local state
-5. ตอบ `2xx` หลัง commit สำเร็จ
-6. ถ้าประมวลผลไม่ได้ให้ตอบ non-2xx เพื่อให้ Backoffice retry
+2. verify timestamp และ signature ด้วย callback secret ที่ได้จาก Assignment registration
+3. parse JSON และตรวจ event type, event ID และ schema version
+4. insert/dedupe event ID พร้อม raw-body SHA-256 ใน transaction เดียวกับการเปลี่ยน local state
+5. ตอบ `2xx` หลัง commit สำเร็จ; event ID เดิมกับ body digest เดิมเป็น duplicate ที่ตอบ `2xx` ได้โดยไม่ทำ side effect ซ้ำ
+6. ถ้า event ID เดิมถูกใช้กับ body อื่น ให้ตอบ `409`
+7. ถ้าประมวลผลไม่ได้ให้ตอบ non-2xx เพื่อให้ Backoffice retry
 
-Callback เป็น at-least-once delivery จึงอาจซ้ำหรือล่าช้า ห้ามสร้าง assignment หรือ side effect ซ้ำจาก event เดิม
+Callback เป็น at-least-once delivery จึงอาจซ้ำหรือล่าช้า. Network order ไม่ได้รับประกัน; ให้ใช้ `occurredAt` และ domain version เช่น `currentVersion` หรือสถานะที่ local state รองรับ เพื่อไม่ย้อนสถานะจาก event เก่า. Backoffice retry ด้วย event ID และ raw body เดิม โดยไม่สร้าง event ใหม่แทน event เดิม
 
-### 6.1 รับ Payment Status Webhook
+### 6.1 Event ที่ต้องรองรับ
 
-หลัง PD/Agent ตรวจ signature ของ LLGW, deduplicate event และ update normalized payment state แล้ว ระบบจะส่ง payment status webhook มาที่ `Payment status webhook URL` ของ Store โดยใช้ headers และ HMAC algorithm เดียวกับ Assignment callback:
+ทุก event มี `eventId`, `eventType`, `schemaVersion`, `storeId` และ `occurredAt` ใน envelope เดียวกัน:
+
+| Event type | Fields สำคัญ | การใช้งานฝั่ง Merchant |
+| --- | --- | --- |
+| `assignment.status.changed` | `assignmentRequestId`, `status`, optional `reason`, optional `assignmentHistoryId` | อัปเดตผลคำขอ Agent และแสดงว่า Agent กดรับดูแลแล้วเมื่อ status เป็น `ACCEPTED` |
+| `store.assignment.changed` | `assignmentHistoryId`, `change`, `agentId`, `pdId`, optional previous owner IDs | อัปเดต Agent/PD ที่ดูแล Store; `change` เป็น `ASSIGNED` หรือ `REASSIGNED` |
+| `kyc.case.status.changed` | `caseId`, `status`, optional `currentVersion`, `submissionId`, `decision`, `change`, `changedFields` | อัปเดต workflow KYC; `VERIFIED`/`APPROVED` ต้องมาจาก status จริง ไม่ใช่การ verify OTP |
+| `store.status.changed` | `change`, `status` หรือ Store lifecycle fields ตาม event producer | อัปเดต active/archive/deleted state ของ Store |
+| `payment.status.changed` | `transactionId`, `transactionReference`, `status`, payment/provider references, `paymentMethod`, `occurredAt` | อัปเดต payment state และ reconcile ผ่าน payment query เมื่อจำเป็น |
+
+ระบบส่งเฉพาะข้อมูลที่ Merchant ใช้ sync workflow. ห้ามคาดหวัง KYC document bytes, storage locator, internal review note, risk data, bank account fields, API credentials หรือ commission settlement details ใน payload. PD/Agent commission withdrawals ยังเป็น internal Backoffice flow; ยังไม่มี Merchant webhook สำหรับรายการถอนเงินจนกว่าจะมี Store ownership ที่อนุมัติและมี model/contract รองรับ
+
+### 6.2 รับ Payment Status Webhook
+
+หลัง PD/Agent ตรวจ signature ของ LLGW, deduplicate event และ update normalized payment state แล้ว ระบบจะส่ง `payment.status.changed` ไปยัง Merchant webhook URL เดียวกับ Assignment callback โดยใช้ headers และ HMAC algorithm เดียวกัน:
 
 ```http
 Content-Type: application/json
 X-ChatPOS-Event-Id: <event-id>
+X-ChatPOS-Event-Type: payment.status.changed
 X-ChatPOS-Timestamp: <unix-seconds>
 X-ChatPOS-Signature: v1=<lowercase-hmac-sha256-hex>
 ```
@@ -639,11 +677,13 @@ Body ตัวอย่าง:
 }
 ```
 
-Payment status webhook เป็น at-least-once delivery; ChatPOS ต้อง deduplicate ด้วย `eventId`, ตอบ `2xx` หลังบันทึกสำเร็จ และใช้ `GET /api/v1/transactions/{id}/payment` แบบ signed เพื่อ reconcile เมื่อ webhook ล่าช้าหรือขาดหาย
+Payment status webhook เป็น at-least-once delivery; ใช้กติกา receiver เดียวกับหัวข้อ 6, ต้อง deduplicate ด้วย `eventId` และ body digest, ตอบ `2xx` หลังบันทึกสำเร็จ และใช้ `GET /api/v1/transactions/{id}/payment` แบบ signed เพื่อ reconcile เมื่อ webhook ล่าช้าหรือขาดหาย
 
 ## 7. ส่ง KYC Document Version
 
 ต้องมี KYC Case ใน Backoffice และทราบ `caseId` ก่อนเรียก endpoint นี้ API key ต้องเป็น Store เดียวกับ Case
+
+`KYC_DOCUMENT_STORAGE_BASE_URL` และ `KYC_DOCUMENT_ALLOWED_ORIGINS` เป็นค่าภายใน Backoffice ไม่ใช่ค่าที่ Merchant ต้องส่งหรือเก็บใน request. หากเอกสาร KYC เก็บอยู่บนระบบหลักของเรา ให้ทีม Backoffice ตั้งค่า storage base URL และ allowed origin เป็น domain หลักเดียวกัน เช่น `https://member.chatpos.biz/private/` และ `https://member.chatpos.biz`. Merchant ส่งเฉพาะ `storageLocator` ของเอกสารตาม contract ด้านล่าง และห้ามส่ง public URL, long-lived presigned URL หรือค่า environment สองตัวนี้
 
 ### 7.1 Document types
 

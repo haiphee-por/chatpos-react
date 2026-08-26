@@ -102,7 +102,7 @@ npm run db:migrate
 npm run db:seed
 ```
 
-Migration หลักอยู่ที่ [`database/migrations/001_initial_chatpos_schema.sql`](../database/migrations/001_initial_chatpos_schema.sql) ถึง [`database/migrations/007_store_backoffice_credentials.sql`](../database/migrations/007_store_backoffice_credentials.sql) ครอบคลุมตาราง core ที่ `server.cjs` ใช้ รวมถึง Merchant KYC, assignment, profile/document version, server session, rate limit, audit, idempotency, webhook dedupe, settlement retry/dead-letter, document scan quarantine, OTP challenge persistence และ Store-scoped Backoffice credential mapping. หลัง migration ให้ใช้ [`database/seed.cjs`](../database/seed.cjs) ผ่าน `npm run db:seed` เพื่อสร้างข้อมูลทดลองแบบ idempotent สำหรับทุก role และ workflow หลัก; ตั้ง `SEED_PASSWORD` ได้เมื่อต้องการเปลี่ยนรหัสผ่าน demo. ตารางเหล่านี้เป็น durable schema; client helper แบบ in-memory ยังใช้เฉพาะ unit test และไม่ควรใช้แทน persistence layer จริง
+Migration หลักอยู่ที่ [`database/migrations/001_initial_chatpos_schema.sql`](../database/migrations/001_initial_chatpos_schema.sql) ถึง [`database/migrations/008_merchant_home_contract.sql`](../database/migrations/008_merchant_home_contract.sql) ครอบคลุมตาราง core ที่ `server.cjs` ใช้ รวมถึง Merchant KYC, assignment, profile/document version, server session, rate limit, audit, idempotency, webhook dedupe, settlement retry/dead-letter, document scan quarantine, OTP challenge persistence, Store-scoped Backoffice credential mapping และ Merchant Home capability/benefit/STOPPAY state. หลัง migration ให้ใช้ [`database/seed.cjs`](../database/seed.cjs) ผ่าน `npm run db:seed` เพื่อสร้างข้อมูลทดลองแบบ idempotent สำหรับทุก role และ workflow หลัก; ตั้ง `SEED_PASSWORD` ได้เมื่อต้องการเปลี่ยนรหัสผ่าน demo. ตารางเหล่านี้เป็น durable schema; client helper แบบ in-memory ยังใช้เฉพาะ unit test และไม่ควรใช้แทน persistence layer จริง
 
 ### Production
 
@@ -152,6 +152,7 @@ npm run lint
 | `PAYMENT_STATUS_WEBHOOK_ENABLED` | normalized payment-status callback receiver | ปิดเป็นค่าเริ่มต้นจนกว่า external contract และ staging evidence จะผ่าน |
 | `PAYMENT_STATUS_WEBHOOK_SECRET(_PREVIOUS)` | normalized payment-status callback verification | secret manager เท่านั้น; รองรับ rotation ชั่วคราว |
 | `PAYMENT_STATUS_TIMESTAMP_TOLERANCE_SECONDS` | normalized payment-status callback verification | ค่าเริ่มต้น 300 วินาที |
+| `MERCHANT_HOME_CONTRACT_ENABLED` | `server.cjs` | gate ของ Home read model, capabilities, benefits, notifications และ STOPPAY routes; ค่าเริ่มต้น `false` |
 | `TRANSACTION_ROUTING_ENABLED` / `TRANSACTION_QUERY_ROUTING_ENABLED` | `server/integration/transactionService.cjs` | forward payment command และ query ไป Backoffice แบบ opt-in; ปิดเป็นค่าเริ่มต้น |
 | `AGENT_PD_TRANSACTION_COMMAND_PATH` / `AGENT_PD_TRANSACTION_QUERY_PATH` | signed Backoffice client | path placeholder ที่ต้องตรงกับ signed contract ก่อนเปิด routing |
 
@@ -397,17 +398,37 @@ API ปัจจุบันมี `GET /api/db/kyc` และ `POST /api/db/kyc
 
 ### External Backoffice contract กับ local ChatPOS implementation
 
-[CHATPOS Integration Handoff](CHATPOS_INTEGRATION_HANDOFF.md) เป็น canonical reference สำหรับ route, payload, ownership, readiness และ external contract status. [CHATPOS Client Integration Guide](CHATPOS_CLIENT_INTEGRATION_GUIDE.md) เป็นคู่มือ partner ที่ต้องสอดคล้องกับ handoff และไม่ใช่หลักฐานว่า endpoint ภายนอกถูก deploy หรือได้รับ sign-off แล้ว ส่วนสถานะงาน, owner และ external dependency ให้ติดตามใน [NEXT_STEPS_CHECKLIST.md](NEXT_STEPS_CHECKLIST.md)
+[CHATPOS Client Integration Guide](CHATPOS_CLIENT_INTEGRATION_GUIDE.md) เป็น external target contract สำหรับ partner และต้องไม่ถูกตีความว่า endpoint ภายนอกถูก deploy หรือได้รับ sign-off ใน local repository แล้ว. [PHASE_0_CONTRACT_DECISION_RECORD.md](PHASE_0_CONTRACT_DECISION_RECORD.md) เป็นบันทึกขอบเขต/decision ที่มีอยู่ใน repository ส่วนสถานะงาน, owner และ external dependency ให้ติดตามใน [NEXT_STEPS_CHECKLIST.md](NEXT_STEPS_CHECKLIST.md); ก่อนหน้านี้มีการอ้างชื่อ `CHATPOS_INTEGRATION_HANDOFF.md` แต่ไฟล์ดังกล่าวไม่มีอยู่ใน repository ปัจจุบัน จึงไม่ควรใช้เป็นลิงก์อ้างอิงที่ทำงานไม่ได้
 
 ก่อนเปิด feature หรือเปลี่ยน route ให้มี signed contract matrix จาก Backoffice ที่ยืนยัน endpoint, payload, scope, Store/amount ownership, response/error, idempotency, callback URL, signature, retry และ webhook owner ก่อนเสมอ ห้ามเปลี่ยน local implementation ให้เดาตามตัวอย่างใน guide เพียงอย่างเดียว
 
 | พื้นที่ | External target ใน Integration Guide | Local ChatPOS ที่มีใน repository | งานที่ต้องทำต่อ |
 |---|---|---|---|
-| Payment command | Candidate `POST /api/v1/transactions/{id}/payment`; Backoffice derive payment context และส่งต่อ LLGW | Browser เรียก `POST /api/v1/transactions`; server ส่ง payload ผ่าน `AGENT_PD_TRANSACTION_COMMAND_PATH` ซึ่ง default เป็น `/api/v1/transactions` | รอ Backoffice ยืนยัน path/payload แล้วทำ adapter, contract test และ staging E2E |
+| Merchant Home | ไม่ใช่ signed partner route; เป็น authenticated product surface ของ ChatPOS | Browser เรียก `/api/db/home` และ Home subroutes ด้วย `chatpos_session`; ถูก gate ด้วย `MERCHANT_HOME_CONTRACT_ENABLED` | ตรวจ PostgreSQL permission matrix, Store switching, browser evidence และเปิด flag หลัง rollout gate |
+| Payment command | Candidate `POST /api/v1/transactions/{id}/payment`; Backoffice derive payment context และส่งต่อ LLGW | Browser เรียก local `POST /api/v1/transactions`; server ส่ง payload ผ่าน `AGENT_PD_TRANSACTION_COMMAND_PATH` ซึ่ง default เป็น `/api/v1/transactions` | รอ Backoffice ยืนยัน path/payload แล้วทำ adapter, contract test และ staging E2E; outbound path config ไม่ได้สร้าง external route ใน local server |
+| Merchant callback receiver | Merchant/partner ต้องเปิด `POST /api/webhooks/chatpos` และลงทะเบียน URL กับ Backoffice | ไม่มี `/api/webhooks/chatpos`; มี local `/api/webhooks/assignment-status` และ `/api/webhooks/payment-status` สำหรับคนละ callback boundary | ยืนยัน callback owner, event schema, secret และ retry contract ก่อน map external URL กับ receiver ใด ๆ |
 | LLGW pay-in webhook | Target ให้ PD/Agent รับ LLGW, verify/dedupe/update payment state | ChatPOS มี local `POST /api/webhooks/llgw/payment` แต่ gate ด้วย `LLGW_PAYMENT_WEBHOOK_ENABLED=false` เป็นค่าเริ่มต้น | ยืนยัน ownership หรือ architecture exception ก่อนเปิด receiver ใน environment ใด ๆ |
 | Normalized payment status | PD/Agent ส่ง signed payment-status webhook และเปิด status query ให้ partner | ChatPOS มี gated receiver ที่ `POST /api/webhooks/payment-status` และ signed payment query adapter; ทั้งคู่ปิดเป็นค่าเริ่มต้น | ยืนยัน event schema/path/secret/retry แล้วเปิดใช้ใน staging, เพิ่ม reconcile และ retire/exception local LLGW receiver |
 | KYC phone OTP | Target มี Backoffice `/otp` และ `/otp/verify` ให้ Backoffice สร้าง/verify challenge | ChatPOS มี Merchant-only KYC case routes, PostgreSQL challenge persistence และ fail-closed provider stub; ยังไม่มี provider adapter จริง | ยืนยัน external OTP contract, SMS readiness, lock policy และทำ staging delivery E2E ก่อนเปิด |
 | Commission settlement | Partner ส่ง signed settlement fact ไปยัง Backoffice-provided destination URL | ChatPOS สร้าง durable settlement event และ dispatch ไป `COMMISSION_EVENT_SOURCE_URL`; ไม่มี inbound `/api/webhooks/commission/settlement` route | ยืนยัน Finance mapping/destination และทดสอบ retry/dead-letter/reconciliation |
+
+### Merchant Home local contract
+
+Merchant Home เป็น authenticated product surface ที่ `/merchant#home` และต้องแยกจาก public landing ที่ `/`. UI ใช้ relative `/api/db/*` พร้อม HttpOnly `chatpos_session`; ไม่ใช้ external signed `/api/v1` contract และไม่ควร aggregate ยอดหรือเลือก Store จากข้อมูลใน browser เอง. ทุก route ด้านล่างตรวจ Store ownership จาก server session และถูก gate ร่วมด้วย `MERCHANT_HOME_CONTRACT_ENABLED`:
+
+| Method | Local endpoint | หน้าที่และข้อควรระวัง |
+|---|---|---|
+| `GET` | `/api/db/home?storeId=` | read model เดียวสำหรับ Store summary, transaction counts, unread count, quick actions, capabilities, STOPPAY state และ freshness; ค่า balance ที่ยังไม่มี ledger อนุมัติคืนเป็น `null` พร้อม `balanceStatus=not_available` |
+| `GET` | `/api/db/capabilities?storeId=` | capability flags ของ Store เช่น balance, transactions, benefits, STOPPAY และ billing |
+| `GET` | `/api/db/benefits?storeId=&page=&limit=` | อ่าน active benefits ที่อยู่ในช่วงเวลา; endpoint นี้ไม่มี claim side effect |
+| `GET` | `/api/db/notifications?storeId=&page=&limit=&category=&unreadOnly=` | อ่าน notification ที่ Store และ recipient ตรงกับ session พร้อม pagination |
+| `POST` | `/api/db/notifications/{id}/read?storeId=` | mark notification อ่านแล้วแบบทำซ้ำได้; ตรวจ recipient/Store และเขียน audit |
+| `POST` | `/api/db/notifications/read-all?storeId=` | mark notification ที่ยังไม่อ่านทั้งหมดของ Store และ recipient ปัจจุบัน |
+| `GET` | `/api/db/stoppay?storeId=` | อ่าน STOPPAY state และ role-allowed transitions |
+| `POST` | `/api/db/stoppay` | ขอ/อนุมัติ transition ด้วย `Idempotency-Key`; body ใช้ `action`, `reason` และ Store มาจาก authorization context |
+| `GET` | `/api/db/transactions?storeId=&status=&channel=&transactionType=&from=&to=&page=&limit=` | อ่าน transaction ตาม Store/role พร้อม filter ที่ allowlist และ pagination; ไม่ใช้แทน external payment query |
+
+`/api/db/home` เป็น source เดียวของ Home summary ใน frontend ปัจจุบัน. หาก route ตอบ `404 FEATURE_DISABLED`, ต้องคง UI เป็น unavailable/rollback state และไม่ fallback ไปคำนวณตัวเลขทางการเงินจาก client. การเปิด flag ต้องทำหลัง migration 008, permission matrix, PostgreSQL E2E และ browser evidence ผ่านตาม [Merchant Home QA Runbook](MERCHANT_HOME_QA_RUNBOOK.md)
 
 ### Store-scoped Backoffice credentials
 
@@ -423,14 +444,15 @@ API ปัจจุบันมี `GET /api/db/kyc` และ `POST /api/db/kyc
 
 `QuickPayView.tsx` และ `chatposApi.ts` ใช้ server-session API สำหรับ:
 
-- ส่ง transaction command ไปยัง PD/Agent Backoffice ผ่าน `/api/v1/transactions`
+- ส่ง local transaction command ผ่าน `/api/v1/transactions`; เมื่อเปิด routing server จึง forward ไปยัง path ของ Backoffice ตาม configuration
+- external target command คือ `POST /api/v1/transactions/{id}/payment` และไม่ควรเรียกจาก Browser หรือถือว่าเป็น local route จนกว่า contract/staging sign-off จะผ่าน
 - ตรวจสถานะ payment reference และ ownership
-- อ่านสถานะผ่าน local transaction query หรือ signed payment query adapter เมื่อ `TRANSACTION_QUERY_ROUTING_ENABLED=true`
+- อ่านสถานะผ่าน local transaction query หรือ signed external query adapter เมื่อ `TRANSACTION_QUERY_ROUTING_ENABLED=true`; external target query คือ `GET /api/v1/transactions/{id}/payment`
 - รับผลชำระผ่าน normalized payment-status callback ที่ถูก gate ด้วย `PAYMENT_STATUS_WEBHOOK_ENABLED`; local signed LLGW webhook เป็น migration/exception path ที่ปิดด้วย `LLGW_PAYMENT_WEBHOOK_ENABLED`
 - ดู balance ตาม Store scope
 - เรียก payout prototype ที่ถูกจำกัดด้วย session และ role
 
-`DeveloperConsoleView.tsx` เป็นเครื่องมือทดลอง endpoint และดู developer logs สำหรับผู้ใช้ที่ผ่าน server session แล้ว. Frontend route guard เป็นเพียง UX; authorization จริงเกิดที่ `server.cjs` และ API จะไม่รับ browser API key หรือ token ที่สร้างจาก `/api/v1/auth` ซึ่งถูก deprecate แล้ว
+`DeveloperConsoleView.tsx` เป็นเครื่องมือทดลอง endpoint และดู developer logs สำหรับผู้ใช้ที่ผ่าน server session แล้ว. ตัวอย่างหรือ Bearer API key ที่กรอกใน Playground เป็น compatibility testing สำหรับการจำลอง server-to-server เท่านั้น ไม่ใช่ authentication path ของ Merchant Home; Home ต้องใช้ HttpOnly session กับ `/api/db/*`. Frontend route guard เป็นเพียง UX, authorization จริงเกิดที่ `server.cjs`, browser token minting จาก `/api/v1/auth` ถูกปิดด้วย `410 API_TOKEN_DEPRECATED` และห้าม persist API key ใน `localStorage`, cookie หรือ source code
 
 ## API reference ภายใน
 
@@ -446,6 +468,14 @@ API ปัจจุบันมี `GET /api/db/kyc` และ `POST /api/db/kyc
 | `POST` | `/auth/register-pd` | สมัคร PD |
 | `GET` | `/health` | ตรวจการเชื่อมต่อฐานข้อมูล |
 | `GET` | `/stats` | ดึงสถิติภาพรวม |
+| `GET` | `/home?storeId=` | Merchant Home read model; gated ด้วย `MERCHANT_HOME_CONTRACT_ENABLED` |
+| `GET` | `/capabilities?storeId=` | อ่าน Home capability flags |
+| `GET` | `/benefits?storeId=&page=&limit=` | อ่าน active benefits |
+| `GET` | `/notifications?storeId=&page=&limit=&category=&unreadOnly=` | อ่าน Store/recipient-scoped notifications |
+| `POST` | `/notifications/:id/read?storeId=` | mark notification read |
+| `POST` | `/notifications/read-all?storeId=` | mark notifications read ทั้งหมด |
+| `GET` | `/stoppay?storeId=` | อ่าน STOPPAY state และ transitions |
+| `POST` | `/stoppay` | ทำ STOPPAY transition พร้อม idempotency |
 | `GET` | `/kyc` | ดึง KYC cases |
 | `POST` | `/kyc/update-status` | เปลี่ยนสถานะ KYC |
 | `GET` | `/stores` | ดึงร้านค้า |
@@ -464,8 +494,8 @@ API ปัจจุบันมี `GET /api/db/kyc` และ `POST /api/db/kyc
 | `GET` | `/payments/:reference` | ตรวจสถานะธุรกรรม |
 | `POST` | `/payments/confirm` | ยืนยัน payment |
 | `GET` | `/balance` | ดู balance และจำนวนธุรกรรม |
-| `POST` | `/transactions` | ส่งคำสั่งสร้าง transaction ไปยัง PD/Agent Backoffice พร้อม idempotency |
-| `GET` | `/transactions/:reference` | อ่าน transaction status ตาม Store ownership |
+| `POST` | `/transactions` | local browser/session command ส่งต่อไปยัง PD/Agent Backoffice เมื่อ routing เปิด พร้อม idempotency |
+| `GET` | `/transactions/:reference` หรือ `/transactions/:reference/payment` | local transaction query ตาม Store ownership; อาจ forward ไป external query path เมื่อ routing เปิด |
 | `POST` | `/kyc/cases/:caseId/otp` | ขอ OTP สำหรับ KYC case; Merchant-only และตอบ `503 NOT_READY` จนกว่า provider พร้อม |
 | `POST` | `/kyc/cases/:caseId/otp/verify` | ตรวจ OTP สำหรับ KYC case; Merchant-only |
 | `POST` | `/auth` | deprecated; browser token minting ถูกปิดด้วย `410 API_TOKEN_DEPRECATED` |
@@ -479,7 +509,7 @@ await fetch('/api/db/health')
 await fetch('/api/v1/transactions/PAY-REF-100293', { credentials: 'include' })
 ```
 
-Local signed payment callback จาก LLGW ใช้ `POST /api/webhooks/llgw/payment` พร้อม raw-body HMAC, timestamp และ event ID; callback นี้เป็น server-to-server route จึงไม่ใช้ browser session. Normalized payment-status callback จาก PD/Agent ใช้ `POST /api/webhooks/payment-status` พร้อม raw-body HMAC แบบเดียวกับ Assignment callback, event dedupe และ state projection แต่ยังปิดด้วย feature flag จนกว่า external contract จะผ่าน staging. Assignment callback จากระบบ PD/Agent ใช้ `POST /api/webhooks/assignment-status` ด้วย signature contract เดียวกันตาม Integration Guide
+External target payment command/query ใช้ signed Merchant API ตาม [CHATPOS Client Integration Guide](CHATPOS_CLIENT_INTEGRATION_GUIDE.md) และไม่ใช่ Browser session route. Local signed payment callback จาก LLGW ใช้ `POST /api/webhooks/llgw/payment` พร้อม raw-body HMAC, timestamp และ event ID; callback นี้เป็น server-to-server route จึงไม่ใช้ browser session. Normalized payment-status callback จาก PD/Agent ใช้ `POST /api/webhooks/payment-status` พร้อม `X-ChatPOS-Event-Id`, `X-ChatPOS-Event-Type: payment.status.changed`, `X-ChatPOS-Timestamp` และ `X-ChatPOS-Signature`; header event type ต้องตรงกับ `body.eventType`, ใช้ raw-body HMAC, event dedupe และ state projection แต่ยังปิดด้วย feature flag จนกว่า external contract จะผ่าน staging. Assignment callback จากระบบ PD/Agent ใช้ `POST /api/webhooks/assignment-status` พร้อม `X-ChatPOS-Event-Type: assignment.status.changed` และ signature contract เดียวกันตาม Integration Guide. Local LLGW exception ใช้ `X-LLGW-*` headers และไม่ใช้ `X-ChatPOS-Event-Type`
 
 ### Signed Backoffice Client
 

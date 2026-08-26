@@ -328,7 +328,7 @@ const server = http.createServer(async (req, res) => {
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PATCH, PUT, DELETE, OPTIONS');
     res.setHeader(
       'Access-Control-Allow-Headers',
-      'Content-Type, Authorization, Idempotency-Key, X-Request-Id, X-ChatPOS-Event-Id, X-ChatPOS-Timestamp, X-ChatPOS-Signature, X-LLGW-Event-Id, X-LLGW-Timestamp, X-LLGW-Signature'
+      'Content-Type, Authorization, Idempotency-Key, X-Request-Id, X-ChatPOS-Event-Id, X-ChatPOS-Event-Type, X-ChatPOS-Timestamp, X-ChatPOS-Signature, X-LLGW-Event-Id, X-LLGW-Timestamp, X-LLGW-Signature'
     );
 
     if (req.method === 'OPTIONS') {

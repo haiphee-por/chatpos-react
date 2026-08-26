@@ -129,7 +129,7 @@ export function App() {
   if (pathname === '/merchant' || pathname.startsWith('/merchant/')) {
     if (!sessionReady) return null
     if (!currentUser) return <LandingPageView />
-    return <MerchantView />
+    return <MerchantView currentUser={currentUser} />
   }
 
   // 8. Default Pre-Login Landing & Interactive Sign-In Screen (/, /login, /landing)

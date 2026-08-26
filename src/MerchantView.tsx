@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { ProfileSettingsModal } from './ProfileSettingsModal'
 import { MerchantKycView } from './MerchantKycView'
 import { DeveloperConsoleView } from './DeveloperConsoleView'
-import { fetchDbAssignments, fetchDbProducts, fetchDbStoresResult, getStoredUser, clearStoredUser, logoutUser, type AuthUser, type DbAssignmentRow, type DbStoreRow } from './dbApi'
+import { fetchDbAssignments, fetchDbProducts, fetchDbStoresResult, clearStoredUser, logoutUser, type AuthUser, type DbAssignmentRow, type DbStoreRow } from './dbApi'
 import { MerchantHome as MerchantHomeDashboard, MerchantBottomNavigation, type StoreLoadState } from './MerchantHomeView'
 import { merchantNavItems } from './merchantNavigation'
 import { generatePromptPayQrDataUrl, generateUrlQrDataUrl, getStoredPromptPayId, setStoredPromptPayId } from './promptpay'
@@ -288,7 +288,7 @@ const initialPaidList: PaidTransaction[] = [
   { id: 'tx-3', method: 'รับชำระเงิน POS - เงินสด', customer: 'ลูกค้าหน้าร้าน · 22 ก.ค. 2569, 12:45 น.', amount: 250, status: 'paid' }
 ]
 
-export function MerchantView() {
+export function MerchantView({ currentUser }: { currentUser: AuthUser | null }) {
   const getInitialTab = () => {
     const hash = window.location.hash.replace('#', '').trim()
     if (hash && navItems.some((item) => item.id === hash)) return hash
@@ -303,7 +303,6 @@ export function MerchantView() {
   const [profileModalOpen, setProfileModalOpen] = useState(false)
 
   // Real Database Session & Store State
-  const [currentUser] = useState<AuthUser | null>(() => getStoredUser())
   const [selectedStore, setSelectedStore] = useState<DbStoreRow | null>(null)
   const [availableStores, setAvailableStores] = useState<DbStoreRow[]>([])
   const [storeState, setStoreState] = useState<StoreLoadState>({ status: 'loading', error: null, fetchedAt: null })
@@ -460,9 +459,9 @@ export function MerchantView() {
   )
 
   return (
-    <div className="merchant-app">
-      {sidebar}
-      {mobileOpen && (
+    <div className={`merchant-app ${active === 'home' ? 'merchant-app-home' : ''}`}>
+      {active !== 'home' && sidebar}
+      {active !== 'home' && mobileOpen && (
         <div className="merchant-mobile">
           <button className="merchant-backdrop" aria-label="ปิดเมนู" onClick={() => setMobileOpen(false)} type="button" />
           <div>
@@ -474,7 +473,7 @@ export function MerchantView() {
         </div>
       )}
       <div className="merchant-main">
-        <header className="merchant-topbar">
+        {active !== 'home' && <header className="merchant-topbar">
           <button className="merchant-menu-button" aria-label="เปิดเมนู" onClick={() => setMobileOpen(true)} type="button">
             <Menu size={20} />
           </button>
@@ -488,15 +487,17 @@ export function MerchantView() {
             </button>
             <div className="merchant-top-avatar">PB</div>
           </div>
-        </header>
-        <main className="merchant-content">
+        </header>}
+        <main className={`merchant-content ${active === 'home' ? 'merchant-home-content' : ''}`}>
           {active === 'home' ? (
             <MerchantHomeDashboard
               onNavigate={navigate}
               storeId={selectedStore?.id || currentUser?.store?.id || null}
               selectedStore={selectedStore}
               currentUser={currentUser}
+              availableStores={availableStores}
               storeState={storeState}
+              onStoreChange={handleStoreChange}
               onRetryStores={loadStores}
               onOpenProfile={() => setProfileModalOpen(true)}
             />
