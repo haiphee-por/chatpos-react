@@ -39,6 +39,12 @@ const {
   verifyKycOtp,
 } = require('./server/integration/otpService.cjs');
 const {
+  boundedInteger,
+  getStoppayTransition,
+  getTransactionFilters,
+  stoppayTransitions,
+} = require('./server/integration/merchantHomeContract.cjs');
+const {
   SecurityError,
   assertCaseAccess,
   assertRole,
@@ -56,6 +62,7 @@ const {
 dotenv.config();
 
 const port = process.env.API_PORT || 3001;
+const merchantHomeContractEnabled = process.env.MERCHANT_HOME_CONTRACT_ENABLED === 'true';
 const configuredDatabaseName = (() => {
   if (process.env.PGDATABASE) return process.env.PGDATABASE;
   try {
@@ -116,7 +123,33 @@ const metrics = {
   requests: 0,
   errors: 0,
   rateLimited: 0,
+  merchantHome: {
+    requests: 0,
+    errors: 0,
+    totalLatencyMs: 0,
+    statusCodes: {},
+  },
 };
+
+function isMerchantHomeRoute(requestPath) {
+  return requestPath === '/api/db/home'
+    || requestPath === '/api/db/capabilities'
+    || requestPath === '/api/db/benefits'
+    || requestPath === '/api/db/notifications'
+    || requestPath === '/api/db/notifications/read-all'
+    || requestPath === '/api/db/stoppay'
+    || /^\/api\/db\/notifications\/[^/]+\/read$/.test(requestPath);
+}
+
+function recordMerchantHomeResponse(requestPath, statusCode, startedAt) {
+  if (!isMerchantHomeRoute(requestPath)) return;
+  const status = String(statusCode || 500);
+  const homeMetrics = metrics.merchantHome;
+  homeMetrics.requests += 1;
+  homeMetrics.totalLatencyMs += Date.now() - startedAt;
+  homeMetrics.statusCodes[status] = (homeMetrics.statusCodes[status] || 0) + 1;
+  if (Number(status) >= 400) homeMetrics.errors += 1;
+}
 
 function crc16(data) {
   let crc = 0xffff;
@@ -271,34 +304,10 @@ function requestQuery(url) {
   return new URL(`http://127.0.0.1${url}`).searchParams;
 }
 
-function boundedInteger(value, fallback, min, max) {
-  const parsed = Number.parseInt(value, 10);
-  return Number.isInteger(parsed) ? Math.min(max, Math.max(min, parsed)) : fallback;
-}
-
 function requestIdempotencyKey(req, body = {}) {
   return String(req.headers['idempotency-key'] || body.idempotencyKey || '').trim();
 }
 
-const stoppayTransitions = {
-  merchant: {
-    request_pause: { from: ['ACTIVE'], to: 'PAUSE_REQUESTED' },
-    request_resume: { from: ['PAUSED'], to: 'RESUME_REQUESTED' },
-    request_recovery: { from: ['SUSPENDED'], to: 'RECOVERY_REQUESTED' },
-  },
-  admin: {
-    approve_pause: { from: ['PAUSE_REQUESTED'], to: 'PAUSED' },
-    approve_resume: { from: ['RESUME_REQUESTED'], to: 'ACTIVE' },
-    suspend: { from: ['ACTIVE', 'PAUSED', 'RESUME_REQUESTED'], to: 'SUSPENDED' },
-    restore: { from: ['RECOVERY_REQUESTED', 'SUSPENDED'], to: 'ACTIVE' },
-  },
-  compliance: {
-    approve_pause: { from: ['PAUSE_REQUESTED'], to: 'PAUSED' },
-    approve_resume: { from: ['RESUME_REQUESTED'], to: 'ACTIVE' },
-    suspend: { from: ['ACTIVE', 'PAUSED', 'RESUME_REQUESTED'], to: 'SUSPENDED' },
-    restore: { from: ['RECOVERY_REQUESTED', 'SUSPENDED'], to: 'ACTIVE' },
-  },
-};
 
 const server = http.createServer(async (req, res) => {
   const url = req.url || '';
@@ -335,10 +344,20 @@ const server = http.createServer(async (req, res) => {
     }
 
     metrics.requests += 1;
+    const requestStartedAt = Date.now();
+    const originalEnd = res.end.bind(res);
+    res.end = (...args) => {
+      recordMerchantHomeResponse(requestPath, res.statusCode, requestStartedAt);
+      return originalEnd(...args);
+    };
     try {
       let principal = null;
       if (!isPublicApiRequest(requestPath, req.method)) {
         principal = await getPrincipal({ pool, req });
+      }
+
+      if (isMerchantHomeRoute(requestPath) && !merchantHomeContractEnabled) {
+        throw new SecurityError('Merchant Home contract is disabled', 'FEATURE_DISABLED', 404);
       }
 
       if (requestPath === '/api/health/live' && req.method === 'GET') {
@@ -1204,7 +1223,7 @@ const server = http.createServer(async (req, res) => {
           throw new SecurityError('Idempotency-Key is required', 'IDEMPOTENCY_KEY_REQUIRED', 400);
         }
         const action = String(body.action || '').trim();
-        const transition = stoppayTransitions[principal.role]?.[action];
+        const transition = getStoppayTransition(principal.role, action);
         if (!transition) throw new SecurityError('STOPPAY action is not allowed for this role', 'STOPPAY_ACTION_FORBIDDEN', 403);
         const storeId = await resolveAuthorizedStore({ principal, requestedStoreId: body.storeId });
         const client = await pool.connect();
@@ -1224,7 +1243,8 @@ const server = http.createServer(async (req, res) => {
           await client.query(`INSERT INTO merchant_stoppay_controls ("storeId") VALUES ($1) ON CONFLICT ("storeId") DO NOTHING`, [storeId]);
           const current = await client.query(`SELECT status, reason, "version" FROM merchant_stoppay_controls WHERE "storeId" = $1 FOR UPDATE`, [storeId]);
           const currentState = current.rows[0];
-          if (!transition.from.includes(currentState.status)) throw new SecurityError(`STOPPAY cannot transition from ${currentState.status}`, 'STOPPAY_INVALID_TRANSITION', 409);
+          const validTransition = getStoppayTransition(principal.role, action, currentState.status);
+          if (!validTransition) throw new SecurityError(`STOPPAY cannot transition from ${currentState.status}`, 'STOPPAY_INVALID_TRANSITION', 409);
           const reason = String(body.reason || '').trim().slice(0, 1000) || null;
           const eventId = crypto.randomUUID();
           await client.query(`
@@ -1580,14 +1600,9 @@ const server = http.createServer(async (req, res) => {
         } else {
           assertRole(principal, ['admin', 'compliance']);
         }
-        const filterValues = [
-          ['status', ['pending', 'processing', 'completed', 'paid', 'succeeded', 'settled', 'failed', 'refunded', 'cancelled']],
-          ['channel', ['promptpay', 'cash', 'card', 'bank_transfer', 'wallet']],
-          ['transactionType', ['payment', 'refund', 'payout', 'adjustment']],
-        ];
-        filterValues.forEach(([key, allowed]) => {
-          const value = query.get(key);
-          if (value && allowed.includes(value)) {
+        const transactionFilters = getTransactionFilters(query);
+        Object.entries(transactionFilters).forEach(([key, value]) => {
+          if (value) {
             transactionScopeValues.push(value);
             filters.push(`t."${key}" = $${transactionScopeValues.length}`);
           }
@@ -1716,10 +1731,10 @@ const server = http.createServer(async (req, res) => {
               netAmount,
               channel,
               'completed',
-              transactionType,
               targetStoreId,
               principal.id,
               'THB',
+              transactionType,
               'SERVED',
               origin,
               paymentMethod,

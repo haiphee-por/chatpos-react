@@ -370,10 +370,10 @@ Backend implementation รอบนี้กำหนด contract ภายใ�
 
 ### QA / Security / Operations
 
-- [ ] ทดสอบ mobile 390/430px, desktop และ browser refresh ทุก target menu
-- [ ] ทดสอบ unauthorized, wrong Store, role mismatch, expired session และ revoked session
-- [ ] ทดสอบ duplicate click, retry, timeout, stale response และ notification race condition
+- [~] ทดสอบ mobile 390/430px, desktop และ browser refresh ทุก target menu; matrix อยู่ใน [Merchant Home QA Runbook](MERCHANT_HOME_QA_RUNBOOK.md) และยังรอ browser evidence
+- [~] ทดสอบ unauthorized, wrong Store, role mismatch, expired session และ revoked session; contract boundary tests ผ่านแล้ว แต่ PostgreSQL session matrix ยัง pending
+- [~] ทดสอบ duplicate click, retry, timeout, stale response และ notification race condition; idempotent contract replay test ผ่านแล้ว แต่ DB/race test ยัง pending
 - [ ] ตรวจไม่ให้ยอดเงิน, token, secret หรือ PII หลุดใน localStorage, URL, console และ log
 - [ ] เพิ่ม E2E evidence สำหรับ POS, wallet, transaction history, orders, services, salespage และ settings
-- [ ] เพิ่ม monitoring ของ home API latency/error rate และ owner สำหรับ incident
-- [ ] เตรียม feature flag, rollout checklist, rollback และ support/runbook ก่อนเปิดให้ร้านค้าจริง
+- [x] เพิ่ม monitoring aggregate ของ Home API latency/error/status และกำหนด incident owner ใน [Merchant Home QA Runbook](MERCHANT_HOME_QA_RUNBOOK.md)
+- [x] เตรียม default-off feature flag, rollout checklist, rollback และ support/runbook ใน [Merchant Home QA Runbook](MERCHANT_HOME_QA_RUNBOOK.md)

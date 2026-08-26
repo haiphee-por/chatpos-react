@@ -153,7 +153,7 @@ export function ProfileSettingsModal({
   const handleSaveApiKey = (e: React.FormEvent) => {
     e.preventDefault()
     setStoredApiKey(apiKeyInput)
-    setToastMessage('บันทึก Bearer API Key เรียบร้อยแล้ว! 🔑')
+    setToastMessage('API Key จะถูกใช้ชั่วคราวและไม่ถูกบันทึกในเบราว์เซอร์')
     setTimeout(() => setToastMessage(null), 2500)
   }
 

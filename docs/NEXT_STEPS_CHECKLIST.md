@@ -34,7 +34,7 @@
 - [~] **P1 / Frontend + Backend:** store name, Merchant ID, counts และยอดรับที่คำนวณได้ใช้ข้อมูลจริงพร้อม retry/stale state แล้ว; balance aggregate และ notification persistence ยังรอ backend contract
 - [~] **P1 / Backend + Payment/Finance:** implement transaction history semantics และ STOPPAY transition contract แล้ว; revenue/wallet/billing source กับ Finance/Payment sign-off ยัง pending
 - [~] **P1 / Frontend:** เพิ่ม target และ placeholder สำหรับ transactions, benefits และ STOPPAY แล้ว; dedicated workflow/action จริงยังรอ backend/product policy
-- [ ] **P1 / QA + Security:** ทดสอบ viewport, role/Store isolation, session expiry, balance masking, notification idempotency, accessibility และไม่ให้ secret/PII หลุด client/log
+- [~] **P1 / QA + Security:** เพิ่ม contract tests, default-off Home flag, aggregate Home metrics และ [Merchant Home QA Runbook](MERCHANT_HOME_QA_RUNBOOK.md) แล้ว; PostgreSQL permission matrix, browser evidence และ leakage inspection ยัง pending
 - [ ] **เสร็จเมื่อ:** เมนูในภาพทุกตัวมี target และ capability ที่ยืนยันแล้ว, ข้อมูลสำคัญมาจาก server, visual/interaction evidence ผ่าน mobile+desktop และ Product/Design/Backend/QA sign-off
 
 ## Phase 0: ยืนยัน contract และขอบเขต
@@ -101,8 +101,8 @@
 - [~] **P0 / Security:** เพิ่ม rate limiting, restricted CORS, secure headers, quarantine/scanner adapter และ secret rotation/revoke แล้ว; encryption at rest ต้องยืนยันจาก private storage/PostgreSQL deployment ก่อน Go-Live
 - [~] **P0 / Audit:** ทำ audit log สำหรับ login, เปิดดู, document, แก้ไข, assignment, status, approval, payment และ settlement พร้อม redaction แล้ว; ยังต้องตรวจ coverage ดาวน์โหลดและ retention กับ Compliance
 - [x] **P1 / Reliability:** เพิ่ม durable settlement retry ด้วย database claim, backoff, stale-lock recovery และ dead-letter status; callback staging failure/recovery ยังต้องทดสอบ
-- [ ] **P1 / Tests:** เพิ่ม integration/E2E tests บน PostgreSQL จริงสำหรับ permission matrix, idempotency, version conflict, webhook dedupe และ payment ownership
-- [ ] **P1 / Operations:** เพิ่ม health check, metrics, alert owner, runbook, backup/restore และ incident procedure ที่ redact PII
+- [~] **P1 / Tests:** เพิ่ม focused Merchant Home contract tests แล้ว; integration/E2E บน PostgreSQL จริงสำหรับ permission matrix, idempotency, version conflict, webhook dedupe และ payment ownership ยัง pending
+- [~] **P1 / Operations:** เพิ่ม Home aggregate metrics, default-off flag, alert thresholds, rollout/rollback/support procedure ใน [Merchant Home QA Runbook](MERCHANT_HOME_QA_RUNBOOK.md); backup/restore rehearsal และ owner/contact sign-off ยัง pending
 - [ ] **เสร็จเมื่อ:** checklist ส่วน Go-Live ด้านล่างผ่านครบ และ Product/Compliance/Security/Backoffice sign-off แล้ว
 
 ## Client Go-Live evidence

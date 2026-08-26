@@ -108,7 +108,7 @@ export function DeveloperConsoleView({ embedded = false }: { embedded?: boolean 
 
   // 2. Webhook Settings State
   const [webhookUrl, setWebhookUrl] = useState('https://myshop-backend.com/api/webhooks/chatpos')
-  const [webhookSecret, setWebhookSecret] = useState('whsec_9a87f1c4e09b8214fa73d61b9a2c3f81')
+  const [webhookSecret, setWebhookSecret] = useState('')
   const [isSecretVisible, setIsSecretVisible] = useState(false)
   const [subscribedEvents, setSubscribedEvents] = useState<string[]>([
     'payment.created',

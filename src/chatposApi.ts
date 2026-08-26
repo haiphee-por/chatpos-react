@@ -13,18 +13,17 @@ export const DEFAULT_API_BASE_URL =
     : 'https://chatpos.biz'
 
 /**
- * Get saved API Key from localStorage
+ * API keys are intentionally never restored from browser storage.
  */
 export const getStoredApiKey = (): string => {
   return ''
 }
 
 /**
- * Save API Key to localStorage
+ * Keep the legacy API surface without persisting credentials.
  */
 export const setStoredApiKey = (key: string): void => {
-  if (typeof window === 'undefined') return
-  localStorage.removeItem(STORAGE_KEY_API_KEY)
+  void key
 }
 
 export type ApiRequestOptions = RequestInit & {
