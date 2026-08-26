@@ -2,7 +2,7 @@
 
 รายการนี้เป็น checklist กลางสำหรับงานที่ต้องทำต่อของ ChatPOS และ integration กับ `chatpos.biz`, Agent/PD Backoffice และ LLGW แบ่งตาม dependency, owner และ Definition of Done
 
-> สถานะ sync ล่าสุด: 2026-08-20
+> สถานะ sync ล่าสุด: 2026-08-26
 >
 > - `[x]` implementation และหลักฐานตรวจในเครื่องครบสำหรับรายการนั้น แต่ยังไม่หมายถึง external sign-off หรือ production approval
 > - `[~]` มี implementation บางส่วนแล้ว แต่ยังขาด persistence, contract, test scope หรือ owner sign-off ที่จำเป็น
@@ -20,6 +20,22 @@
 - รายละเอียด API contract และตัวอย่าง signing อยู่ใน [CHATPOS Client Integration Guide](CHATPOS_CLIENT_INTEGRATION_GUIDE.md) ซึ่งต้องสอดคล้องกับ handoff
 - รายละเอียด architecture และจุดแก้ใน repository อยู่ใน [Developer Guide](DEVELOPER_GUIDE.md)
 - Phase 0 contract matrix, decision record และ sign-off template อยู่ใน [Phase 0 Contract Decision Record](PHASE_0_CONTRACT_DECISION_RECORD.md)
+- Roadmap หน้าหลัก Merchant ตามภาพอ้างอิง, menu mapping และ checklist รายละเอียดอยู่ใน [Merchant Home Roadmap](MERCHANT_HOME_ROADMAP.md)
+
+## Merchant Home ตามภาพอ้างอิง: Product surface และ navigation
+
+รายการนี้เป็นงาน product/frontend/backend เพิ่มเติมจาก integration phases โดยรายละเอียด, baseline, open questions และ Definition of Done อยู่ใน [Merchant Home Roadmap](MERCHANT_HOME_ROADMAP.md)
+
+- [x] **P0 / Product + Design:** บันทึก working scope ว่าภาพอ้างอิงคือ authenticated `/merchant#home` และ public `/` ยังคงเป็น marketing landing; formal Product sign-off ยังเป็น dependency
+- [~] **P0 / Product:** มี role-based owner และ proposed behavior ของ STOPPAY, ประวัติธุรกรรม, สิทธิพิเศษ, รายรับ และบิลแล้ว แต่ยังต้อง assign owner รายบุคคลและยืนยัน policy
+- [ ] **P0 / Frontend:** ทำ navigation map กลางให้ sidebar, quick-action cards และ bottom navigation ใช้ target/permission ชุดเดียวกัน; แก้ salespage และ placeholder mapping ที่ผิด
+- [ ] **P0 / Backend:** ยืนยัน home read model สำหรับ store context, balance summary, unread notifications, counts, capabilities และ freshness โดยตรวจ session/Store ownership ที่ server
+- [~] **P0 / Frontend + Design:** มี annotated wireframe, responsive rules, state matrix และ visual/accessibility acceptance criteria แล้ว; การปรับ UI และ screenshot evidence ยังรอ implementation
+- [ ] **P1 / Frontend + Backend:** เปลี่ยน store name, Merchant ID, balance, revenue, counts และ notifications จาก mock/hardcode เป็นข้อมูลจริง พร้อม retry/stale state
+- [ ] **P1 / Backend + Payment/Finance:** ออกแบบ transaction history, revenue/wallet/billing semantics และ STOPPAY state transition ก่อนเปิด action จริง
+- [ ] **P1 / Frontend:** เพิ่ม/เชื่อม dedicated transactions, benefits และ STOPPAY view หรือบันทึก decision ว่าจะรวมใน view เดิม
+- [ ] **P1 / QA + Security:** ทดสอบ viewport, role/Store isolation, session expiry, balance masking, notification idempotency, accessibility และไม่ให้ secret/PII หลุด client/log
+- [ ] **เสร็จเมื่อ:** เมนูในภาพทุกตัวมี target และ capability ที่ยืนยันแล้ว, ข้อมูลสำคัญมาจาก server, visual/interaction evidence ผ่าน mobile+desktop และ Product/Design/Backend/QA sign-off
 
 ## Phase 0: ยืนยัน contract และขอบเขต
 
