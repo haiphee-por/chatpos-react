@@ -34,8 +34,6 @@ interface RoleConfig {
   features: string[]
   registerPath?: string
   registerLabel?: string
-  demoEmail: string
-  demoPassword: string
   mockStats: {
     primaryValue: string
     primaryLabel: string
@@ -66,8 +64,6 @@ const merchantConfig: RoleConfig = {
   ],
   registerPath: '/merchant/register',
   registerLabel: 'ลงทะเบียนเปิดร้านค้าใหม่ (Merchant)',
-  demoEmail: 'merchant@chatpos.com',
-  demoPassword: 'password123',
   mockStats: {
     primaryValue: '฿18,450',
     primaryLabel: 'ยอดขายวันนี้ (142 ออเดอร์)',
@@ -91,12 +87,6 @@ export function LoginView({ role: _role = 'merchant' }: { role?: Role | string }
   const [, startTransition] = useTransition()
 
   const config = merchantConfig
-
-  const handleFillDemo = () => {
-    setEmail(config.demoEmail)
-    setPassword(config.demoPassword)
-    setError('')
-  }
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -276,23 +266,6 @@ export function LoginView({ role: _role = 'merchant' }: { role?: Role | string }
                 </p>
               </div>
 
-              {/* 1-Click Demo Helper */}
-              <div className="demo-helper-bar">
-                <div className="demo-helper-info">
-                  <KeyRound size={14} className="demo-icon" />
-                  <span>ทดสอบระบบรวดเร็วด้วยข้อมูล Demo</span>
-                </div>
-                <button
-                  type="button"
-                  className="demo-fill-btn"
-                  onClick={handleFillDemo}
-                  title="เติมอีเมลและรหัสผ่านตัวอย่างให้อัตโนมัติ"
-                >
-                  <Sparkles size={13} />
-                  <span>เติมข้อมูล Demo</span>
-                </button>
-              </div>
-
               {/* Login Form */}
               <form className="auth-form" onSubmit={handleSubmit}>
                 {/* Email / Username Field */}
@@ -310,7 +283,7 @@ export function LoginView({ role: _role = 'merchant' }: { role?: Role | string }
                       name="email"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      placeholder={config.demoEmail}
+                      placeholder="merchant@example.com"
                       autoComplete="username"
                       required
                     />

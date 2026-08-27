@@ -42,12 +42,6 @@ export function LandingPageView() {
   const [forgotModalOpen, setForgotModalOpen] = useState(false)
   const [, startTransition] = useTransition()
 
-  const handleFillDemo = () => {
-    setEmail('merchant@chatpos.com')
-    setPassword('password123')
-    setError('')
-  }
-
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     setError('')
@@ -229,12 +223,6 @@ export function LandingPageView() {
             <div className="chatpos-hero-buttons">
               <a href="/merchant/register" className="chatpos-cta-btn-green">
                 ทดลองใช้งานฟรี (Free Trial)
-              </a>
-              <a href="/merchant" className="chatpos-cta-btn-demo">
-                <div className="chatpos-play-circle">
-                  <Play size={12} fill="#0d7b51" color="#0d7b51" />
-                </div>
-                <span>ทดลองเล่นระบบสด (Live Interactive Demo)</span>
               </a>
             </div>
 
@@ -782,10 +770,6 @@ export function LandingPageView() {
                 <Store size={18} />
                 <span>สมัครใช้งานฟรี (Free Trial)</span>
               </a>
-              <a href="/merchant" className="chatpos-btn-trial-white">
-                <Play size={14} fill="#0d7b51" color="#0d7b51" />
-                <span>ทดลองเล่นระบบสด (Live Demo)</span>
-              </a>
             </div>
           </div>
 
@@ -910,14 +894,6 @@ export function LandingPageView() {
               <p>จัดการระบบขายหน้าร้าน (POS), สต็อก, เซลเพจ และคิวจองบริการ</p>
             </div>
 
-            {/* Demo Autofill Helper */}
-            <div className="modal-demo-autofill">
-              <span>ทดสอบระบบรวดเร็วด้วยข้อมูล Demo</span>
-              <button type="button" onClick={handleFillDemo}>
-                <Sparkles size={12} /> เติมข้อมูล Demo
-              </button>
-            </div>
-
             <form onSubmit={handleSubmit} className="modal-login-form">
               <div className="modal-form-group">
                 <label>อีเมล หรือ บัญชีผู้ใช้งาน</label>
@@ -927,7 +903,7 @@ export function LandingPageView() {
                     type="text"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    placeholder="merchant@chatpos.com"
+                    placeholder="merchant@example.com"
                     required
                   />
                 </div>

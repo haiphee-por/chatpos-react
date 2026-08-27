@@ -203,38 +203,6 @@
   box-shadow: 0 6px 18px rgba(13, 123, 81, 0.42);
 }
 
-.chatpos-cta-btn-demo {
-  background: #ffffff;
-  color: #0f172a;
-  font-size: 14px;
-  font-weight: 700;
-  padding: 11px 22px;
-  border-radius: 999px;
-  text-decoration: none;
-  border: 1.5px solid #cbd5e1;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  transition: all 0.2s ease;
-}
-
-.chatpos-cta-btn-demo:hover {
-  background: #f8fafc;
-  border-color: #94a3b8;
-  transform: translateY(-2px);
-}
-
-.chatpos-play-circle {
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  background: #dcfce7;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
 .chatpos-hero-note {
   font-size: 12px;
   color: #94a3b8;
@@ -1350,27 +1318,6 @@
   transform: translateY(-2px);
 }
 
-.chatpos-btn-trial-white {
-  background: #ffffff;
-  color: #0f172a;
-  font-size: 14px;
-  font-weight: 700;
-  padding: 12px 24px;
-  border-radius: 12px;
-  text-decoration: none;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  border: 1px solid #cbd5e1;
-  transition: all 0.15s ease;
-}
-
-.chatpos-btn-trial-white:hover {
-  background: #f8fafc;
-  transform: translateY(-2px);
-}
-
 .chatpos-support-channels-card {
   background: #ffffff;
   border: 1px solid #e2e8f0;
@@ -1631,30 +1578,6 @@
   font-size: 12px;
   color: #64748b;
   margin: 0;
-}
-
-.modal-demo-autofill {
-  background: #ecfdf5;
-  border: 1px solid #a7f3d0;
-  border-radius: 10px;
-  padding: 8px 12px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  font-size: 11px;
-  color: #065f46;
-  font-weight: 700;
-}
-
-.modal-demo-autofill button {
-  background: #0d7b51;
-  color: #ffffff;
-  border: 0;
-  border-radius: 6px;
-  padding: 4px 10px;
-  font-size: 10px;
-  font-weight: 700;
-  cursor: pointer;
 }
 
 .modal-login-form {

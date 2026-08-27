@@ -592,54 +592,6 @@
   transform: scale(1.1);
 }
 
-/* ── 1-Click Demo Helper Bar ──────────────────────────────────────────── */
-.demo-helper-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 10px 14px;
-  border-radius: var(--auth-radius-sm);
-  background: #f0fdf4;
-  border: 1px dashed #86efac;
-  margin-bottom: 20px;
-}
-
-.demo-helper-info {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: #166534;
-  font-size: 11px;
-  font-weight: 700;
-}
-
-.demo-icon {
-  color: #059669;
-  flex-shrink: 0;
-}
-
-.demo-fill-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 5px 10px;
-  border: 0;
-  border-radius: 6px;
-  background: #059669;
-  color: #ffffff;
-  font-size: 11px;
-  font-weight: 800;
-  cursor: pointer;
-  transition: background 0.15s ease, transform 0.15s ease;
-  white-space: nowrap;
-}
-
-.demo-fill-btn:hover {
-  background: #047857;
-  transform: scale(1.02);
-}
-
 /* ── Auth Form & Inputs ───────────────────────────────────────────────── */
 .auth-form {
   display: flex;
@@ -1181,17 +1133,6 @@
 
   .auth-role-segmented {
     grid-template-columns: repeat(2, 1fr);
-  }
-
-  .demo-helper-bar {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 8px;
-  }
-
-  .demo-fill-btn {
-    width: 100%;
-    justify-content: center;
   }
 
   .auth-register-card {
