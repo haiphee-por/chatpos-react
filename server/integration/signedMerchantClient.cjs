@@ -5,6 +5,7 @@ const DEFAULT_MAX_RETRIES = 3;
 const DEFAULT_RETRY_BASE_DELAY_MS = 250;
 const DEFAULT_MAX_RETRY_DELAY_MS = 30000;
 const DEFAULT_TIMESTAMP_TOLERANCE_SECONDS = 300;
+const DEFAULT_DOCUMENT_LINK_TTL_SECONDS = 86400;
 const NONCE_PATTERN = /^[A-Za-z0-9_-]{16,128}$/;
 const RETRYABLE_NETWORK_CODES = new Set([
   'ECONNRESET',
@@ -84,6 +85,7 @@ function loadBackofficeConfig(env = process.env) {
     assignmentEnabled: parseBoolean(env.AGENT_PD_ASSIGNMENT_ENABLED, false),
     profileUpdateEnabled: parseBoolean(env.MERCHANT_PROFILE_UPDATE_ENABLED, false),
     kycDocumentEnabled: parseBoolean(env.KYC_DOCUMENT_INTAKE_ENABLED, false),
+    documentLinkTtlSeconds: parsePositiveInteger(env.KYC_DOCUMENT_LINK_TTL_SECONDS, DEFAULT_DOCUMENT_LINK_TTL_SECONDS),
     transactionRoutingEnabled: parseBoolean(env.TRANSACTION_ROUTING_ENABLED, false),
     transactionQueryRoutingEnabled: parseBoolean(env.TRANSACTION_QUERY_ROUTING_ENABLED, false),
     transactionCommandPath: String(env.AGENT_PD_TRANSACTION_COMMAND_PATH || '/api/v1/transactions'),

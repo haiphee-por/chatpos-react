@@ -501,30 +501,30 @@ export async function fetchKycWorkspace(storeId: string): Promise<KycWorkspace> 
   return res.data
 }
 
-export interface KycDocumentRequest {
+export interface KycDocumentUpload {
   documentType: string
-  fileName: string
-  mimeType: string
-  fileSize: number
-  checksumSha256: string
-  storageLocator: string
+  file: File
   reason?: string
   sourceRequestId: string
 }
 
-export async function submitKycDocument(storeId: string, caseId: string, payload: KycDocumentRequest) {
+export async function submitKycDocument(storeId: string, caseId: string, payload: KycDocumentUpload) {
   const response = await fetch('/api/v1/kyc/cases/' + encodeURIComponent(caseId) + '/documents', {
     method: 'POST',
     credentials: 'include',
     headers: {
-      'Content-Type': 'application/json',
+      'Content-Type': payload.file.type,
       'Idempotency-Key': payload.sourceRequestId,
+      'X-Source-Request-Id': payload.sourceRequestId,
+      'X-KYC-File-Name': encodeURIComponent(payload.file.name),
+      'X-KYC-Document-Type': encodeURIComponent(payload.documentType),
+      ...(payload.reason ? { 'X-KYC-Reason': encodeURIComponent(payload.reason) } : {}),
     },
-    body: JSON.stringify(payload),
+    body: payload.file,
   })
   const data = await response.json().catch(() => ({}))
   if (!response.ok) throw new Error(data?.error || `Document API error ${response.status}`)
-  return data as { success: boolean; data: { document: KycDocumentVersion; replayed: boolean } }
+  return data as { success: boolean; data: { document: KycDocumentVersion; documentUrl: string; documentUrlExpiresAt: string; replayed: boolean } }
 }
 
 export async function postKycMessage(storeId: string, caseId: string, payload: { message?: string; recipientId?: string; attachments?: Array<Record<string, unknown>> }) {

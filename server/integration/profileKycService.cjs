@@ -1,5 +1,7 @@
 const crypto = require('crypto');
 const { scanDocument } = require('./documentSecurity.cjs');
+const { createDocumentDownloadUrl, verifyDocumentDownloadToken } = require('./documentAccess.cjs');
+const { readPrivateDocument } = require('./privateDocumentStorage.cjs');
 
 const PROFILE_FIELDS = {
   businessName: { column: 'name' },
@@ -365,21 +367,18 @@ async function getKycCaseForStore(client, caseId, storeId, lock = false) {
   return result.rows[0];
 }
 
-async function intakeKycDocument({ pool, backofficeClient, storeId, caseId, body, idempotencyKey, requestId }) {
+async function intakeKycDocument({ pool, backofficeClient, storeId, caseId, body, idempotencyKey, requestId, documentLinkTtlSeconds = 86400, publicBaseUrl = process.env.NEXT_PUBLIC_APP_URL }) {
   const metadata = validateDocumentBody(body);
   const scan = await scanDocument({ metadata });
   const normalizedIdempotencyKey = assertIdempotencyKey(idempotencyKey);
   const sourceRequestId = String(body.sourceRequestId || requestId || crypto.randomUUID());
-  const commandBody = { sourceRequestId, caseId, ...metadata };
-  const digest = bodyDigest(commandBody);
-  const remoteResult = await callBackoffice(backofficeClient, `/api/v1/kyc/cases/${caseId}/documents`, 'POST', commandBody, normalizedIdempotencyKey, requestId, sourceRequestId, storeId);
 
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
     const kycCase = await getKycCaseForStore(client, caseId, storeId, true);
     const replayResult = await client.query(
-      `SELECT id, "documentId", version, "fileName", "mimeType", "fileSize", "checksumSha256", "storageLocator", status
+      `SELECT id, "documentId", version, "fileName", "mimeType", "fileSize", "checksumSha256", "storageLocator", status, "createdAt"
        FROM kyc_document_versions
        WHERE "caseId" = $1 AND ("sourceRequestId" = $2 OR "idempotencyKey" = $3)`,
       [caseId, sourceRequestId, normalizedIdempotencyKey]
@@ -389,8 +388,15 @@ async function intakeKycDocument({ pool, backofficeClient, storeId, caseId, body
       if (existing.checksumSha256 !== metadata.checksumSha256 || existing.storageLocator !== metadata.storageLocator) {
         throw new ProfileKycError('The document request was replayed with different content', 'DOCUMENT_IDEMPOTENCY_CONFLICT', 409);
       }
+      const download = createDocumentDownloadUrl({
+        baseUrl: publicBaseUrl,
+        versionId: existing.id,
+        storeId,
+        ttlSeconds: documentLinkTtlSeconds,
+        nowSeconds: Math.floor(new Date(existing.createdAt).getTime() / 1000),
+      });
       await client.query('COMMIT');
-      return { replayed: true, idempotentReplay: true, document: existing, backoffice: remoteResult };
+      return { replayed: true, idempotentReplay: true, document: existing, documentUrl: download.url, documentUrlExpiresAt: download.expiresAt, backoffice: null };
     }
 
     const documentResult = await client.query(
@@ -418,20 +424,39 @@ async function intakeKycDocument({ pool, backofficeClient, storeId, caseId, body
        RETURNING id, "documentId", version, "fileName", "mimeType", "fileSize", "checksumSha256", "storageLocator", status, "scanStatus", "createdAt"`,
       [document.id, caseId, storeId, version, metadata.fileName, metadata.mimeType, metadata.fileSize, metadata.checksumSha256, metadata.storageLocator, scan.status === 'CLEAN' ? 'uploaded' : 'quarantined', scan.status, JSON.stringify(scan), scan.status === 'CLEAN' ? new Date().toISOString() : null, metadata.reason, sourceRequestId, normalizedIdempotencyKey]
     );
+    const download = createDocumentDownloadUrl({
+      baseUrl: publicBaseUrl,
+      versionId: versionResult.rows[0].id,
+      storeId,
+      ttlSeconds: documentLinkTtlSeconds,
+    });
+    const commandBody = {
+      sourceRequestId,
+      caseId,
+      documentType: metadata.documentType,
+      fileName: metadata.fileName,
+      mimeType: metadata.mimeType,
+      fileSize: metadata.fileSize,
+      checksumSha256: metadata.checksumSha256,
+      reason: metadata.reason,
+      documentUrl: download.url,
+      documentUrlExpiresAt: download.expiresAt,
+    };
+    const remoteResult = await callBackoffice(backofficeClient, `/api/v1/kyc/cases/${caseId}/documents`, 'POST', commandBody, normalizedIdempotencyKey, requestId, sourceRequestId, storeId);
     await client.query(
       `UPDATE kyc_documents SET status = $1, "scanStatus" = $2, "scanReportJson" = $3::jsonb, "scannedAt" = $4, "latestVersion" = $5, "updatedAt" = NOW() WHERE id = $6`,
       [scan.status === 'CLEAN' ? 'uploaded' : 'quarantined', scan.status, JSON.stringify(scan), scan.status === 'CLEAN' ? new Date().toISOString() : null, version, document.id]
     );
-    if (kycCase.status !== 'draft') {
+    if (kycCase.status === 'draft' || kycCase.status === 'merchant_replied') {
       await client.query(`UPDATE merchant_kyc_cases SET status = 'WAITING_AGENT_REVIEW', "updatedAt" = NOW() WHERE id = $1`, [caseId]);
     }
     await client.query(
       `INSERT INTO audit_logs ("actorId", "actorRole", action, "targetType", "targetId", "afterJson", "requestId")
        VALUES ('merchant-session', 'merchant', 'KYC_DOCUMENT_VERSION_CREATED', 'KycDocumentVersion', $1, $2::jsonb, $3)`,
-      [versionResult.rows[0].id, JSON.stringify({ caseId, documentType: metadata.documentType, version, checksumSha256: metadata.checksumSha256 }), requestId || sourceRequestId]
+      [versionResult.rows[0].id, JSON.stringify({ caseId, documentType: metadata.documentType, version, checksumSha256: metadata.checksumSha256, scanStatus: scan.status }), requestId || sourceRequestId]
     );
     await client.query('COMMIT');
-    return { replayed: false, idempotentReplay: false, document: versionResult.rows[0], backoffice: remoteResult };
+    return { replayed: false, idempotentReplay: false, document: versionResult.rows[0], documentUrl: download.url, documentUrlExpiresAt: download.expiresAt, backoffice: remoteResult };
   } catch (error) {
     await client.query('ROLLBACK');
     if (error.code === '23505') {
@@ -569,7 +594,7 @@ async function markKycMessageRead({ pool, storeId, caseId, messageId }) {
   }
 }
 
-async function getDocumentAccess({ pool, storeId, versionId }) {
+async function getDocumentAccess({ pool, storeId, versionId, documentLinkTtlSeconds = 86400, publicBaseUrl = process.env.NEXT_PUBLIC_APP_URL }) {
   if (!isUuid(storeId) || !isUuid(versionId)) throw new ProfileKycError('A valid Store and document version are required', 'DOCUMENT_CONTEXT_REQUIRED', 422);
   const result = await pool.query(
     `SELECT id, "caseId", "fileName", "mimeType", "fileSize", "checksumSha256", "storageLocator", status, "scanStatus"
@@ -580,7 +605,32 @@ async function getDocumentAccess({ pool, storeId, versionId }) {
   if (!version) throw new ProfileKycError('Document version was not found', 'DOCUMENT_VERSION_NOT_FOUND', 404);
   if (version.scanStatus !== 'CLEAN') throw new ProfileKycError('Document is not available until malware scanning completes', 'DOCUMENT_QUARANTINED', 423);
   if (!String(version.storageLocator).startsWith('private://')) throw new ProfileKycError('Public document locators are forbidden', 'PRIVATE_STORAGE_LOCATOR_REQUIRED', 422);
-  return { ...version, access: 'private-locator' };
+  const download = createDocumentDownloadUrl({
+    baseUrl: publicBaseUrl,
+    versionId,
+    storeId,
+    ttlSeconds: documentLinkTtlSeconds,
+  });
+  return { ...version, access: 'signed-download', downloadUrl: download.url, downloadUrlExpiresAt: download.expiresAt };
+}
+
+async function getKycDocumentDownload({ pool, versionId, token, nowSeconds }) {
+  if (!isUuid(versionId)) throw new ProfileKycError('A valid document version is required', 'DOCUMENT_CONTEXT_REQUIRED', 422);
+  const result = await pool.query(
+    `SELECT id, "caseId", "storeId", "fileName", "mimeType", "fileSize", "checksumSha256", "storageLocator", status, "scanStatus"
+     FROM kyc_document_versions WHERE id = $1`,
+    [versionId]
+  );
+  const version = result.rows[0];
+  if (!version) throw new ProfileKycError('Document version was not found', 'DOCUMENT_VERSION_NOT_FOUND', 404);
+  const payload = verifyDocumentDownloadToken(token, { versionId, storeId: version.storeId, nowSeconds });
+  if (version.scanStatus !== 'CLEAN') throw new ProfileKycError('Document is not available until malware scanning completes', 'DOCUMENT_QUARANTINED', 423);
+  const file = await readPrivateDocument(version.storageLocator);
+  const fileChecksum = sha256(file.data);
+  if (file.data.length !== Number(version.fileSize) || fileChecksum !== String(version.checksumSha256).toLowerCase()) {
+    throw new ProfileKycError('Document file integrity verification failed', 'DOCUMENT_FILE_INTEGRITY_FAILED', 503);
+  }
+  return { version, data: file.data, expiresAt: new Date(payload.expiresAt * 1000).toISOString() };
 }
 
 module.exports = {
@@ -588,6 +638,7 @@ module.exports = {
   ProfileKycError,
   appendKycMessage,
   getDocumentAccess,
+  getKycDocumentDownload,
   getKycWorkspace,
   intakeKycDocument,
   markKycMessageRead,

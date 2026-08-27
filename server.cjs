@@ -16,6 +16,7 @@ const {
 const {
   appendKycMessage,
   getDocumentAccess,
+  getKycDocumentDownload,
   getKycWorkspace,
   intakeKycDocument,
   markKycMessageRead,
@@ -59,6 +60,7 @@ const {
   sessionCookie,
   writeAudit,
 } = require('./server/security.cjs');
+const { deletePrivateDocument, readPrivateDocument, writePrivateDocument } = require('./server/integration/privateDocumentStorage.cjs');
 
 dotenv.config();
 
@@ -132,6 +134,7 @@ const metrics = {
     statusCodes: {},
   },
 };
+const documentUploadLocks = new Map();
 
 function isMerchantHomeRoute(requestPath) {
   return requestPath === '/api/db/home'
@@ -239,6 +242,57 @@ function readRawBody(req, maxBytes = 1024 * 1024) {
   });
 }
 
+function readRawBuffer(req, maxBytes = 1024 * 1024) {
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    let totalBytes = 0;
+
+    req.on('data', (chunk) => {
+      totalBytes += chunk.length;
+      if (totalBytes > maxBytes) {
+        reject(new AssignmentError('Request body is too large', 'BODY_TOO_LARGE', 413));
+        req.destroy();
+        return;
+      }
+      chunks.push(chunk);
+    });
+    req.on('error', reject);
+    req.on('end', () => resolve(Buffer.concat(chunks)));
+  });
+}
+
+function decodeRequestHeader(value, field, maxLength = 500) {
+  const encoded = String(value || '');
+  if (!encoded) return '';
+  try {
+    const decoded = decodeURIComponent(encoded);
+    if (decoded.length > maxLength) throw new Error('too long');
+    return decoded;
+  } catch {
+    throw new AssignmentError(`${field} is invalid`, 'DOCUMENT_METADATA_INVALID', 422);
+  }
+}
+
+function documentStorageLocator({ storeId, caseId, sourceRequestId, fileName }) {
+  const requestHash = crypto.createHash('sha256').update(sourceRequestId).digest('hex');
+  const safeName = fileName.replace(/[^A-Za-z0-9._-]/g, '_').slice(0, 180) || 'document';
+  return `private://merchant/${storeId}/${caseId}/${requestHash}-${safeName}`;
+}
+
+async function withDocumentUploadLock(storageLocator, callback) {
+  const previous = documentUploadLocks.get(storageLocator) || Promise.resolve();
+  let release;
+  const current = new Promise((resolve) => { release = resolve; });
+  documentUploadLocks.set(storageLocator, current);
+  await previous;
+  try {
+    return await callback();
+  } finally {
+    release();
+    if (documentUploadLocks.get(storageLocator) === current) documentUploadLocks.delete(storageLocator);
+  }
+}
+
 async function parseJsonBody(req, maxBytes = 1024 * 1024) {
   const bodyStr = await readRawBody(req, maxBytes);
   try {
@@ -256,6 +310,7 @@ function isPublicApiRequest(requestPath, method) {
   if (requestPath === '/api/db/health' && method === 'GET') return true;
   if (requestPath === '/api/health/live' && method === 'GET') return true;
   if (requestPath === '/api/health/ready' && method === 'GET') return true;
+  if (/^\/api\/v1\/kyc\/documents\/[^/]+\/download$/.test(requestPath) && method === 'GET') return true;
   if (requestPath === '/api/webhooks/assignment-status' && method === 'POST') return true;
   if (requestPath === '/api/webhooks/llgw/payment' && method === 'POST') return true;
   if (requestPath === '/api/webhooks/payment-status' && method === 'POST') return true;
@@ -377,6 +432,34 @@ const server = http.createServer(async (req, res) => {
           res.statusCode = 503;
           res.end(JSON.stringify({ success: false, status: 'not_ready', code: 'DATABASE_UNAVAILABLE' }));
         }
+        return;
+      }
+
+      const documentDownloadRoute = requestPath.match(/^\/api\/v1\/kyc\/documents\/([^/]+)\/download$/);
+      if (documentDownloadRoute && req.method === 'GET') {
+        const query = new URL(url, 'http://localhost').searchParams;
+        const result = await getKycDocumentDownload({
+          pool,
+          versionId: documentDownloadRoute[1],
+          token: query.get('token'),
+          nowSeconds: Math.floor(Date.now() / 1000),
+        });
+        await writeAudit({
+          poolOrClient: pool,
+          actorId: 'signed-document-link',
+          actorRole: 'document_link',
+          action: 'KYC_DOCUMENT_DOWNLOADED',
+          targetType: 'document_version',
+          targetId: documentDownloadRoute[1],
+          after: { expiresAt: result.expiresAt, access: 'signed-download' },
+          requestId: req.headers['x-request-id'] || null,
+        });
+        res.statusCode = 200;
+        res.setHeader('Content-Type', result.version.mimeType);
+        res.setHeader('Content-Length', String(result.data.length));
+        res.setHeader('Content-Disposition', `inline; filename*=UTF-8''${encodeURIComponent(result.version.fileName)}`);
+        res.setHeader('Cache-Control', 'private, no-store');
+        res.end(result.data);
         return;
       }
 
@@ -510,18 +593,49 @@ const server = http.createServer(async (req, res) => {
           res.end(JSON.stringify({ success: false, code: 'KYC_DOCUMENT_INTEGRATION_DISABLED', error: 'KYC document integration is disabled' }));
           return;
         }
-        const body = await parseJsonBody(req, 16 * 1024 * 1024);
         const storeId = caseStoreId;
         const idempotencyKey = req.headers['idempotency-key'];
         const requestId = String(req.headers['x-request-id'] || crypto.randomUUID());
-        const documentResult = await intakeKycDocument({
-          pool,
-          backofficeClient: kycDocumentBackofficeClient,
-          storeId,
-          caseId: documentRoute[1],
-          body,
-          idempotencyKey,
-          requestId,
+        const sourceRequestId = decodeRequestHeader(req.headers['x-source-request-id'] || idempotencyKey || crypto.randomUUID(), 'sourceRequestId', 120);
+        const fileName = decodeRequestHeader(req.headers['x-kyc-file-name'], 'fileName', 255);
+        const documentType = decodeRequestHeader(req.headers['x-kyc-document-type'], 'documentType', 120);
+        const reason = decodeRequestHeader(req.headers['x-kyc-reason'], 'reason', 500);
+        const contentType = String(req.headers['content-type'] || '').split(';', 1)[0].toLowerCase();
+        if (!fileName || !documentType || !['application/pdf', 'image/jpeg', 'image/png', 'image/webp'].includes(contentType)) {
+          throw new AssignmentError('Binary document upload metadata is invalid', 'DOCUMENT_METADATA_INVALID', 422);
+        }
+        const data = await readRawBuffer(req, 10 * 1024 * 1024);
+        const checksumSha256 = crypto.createHash('sha256').update(data).digest('hex');
+        const storageLocator = documentStorageLocator({ storeId, caseId: documentRoute[1], sourceRequestId, fileName });
+        const documentResult = await withDocumentUploadLock(storageLocator, async () => {
+          let ownsStoredFile = false;
+          try {
+            await writePrivateDocument({ storageLocator, data, expectedSize: data.length, checksumSha256 });
+            ownsStoredFile = true;
+          } catch (storageError) {
+            if (storageError.code !== 'EEXIST') throw storageError;
+            const existingFile = await readPrivateDocument(storageLocator);
+            const existingChecksum = crypto.createHash('sha256').update(existingFile.data).digest('hex');
+            if (existingFile.data.length !== data.length || existingChecksum !== checksumSha256) {
+              throw new ProfileKycError('The upload idempotency key is already associated with different content', 'DOCUMENT_IDEMPOTENCY_CONFLICT', 409);
+            }
+          }
+          try {
+            return await intakeKycDocument({
+              pool,
+              backofficeClient: kycDocumentBackofficeClient,
+              storeId,
+              caseId: documentRoute[1],
+              body: { documentType, fileName, mimeType: contentType, fileSize: data.length, checksumSha256, storageLocator, reason: reason || null, sourceRequestId },
+              idempotencyKey,
+              requestId,
+              documentLinkTtlSeconds: backofficeConfig.documentLinkTtlSeconds,
+              publicBaseUrl: process.env.NEXT_PUBLIC_APP_URL,
+            });
+          } catch (documentError) {
+            if (ownsStoredFile) await deletePrivateDocument(storageLocator).catch(() => {});
+            throw documentError;
+          }
         });
         await writeAudit({
           poolOrClient: pool,
@@ -1397,7 +1511,7 @@ const server = http.createServer(async (req, res) => {
       if (documentAccessRoute && req.method === 'GET') {
         const query = new URL(url, 'http://localhost').searchParams;
         const storeId = await resolveAuthorizedStore({ principal, requestedStoreId: query.get('storeId') });
-        const document = await getDocumentAccess({ pool, storeId, versionId: documentAccessRoute[1] });
+        const document = await getDocumentAccess({ pool, storeId, versionId: documentAccessRoute[1], documentLinkTtlSeconds: backofficeConfig.documentLinkTtlSeconds, publicBaseUrl: process.env.NEXT_PUBLIC_APP_URL });
         await writeAudit({ poolOrClient: pool, principal, action: 'KYC_DOCUMENT_ACCESSED', targetType: 'document_version', targetId: documentAccessRoute[1], requestId: req.headers['x-request-id'] || null });
         res.statusCode = 200;
         res.end(JSON.stringify({ success: true, data: document }));

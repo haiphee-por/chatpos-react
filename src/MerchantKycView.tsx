@@ -41,11 +41,6 @@ function formatBytes(value: number | string) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
-async function checksumFile(file: File) {
-  const digest = await crypto.subtle.digest('SHA-256', await file.arrayBuffer())
-  return Array.from(new Uint8Array(digest)).map((value) => value.toString(16).padStart(2, '0')).join('')
-}
-
 function latestVersion(document: KycDocumentTimeline) {
   return document.versions[0] || null
 }
@@ -121,15 +116,9 @@ export function MerchantKycView({ storeId }: MerchantKycViewProps) {
     setUploading(true)
     setError('')
     try {
-      const checksumSha256 = await checksumFile(file)
-      const safeName = file.name.replace(/[^A-Za-z0-9._-]/g, '_')
       await submitKycDocument(storeId, workspace.case.id, {
         documentType,
-        fileName: file.name,
-        mimeType: file.type,
-        fileSize: file.size,
-        checksumSha256,
-        storageLocator: `private://merchant/${storeId}/${workspace.case.id}/${crypto.randomUUID()}-${safeName}`,
+        file,
         reason: correctionReason || undefined,
         sourceRequestId: crypto.randomUUID(),
       })
