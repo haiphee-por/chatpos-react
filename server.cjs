@@ -38,6 +38,7 @@ const {
   requestKycOtp,
   verifyKycOtp,
 } = require('./server/integration/otpService.cjs');
+const { createSmsupProvider } = require('./server/integration/smsupClient.cjs');
 const {
   boundedInteger,
   getStoppayTransition,
@@ -84,6 +85,7 @@ const pool = new Pool({
 });
 const backofficeConfig = loadBackofficeConfig();
 const otpConfig = loadOtpConfig();
+const otpProvider = otpConfig.provider === 'smsup_plus' ? createSmsupProvider() : undefined;
 const storeCredentialResolver = createStoreCredentialResolver({
   pool,
   fallbackConfig: backofficeConfig,
@@ -548,6 +550,7 @@ const server = http.createServer(async (req, res) => {
           storeId,
           body,
           config: otpConfig,
+          provider: otpProvider,
           requestId,
         });
         await writeAudit({ poolOrClient: pool, principal, action: 'KYC_OTP_REQUESTED', targetType: 'kyc_case', targetId: otpRequestRoute[1], after: result.challenge, requestId });
@@ -569,6 +572,7 @@ const server = http.createServer(async (req, res) => {
           storeId,
           otp: body.otp,
           config: otpConfig,
+          provider: otpProvider,
           requestId,
         });
         await writeAudit({ poolOrClient: pool, principal, action: 'KYC_OTP_VERIFIED', targetType: 'kyc_case', targetId: otpVerifyRoute[1], after: result.challenge, requestId });
