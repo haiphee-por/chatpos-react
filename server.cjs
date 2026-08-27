@@ -513,7 +513,6 @@ const server = http.createServer(async (req, res) => {
           rawBody,
           headers: req.headers,
           callbackSecretResolver: storeCredentialResolver.resolveCallbackSecrets,
-          callbackSecret: backofficeConfig.callbackSecrets?.length ? backofficeConfig.callbackSecrets : backofficeConfig.callbackSecret,
         });
         res.statusCode = callbackResult.statusCode || 200;
         res.end(JSON.stringify({

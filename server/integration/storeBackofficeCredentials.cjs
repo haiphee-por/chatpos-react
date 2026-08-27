@@ -86,21 +86,21 @@ function createStoreCredentialResolver({ pool, fallbackConfig = {}, environment,
       );
     }
 
-    const bearerSecret = await resolveSecret(normalizeReference(row.bearerSecretRef, 'Bearer secret reference'), {
+    const bearerSecret = fallbackConfig.bearerSecret || await resolveSecret(normalizeReference(row.bearerSecretRef, 'Bearer secret reference'), {
       storeId,
       keyId: row.keyId,
       environment: targetEnvironment,
       type: 'bearer',
     });
-    const signingSecret = await resolveSecret(normalizeReference(row.signingSecretRef, 'Signing secret reference'), {
+    const signingSecret = fallbackConfig.signingSecret || await resolveSecret(normalizeReference(row.signingSecretRef, 'Signing secret reference'), {
       storeId,
       keyId: row.keyId,
       environment: targetEnvironment,
       type: 'signing',
     });
-    const signingSecretPrevious = row.signingSecretPreviousRef
+    const signingSecretPrevious = fallbackConfig.signingSecrets?.[1] || (row.signingSecretPreviousRef
       ? await resolveSecret(row.signingSecretPreviousRef, { storeId, keyId: row.keyId, environment: targetEnvironment, type: 'signing-previous' })
-      : '';
+      : '');
     const callbackSecret = await resolveSecret(normalizeReference(row.callbackSecretRef, 'Callback secret reference'), {
       storeId,
       keyId: row.keyId,

@@ -75,8 +75,6 @@ function loadBackofficeConfig(env = process.env) {
     bearerSecret: String(env.CHATPOS_BACKOFFICE_BEARER_SECRET || env.AGENT_PD_BEARER_SECRET || ''),
     signingSecret: String(env.CHATPOS_BACKOFFICE_SIGNING_SECRET || env.AGENT_PD_SIGNING_SECRET || ''),
     signingSecrets: secretCandidates('CHATPOS_BACKOFFICE_SIGNING_SECRET', 'CHATPOS_BACKOFFICE_SIGNING_SECRET_PREVIOUS', 'AGENT_PD_SIGNING_SECRET', 'AGENT_PD_SIGNING_SECRET_PREVIOUS'),
-    callbackSecret: String(env.CHATPOS_BACKOFFICE_CALLBACK_SECRET || env.AGENT_PD_CALLBACK_SECRET || ''),
-    callbackSecrets: secretCandidates('CHATPOS_BACKOFFICE_CALLBACK_SECRET', 'CHATPOS_BACKOFFICE_CALLBACK_SECRET_PREVIOUS', 'AGENT_PD_CALLBACK_SECRET', 'AGENT_PD_CALLBACK_SECRET_PREVIOUS'),
     enabled: parseBoolean(env.AGENT_PD_INTEGRATION_ENABLED, false),
     assignmentEnabled: parseBoolean(env.AGENT_PD_ASSIGNMENT_ENABLED, false),
     profileUpdateEnabled: parseBoolean(env.MERCHANT_PROFILE_UPDATE_ENABLED, false),
