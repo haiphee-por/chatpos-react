@@ -2,9 +2,12 @@ import { useEffect, useMemo, useState } from 'react'
 import { CheckCircle2, ChevronDown, FileCheck2, FilePlus2, MessageCircle, RefreshCw, ShieldAlert, Upload, X } from 'lucide-react'
 import {
   fetchKycWorkspace,
+  fetchDbAssignments,
   markKycMessageRead,
   postKycMessage,
+  requestMerchantAssignment,
   submitKycDocument,
+  type DbAssignmentRow,
   type KycDocumentTimeline,
   type KycDocumentVersion,
   type KycWorkspace,
@@ -90,13 +93,17 @@ export function MerchantKycView({ storeId }: MerchantKycViewProps) {
   const [chatText, setChatText] = useState('')
   const [sending, setSending] = useState(false)
   const [attachedVersion, setAttachedVersion] = useState<KycDocumentVersion | null>(null)
+  const [assignment, setAssignment] = useState<DbAssignmentRow | null>(null)
+  const [requestingAssignment, setRequestingAssignment] = useState(false)
 
   const loadWorkspace = async () => {
     if (!storeId) return
     setLoading(true)
     setError('')
     try {
-      setWorkspace(await fetchKycWorkspace(storeId))
+      const [nextWorkspace, assignments] = await Promise.all([fetchKycWorkspace(storeId), fetchDbAssignments(storeId)])
+      setWorkspace(nextWorkspace)
+      setAssignment(assignments[0] || null)
     } catch (loadError: any) {
       setError(loadError?.message || 'ไม่สามารถโหลดข้อมูล KYC ได้')
     } finally {
@@ -161,6 +168,27 @@ export function MerchantKycView({ storeId }: MerchantKycViewProps) {
     }
   }
 
+  const requestAgentPdReview = async () => {
+    if (!storeId || !workspace || requestingAssignment) return
+    setRequestingAssignment(true)
+    setError('')
+    try {
+      const result = await requestMerchantAssignment({
+        storeId,
+        sourceRequestId: `merchant-kyc-review-${workspace.case.id}-${workspace.case.submissionVersion}`,
+      })
+      if (!result.success) {
+        throw new Error(result.error || result.code || 'ไม่สามารถส่งคำขอให้ Agent/PD ได้')
+      }
+      setAssignment(result.data || null)
+      await loadWorkspace()
+    } catch (requestError: any) {
+      setError(requestError?.message || 'ไม่สามารถส่งคำขอให้ Agent/PD ได้')
+    } finally {
+      setRequestingAssignment(false)
+    }
+  }
+
   if (!storeId) return <section className="merchant-empty-state"><FileCheck2 size={28} /><h2>ยังไม่มี Store context</h2><p>เข้าสู่ระบบร้านค้าเพื่อดู KYC workspace</p></section>
 
   return (
@@ -176,6 +204,17 @@ export function MerchantKycView({ storeId }: MerchantKycViewProps) {
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 16, padding: '10px 12px', borderRadius: 9, background: status.background, color: status.color }}>
           <ShieldAlert size={18} /><strong>{status.label}</strong><span style={{ fontSize: 12 }}>· Agent จะตรวจซ้ำเมื่อข้อมูลที่กระทบ KYC เปลี่ยน</span>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginTop: 12, padding: '12px 14px', border: '1px solid #d6e9df', borderRadius: 9, background: '#fff' }}>
+          <div>
+            <strong style={{ display: 'block', color: '#315a4d', fontSize: 13 }}>ส่งเคสให้ Agent / PD ตรวจสอบ</strong>
+            <span style={{ display: 'block', marginTop: 4, color: '#78968a', fontSize: 11 }}>
+              {assignment?.status === 'ACCEPTED' ? 'Agent รับดูแลแล้ว และรอผลตรวจ KYC จาก PD' : assignment?.status === 'PENDING_AGENT_ACCEPTANCE' ? 'ส่งคำขอแล้ว รอ Agent กดยอมรับ' : assignment?.status === 'PENDING_ADMIN_ASSIGNMENT' ? 'ส่งคำขอแล้ว รอ Admin จัดสรร Agent' : 'ส่งคำขอลงทะเบียนไปยังระบบ Agent / PD เมื่อข้อมูลพร้อม'}
+            </span>
+          </div>
+          <button type="button" onClick={requestAgentPdReview} disabled={requestingAssignment || assignment?.status === 'PENDING_AGENT_ACCEPTANCE' || assignment?.status === 'PENDING_ADMIN_ASSIGNMENT'} style={{ display: 'inline-flex', alignItems: 'center', gap: 7, border: 0, borderRadius: 8, padding: '10px 13px', background: requestingAssignment ? '#9ab9ad' : '#28745c', color: '#fff', cursor: requestingAssignment ? 'wait' : 'pointer', fontSize: 12, fontWeight: 700 }}>
+            <CheckCircle2 size={15} />{requestingAssignment ? 'กำลังส่งคำขอ...' : assignment?.status === 'ACCEPTED' ? 'ส่งคำขอทบทวนอีกครั้ง' : 'ส่งคำขอให้ Agent / PD'}
+          </button>
         </div>
       </section>
 
