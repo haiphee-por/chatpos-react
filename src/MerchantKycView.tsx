@@ -5,7 +5,7 @@ import {
   fetchDbAssignments,
   markKycMessageRead,
   postKycMessage,
-  requestMerchantAssignment,
+  submitKycCase,
   submitKycDocument,
   type DbAssignmentRow,
   type KycDocumentTimeline,
@@ -95,6 +95,7 @@ export function MerchantKycView({ storeId }: MerchantKycViewProps) {
   const [attachedVersion, setAttachedVersion] = useState<KycDocumentVersion | null>(null)
   const [assignment, setAssignment] = useState<DbAssignmentRow | null>(null)
   const [requestingAssignment, setRequestingAssignment] = useState(false)
+  const [successMessage, setSuccessMessage] = useState('')
 
   const loadWorkspace = async () => {
     if (!storeId) return
@@ -172,15 +173,14 @@ export function MerchantKycView({ storeId }: MerchantKycViewProps) {
     if (!storeId || !workspace || requestingAssignment) return
     setRequestingAssignment(true)
     setError('')
+    setSuccessMessage('')
     try {
-      const result = await requestMerchantAssignment({
-        storeId,
-        sourceRequestId: `merchant-kyc-review-${workspace.case.id}-${workspace.case.submissionVersion}`,
-      })
-      if (!result.success) {
-        throw new Error(result.error || result.code || 'ไม่สามารถส่งคำขอให้ Agent/PD ได้')
-      }
-      setAssignment(result.data || null)
+      const sourceRequestId = `merchant-kyc-submit-${workspace.case.id}`
+      const result = await submitKycCase(storeId, workspace.case.id, sourceRequestId)
+      setAssignment(result.data.assignment || null)
+      setSuccessMessage(result.data.backoffice.status === 'FORWARDED'
+        ? 'บันทึกคำขอและส่งต่อไปยังระบบ Agent / PD แล้ว'
+        : 'บันทึกคำขอแล้ว ระบบจะส่งต่อไปยัง Backoffice เมื่อ credential พร้อม')
       await loadWorkspace()
     } catch (requestError: any) {
       setError(requestError?.message || 'ไม่สามารถส่งคำขอให้ Agent/PD ได้')
@@ -209,7 +209,7 @@ export function MerchantKycView({ storeId }: MerchantKycViewProps) {
           <div>
             <strong style={{ display: 'block', color: '#315a4d', fontSize: 13 }}>ส่งเคสให้ Agent / PD ตรวจสอบ</strong>
             <span style={{ display: 'block', marginTop: 4, color: '#78968a', fontSize: 11 }}>
-              {assignment?.status === 'ACCEPTED' ? 'Agent รับดูแลแล้ว และรอผลตรวจ KYC จาก PD' : assignment?.status === 'PENDING_AGENT_ACCEPTANCE' ? 'ส่งคำขอแล้ว รอ Agent กดยอมรับ' : assignment?.status === 'PENDING_ADMIN_ASSIGNMENT' ? 'ส่งคำขอแล้ว รอ Admin จัดสรร Agent' : 'ส่งคำขอลงทะเบียนไปยังระบบ Agent / PD เมื่อข้อมูลพร้อม'}
+              {assignment?.status === 'ACCEPTED' ? 'Agent รับดูแลแล้ว และรอผลตรวจ KYC จาก PD' : assignment?.status === 'PENDING_AGENT_ACCEPTANCE' ? 'ส่งคำขอแล้ว รอ Agent กดยอมรับ' : assignment?.status === 'PENDING_ADMIN_ASSIGNMENT' ? 'ส่งคำขอแล้ว รอ Admin จัดสรร Agent' : assignment?.status === 'PENDING_BACKOFFICE_DISPATCH' ? 'บันทึกคำขอแล้ว รอส่งต่อ Backoffice เมื่อ credential พร้อม' : 'ส่งคำขอลงทะเบียนไปยังระบบ Agent / PD เมื่อข้อมูลพร้อม'}
             </span>
           </div>
           <button type="button" onClick={requestAgentPdReview} disabled={requestingAssignment || assignment?.status === 'PENDING_AGENT_ACCEPTANCE' || assignment?.status === 'PENDING_ADMIN_ASSIGNMENT'} style={{ display: 'inline-flex', alignItems: 'center', gap: 7, border: 0, borderRadius: 8, padding: '10px 13px', background: requestingAssignment ? '#9ab9ad' : '#28745c', color: '#fff', cursor: requestingAssignment ? 'wait' : 'pointer', fontSize: 12, fontWeight: 700 }}>
@@ -219,6 +219,7 @@ export function MerchantKycView({ storeId }: MerchantKycViewProps) {
       </section>
 
       {error && <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: 12, borderRadius: 9, background: '#fff1f2', color: '#b91c1c', border: '1px solid #fecdd3', fontSize: 12 }}><X size={16} />{error}</div>}
+      {successMessage && <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: 12, borderRadius: 9, background: '#effaf4', color: '#28745c', border: '1px solid #cfe1d8', fontSize: 12 }}><CheckCircle2 size={16} />{successMessage}</div>}
       {loading && <div style={{ padding: 28, textAlign: 'center', color: '#648076' }}>กำลังโหลด KYC workspace...</div>}
 
       {!loading && workspace && <>

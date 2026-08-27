@@ -12,6 +12,8 @@
     "db:migrate": "node database/migrate.cjs",
     "db:seed": "node database/seed.cjs",
     "db:reset-demo-kyc": "node database/reset-demo-kyc.cjs",
+    "db:create-fresh-demo-kyc": "node database/create-fresh-demo-kyc.cjs",
+    "db:provision-backoffice-mapping": "node database/provision-store-backoffice-credentials.cjs",
     "test:integration": "node --test server/integration",
     "test:db": "node test-db.cjs"
   },

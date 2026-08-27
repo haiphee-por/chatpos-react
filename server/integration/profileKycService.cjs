@@ -52,6 +52,15 @@ const ALLOWED_DOCUMENT_TYPES = new Set([
   'shipping-evidence',
 ]);
 const MAX_DOCUMENT_BYTES = 10 * 1024 * 1024;
+const DEFERRED_BACKOFFICE_CODES = new Set([
+  'BASE_URL_MISSING',
+  'BEARER_SECRET_MISSING',
+  'INTEGRATION_DISABLED',
+  'SECRET_RESOLVER_UNAVAILABLE',
+  'SECRET_VALUE_MISSING',
+  'SIGNING_SECRET_MISSING',
+  'STORE_CREDENTIAL_MAPPING_MISSING',
+]);
 
 class ProfileKycError extends Error {
   constructor(message, code, statusCode = 400, details = {}) {
@@ -474,7 +483,6 @@ async function intakeKycDocument({ pool, backofficeClient, storeId, caseId, body
       sourceIssuedAt: versionResult.rows[0].sourceIssuedAt,
       sourceRequestId,
     });
-    const remoteResult = await callBackoffice(backofficeClient, `/api/v1/kyc/cases/${caseId}/documents`, 'POST', commandBody, normalizedIdempotencyKey, requestId, sourceRequestId, storeId);
     await client.query(
       `UPDATE kyc_documents SET status = $1, "scanStatus" = $2, "scanReportJson" = $3::jsonb, "scannedAt" = $4, "latestVersion" = $5, "updatedAt" = NOW() WHERE id = $6`,
       [scan.status === 'CLEAN' ? 'uploaded' : 'quarantined', scan.status, JSON.stringify(scan), scan.status === 'CLEAN' ? new Date().toISOString() : null, version, document.id]
@@ -488,6 +496,26 @@ async function intakeKycDocument({ pool, backofficeClient, storeId, caseId, body
       [versionResult.rows[0].id, JSON.stringify({ caseId, documentType: metadata.documentType, version, checksumSha256: metadata.checksumSha256, scanStatus: scan.status }), requestId || sourceRequestId]
     );
     await client.query('COMMIT');
+    let remoteResult;
+    try {
+      remoteResult = await callBackoffice(backofficeClient, `/api/v1/kyc/cases/${caseId}/documents`, 'POST', commandBody, normalizedIdempotencyKey, requestId, sourceRequestId, storeId);
+    } catch (error) {
+      if (DEFERRED_BACKOFFICE_CODES.has(error.code)) {
+        await pool.query(
+          `INSERT INTO audit_logs ("actorId", "actorRole", action, "targetType", "targetId", reason, "requestId", "afterJson")
+           VALUES ('merchant-session', 'merchant', 'KYC_DOCUMENT_PENDING_BACKOFFICE_DISPATCH', 'KycDocumentVersion', $1, $2, $3, $4::jsonb)`,
+          [versionResult.rows[0].id, error.code, requestId || sourceRequestId, JSON.stringify({ status: 'PENDING_CONFIGURATION', caseId, version })]
+        );
+        return {
+          replayed: false,
+          idempotentReplay: false,
+          document: versionResult.rows[0],
+          backoffice: { status: 'PENDING_CONFIGURATION', code: error.code },
+        };
+      }
+      error.localCommitted = true;
+      throw error;
+    }
     return { replayed: false, idempotentReplay: false, document: versionResult.rows[0], backoffice: remoteResult };
   } catch (error) {
     await client.query('ROLLBACK');
@@ -518,6 +546,60 @@ async function ensureKycCase(client, storeId) {
     [storeId, verification.rows[0]?.id || null, caseNumber]
   );
   return created.rows[0];
+}
+
+async function submitKycCaseForReview({ pool, storeId, caseId, actorId, actorRole = 'merchant', requestId }) {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const kycCase = await getKycCaseForStore(client, caseId, storeId, true);
+    if (!['draft', 'needs_more_info', 'merchant_replied', 'WAITING_AGENT_REVIEW'].includes(kycCase.status)) {
+      throw new ProfileKycError('This KYC case cannot be submitted in its current status', 'KYC_CASE_SUBMISSION_INVALID', 409, { status: kycCase.status });
+    }
+
+    const replayed = kycCase.status === 'WAITING_AGENT_REVIEW';
+    if (!replayed) {
+      await client.query(
+        `UPDATE merchant_kyc_cases
+         SET status = 'WAITING_AGENT_REVIEW', "updatedAt" = NOW()
+         WHERE id = $1`,
+        [caseId]
+      );
+    }
+    if (kycCase.verificationId) {
+      await client.query(
+        `UPDATE "KycVerification"
+         SET status = 'waiting_agent_review',
+             "approvalLevel" = 'pending',
+             "submittedAt" = COALESCE("submittedAt", NOW()),
+             "reviewedAt" = NULL,
+             "updatedAt" = NOW()
+         WHERE id = $1`,
+        [kycCase.verificationId]
+      );
+    }
+    if (!replayed) {
+      await client.query(
+        `INSERT INTO audit_logs
+          ("actorId", "actorRole", action, "targetType", "targetId", "afterJson", "requestId")
+         VALUES ($1, $2, 'KYC_SUBMITTED_FOR_REVIEW', 'kyc_case', $3, $4::jsonb, $5)`,
+        [
+          String(actorId || 'merchant-session'),
+          String(actorRole || 'merchant'),
+          caseId,
+          JSON.stringify({ status: 'WAITING_AGENT_REVIEW', verificationStatus: 'waiting_agent_review' }),
+          requestId || null,
+        ]
+      );
+    }
+    await client.query('COMMIT');
+    return { case: { ...kycCase, status: 'WAITING_AGENT_REVIEW' }, replayed };
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
 }
 
 async function getKycWorkspace({ pool, storeId }) {
@@ -679,6 +761,7 @@ module.exports = {
   getKycWorkspace,
   intakeKycDocument,
   markKycMessageRead,
+  submitKycCaseForReview,
   stableDocumentId,
   updateStoreProfile,
   validateDocumentBody,

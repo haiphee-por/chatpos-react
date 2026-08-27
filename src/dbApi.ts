@@ -502,6 +502,18 @@ export async function fetchKycWorkspace(storeId: string): Promise<KycWorkspace> 
   return res.data
 }
 
+export async function submitKycCase(storeId: string, caseId: string, sourceRequestId: string) {
+  const response = await fetch('/api/v1/kyc/cases/' + encodeURIComponent(caseId) + '/submit', {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json', 'X-Request-Id': sourceRequestId },
+    body: JSON.stringify({ sourceRequestId }),
+  })
+  const data = await response.json().catch(() => ({}))
+  if (!response.ok) throw new Error(data?.error || data?.code || `KYC submission API error ${response.status}`)
+  return data as { success: boolean; data: { replayed: boolean; assignment: DbAssignmentRow | null; backoffice: { status: string; code?: string } } }
+}
+
 export interface KycDocumentUpload {
   documentType: string
   file: File

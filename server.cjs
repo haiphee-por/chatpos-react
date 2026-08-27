@@ -21,6 +21,7 @@ const {
   intakeKycDocument,
   markKycMessageRead,
   ProfileKycError,
+  submitKycCaseForReview,
   updateStoreProfile,
 } = require('./server/integration/profileKycService.cjs');
 const {
@@ -135,6 +136,16 @@ const metrics = {
   },
 };
 const documentUploadLocks = new Map();
+const deferredAssignmentErrorCodes = new Set([
+  'ASSIGNMENT_INTEGRATION_DISABLED',
+  'BASE_URL_MISSING',
+  'BEARER_SECRET_MISSING',
+  'INTEGRATION_DISABLED',
+  'SECRET_RESOLVER_UNAVAILABLE',
+  'SECRET_VALUE_MISSING',
+  'SIGNING_SECRET_MISSING',
+  'STORE_CREDENTIAL_MAPPING_MISSING',
+]);
 
 function isMerchantHomeRoute(requestPath) {
   return requestPath === '/api/db/home'
@@ -583,16 +594,62 @@ const server = http.createServer(async (req, res) => {
         return;
       }
 
+      const kycSubmitRoute = requestPath.match(/^\/api\/v1\/kyc\/cases\/([^/]+)\/submit$/);
+      if (kycSubmitRoute && req.method === 'POST') {
+        assertRole(principal, ['merchant']);
+        await enforcePrincipalRateLimit({ principal, requestPath: '/api/v1/kyc/submit', limit: 10, windowSeconds: 300 });
+        const body = await parseJsonBody(req);
+        const storeId = await assertCaseAccess({ pool, principal, caseId: kycSubmitRoute[1] });
+        const requestId = String(req.headers['x-request-id'] || crypto.randomUUID());
+        const sourceRequestId = String(body.sourceRequestId || `merchant-kyc-submit-${kycSubmitRoute[1]}`);
+        const localResult = await submitKycCaseForReview({
+          pool,
+          storeId,
+          caseId: kycSubmitRoute[1],
+          actorId: principal.id,
+          actorRole: principal.role,
+          requestId,
+        });
+
+        let assignment = null;
+        let backoffice = { status: 'PENDING_CONFIGURATION', code: 'ASSIGNMENT_INTEGRATION_DISABLED' };
+        try {
+          const assignmentResult = await createAssignmentRequest({
+            pool,
+            backofficeClient: assignmentBackofficeClient,
+            storeId,
+            sourceRequestId,
+            agentPhone: body.agentPhone,
+            requestId,
+          });
+          assignment = assignmentResult.data;
+          backoffice = assignment.status === 'PENDING_BACKOFFICE_DISPATCH'
+            ? { status: 'PENDING_CONFIGURATION', code: assignment.reason || 'BACKOFFICE_DISPATCH_PENDING', assignment }
+            : { status: 'FORWARDED', assignment };
+        } catch (error) {
+          if (!deferredAssignmentErrorCodes.has(error.code)) throw error;
+          await writeAudit({
+            poolOrClient: pool,
+            principal,
+            action: 'KYC_BACKOFFICE_DISPATCH_PENDING',
+            targetType: 'kyc_case',
+            targetId: kycSubmitRoute[1],
+            after: { status: 'PENDING_CONFIGURATION', code: error.code },
+            requestId,
+          });
+          backoffice = { status: 'PENDING_CONFIGURATION', code: error.code };
+        }
+
+        res.statusCode = backoffice.status === 'FORWARDED' ? 201 : 202;
+        res.end(JSON.stringify({ success: true, data: { ...localResult, assignment, backoffice } }));
+        return;
+      }
+
       const documentRoute = requestPath.match(/^\/api\/v1\/kyc\/cases\/([^/]+)\/documents$/);
       if (documentRoute && req.method === 'POST') {
         assertRole(principal, ['merchant']);
         await enforcePrincipalRateLimit({ principal, requestPath: '/api/v1/kyc/documents', limit: 20, windowSeconds: 300 });
         const caseStoreId = await assertCaseAccess({ pool, principal, caseId: documentRoute[1] });
-        if (!backofficeConfig.enabled || !backofficeConfig.kycDocumentEnabled) {
-          res.statusCode = 503;
-          res.end(JSON.stringify({ success: false, code: 'KYC_DOCUMENT_INTEGRATION_DISABLED', error: 'KYC document integration is disabled' }));
-          return;
-        }
         const storeId = caseStoreId;
         const idempotencyKey = req.headers['idempotency-key'];
         const requestId = String(req.headers['x-request-id'] || crypto.randomUUID());
@@ -637,7 +694,7 @@ const server = http.createServer(async (req, res) => {
               publicBaseUrl: process.env.NEXT_PUBLIC_APP_URL,
             });
           } catch (documentError) {
-            if (ownsStoredFile) await deletePrivateDocument(storageLocator).catch(() => {});
+            if (ownsStoredFile && !documentError.localCommitted) await deletePrivateDocument(storageLocator).catch(() => {});
             throw documentError;
           }
         });

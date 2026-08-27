@@ -5,7 +5,7 @@ const { Client } = require('pg');
 dotenv.config({ path: path.resolve(__dirname, '..', '.env') });
 
 const CASE_NUMBER = 'KYC-DEMO-0001';
-const RESET_REASON = 'Reset approved demo case for end-to-end Agent/PD and payment QR testing';
+const RESET_REASON = 'Reset demo case to draft before Backoffice submission testing';
 const REQUEST_ID = `manual-demo-reset-${CASE_NUMBER.toLowerCase()}`;
 
 const client = new Client({
@@ -64,7 +64,7 @@ async function resetDemoKyc() {
     );
     await client.query(
       `UPDATE merchant_kyc_cases
-       SET status = 'WAITING_AGENT_REVIEW', "updatedAt" = NOW()
+        SET status = 'draft', "updatedAt" = NOW()
        WHERE id = $1`,
       [kycCase.id]
     );
@@ -81,7 +81,7 @@ async function resetDemoKyc() {
           approvalLevel: verification.approvalLevel,
         }),
         JSON.stringify({
-          caseStatus: 'WAITING_AGENT_REVIEW',
+          caseStatus: 'draft',
           verificationStatus: 'pending',
           approvalLevel: 'pending',
         }),

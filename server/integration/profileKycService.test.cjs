@@ -71,6 +71,10 @@ function createDocumentPool() {
     state,
     pool: {
       connect: async () => client,
+      query: async (sql) => {
+        state.sql.push(sql);
+        return { rows: [], rowCount: 1 };
+      },
     },
   };
 }
@@ -291,4 +295,28 @@ test('document intake replay does not create another version or call Backoffice'
     if (originalScannerUrl === undefined) delete process.env.DOCUMENT_SCANNER_URL;
     else process.env.DOCUMENT_SCANNER_URL = originalScannerUrl;
   }
+});
+
+test('document intake keeps the local version pending when Store Backoffice mapping is missing', async () => {
+  const { pool, state } = createDocumentPool();
+  const backofficeClient = {
+    request: async () => {
+      const error = new Error('Store credential mapping is missing');
+      error.code = 'STORE_CREDENTIAL_MAPPING_MISSING';
+      throw error;
+    },
+  };
+  const result = await intakeKycDocument({
+    pool,
+    backofficeClient,
+    storeId,
+    caseId,
+    body: documentBody('document-pending-001', 'b'.repeat(64)),
+    idempotencyKey: 'document-pending-idempotency-001',
+  });
+
+  assert.equal(result.document.version, 1);
+  assert.deepEqual(result.backoffice, { status: 'PENDING_CONFIGURATION', code: 'STORE_CREDENTIAL_MAPPING_MISSING' });
+  assert.equal(state.versions.length, 1);
+  assert.equal(state.versions[0].status, result.document.status);
 });

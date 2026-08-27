@@ -8,6 +8,7 @@ const ASSIGNMENT_STATUSES = new Set([
   'EXPIRED',
   'REASSIGNED',
   'REQUEST_FAILED',
+  'PENDING_BACKOFFICE_DISPATCH',
 ]);
 const CALLBACK_STATUSES = new Set(['ACCEPTED', 'REJECTED', 'EXPIRED', 'REASSIGNED', 'ASSIGNED_FOR_ACCEPTANCE']);
 const CALLBACK_PROVIDER = 'agent_pd_backoffice';
@@ -71,6 +72,7 @@ function publicAssignment(row, idempotentReplay = false) {
     storeId: row.storeId,
     sourceRequestId: row.sourceRequestId,
     status: row.status,
+    reason: row.reason || null,
     requestedAt: row.createdAt,
     expiresAt: row.expiresAt || null,
     idempotentReplay,
@@ -112,7 +114,7 @@ async function createAssignmentRequest({ pool, backofficeClient, storeId, source
     );
     if (existingResult.rowCount > 0) {
       const existing = existingResult.rows[0];
-      if (existing.status !== 'REQUEST_FAILED') return { assignment: existing, replay: true };
+      if (!['REQUEST_FAILED', 'PENDING_BACKOFFICE_DISPATCH'].includes(existing.status)) return { assignment: existing, replay: true };
       await client.query(
         `UPDATE agent_assignments
          SET status = $1, reason = NULL, "agentPhone" = $2, "updatedAt" = NOW()
@@ -203,6 +205,34 @@ async function createAssignmentRequest({ pool, backofficeClient, storeId, source
 
     return { statusCode: response.status === 200 ? 200 : 201, data: publicAssignment(updated, false) };
   } catch (error) {
+    const deferredCodes = new Set([
+      'BASE_URL_MISSING',
+      'BEARER_SECRET_MISSING',
+      'INTEGRATION_DISABLED',
+      'SECRET_RESOLVER_UNAVAILABLE',
+      'SECRET_VALUE_MISSING',
+      'SIGNING_SECRET_MISSING',
+      'STORE_CREDENTIAL_MAPPING_MISSING',
+    ]);
+    if (deferredCodes.has(error.code)) {
+      const pending = await withTransaction(pool, async (client) => {
+        const updateResult = await client.query(
+          `UPDATE agent_assignments
+           SET status = 'PENDING_BACKOFFICE_DISPATCH', reason = $1, "updatedAt" = NOW()
+           WHERE id = $2
+           RETURNING *`,
+          [error.code, prepared.assignment.id]
+        );
+        await client.query(
+          `INSERT INTO audit_logs
+            ("actorId", "actorRole", action, "targetType", "targetId", reason, "requestId", "afterJson", "createdAt")
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, NOW())`,
+          ['system', 'system', 'ASSIGNMENT_REQUEST_PENDING_BACKOFFICE_DISPATCH', 'agent_assignment', prepared.assignment.id, error.code, requestId || null, JSON.stringify({ status: 'PENDING_BACKOFFICE_DISPATCH' })]
+        );
+        return updateResult.rows[0];
+      });
+      return { statusCode: 202, data: publicAssignment(pending, false) };
+    }
     await withTransaction(pool, async (client) => {
       await client.query(
         `UPDATE agent_assignments
