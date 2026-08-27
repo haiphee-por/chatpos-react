@@ -11703,7 +11703,7 @@ button.mh-app-card {
 
 .merchant-app-home .mh-global-bottom-bar {
   display: flex;
-  left: 50%;
+  left: 50% !important;
   right: auto;
   width: min(520px, 100%);
   transform: translateX(-50%);
@@ -11804,5 +11804,992 @@ button.mh-app-card {
 
   .mh-system-status span {
     font-size: 8px;
+  }
+}
+
+.merchant-app-home .merchant-home-content {
+  width: min(100%, 620px);
+  max-width: 620px;
+}
+
+.merchant-app-home .merchant-home-view.reference-page {
+  --reference-navy: #071a45;
+  --reference-muted: #64708b;
+  --reference-green: #0aa63f;
+  --reference-green-dark: #067531;
+  --reference-blue: #146ee8;
+  --reference-line: #dfe7e4;
+  min-height: 100vh;
+  background: #f4f8f6;
+  color: var(--reference-navy);
+}
+
+.reference-page .app-header {
+  position: relative;
+  z-index: 10;
+  padding: 14px 13px;
+  border-bottom: 1px solid var(--reference-line);
+  background: rgb(255 255 255 / 96%);
+  box-shadow: 0 5px 22px rgb(15 56 38 / 6%);
+}
+
+.reference-page .app-header-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 10px;
+  min-height: 48px;
+}
+
+.reference-page .brand-button {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.reference-page .brand {
+  display: inline-flex;
+  align-items: center;
+  color: var(--reference-navy);
+  font-size: 25px;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.reference-page .brand b {
+  font-weight: 700;
+}
+
+.reference-page .brand strong {
+  color: var(--reference-green);
+  font-weight: 700;
+}
+
+.reference-page .brand-bubble {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  margin-right: 7px;
+  border-radius: 50%;
+  background: linear-gradient(145deg, #17c84f, #068933);
+  color: #fff;
+  box-shadow: 0 7px 14px rgb(0 135 51 / 20%);
+}
+
+.reference-page .merchant-switcher {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr) 16px;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  height: 48px;
+  margin: 0;
+  padding: 6px 11px;
+  border: 1px solid #dce6e2;
+  border-radius: 16px;
+  background: #f7faf8;
+  color: var(--reference-navy);
+  box-shadow: none;
+}
+
+.reference-page .merchant-switcher > svg:first-child {
+  width: 24px;
+  color: var(--reference-green);
+}
+
+.reference-page .merchant-switcher > svg:last-child {
+  width: 16px;
+}
+
+.reference-page .merchant-switcher > span {
+  display: block;
+  min-width: 0;
+}
+
+.reference-page .merchant-switcher small,
+.reference-page .merchant-switcher b,
+.reference-page .merchant-switcher select {
+  display: block;
+  width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.reference-page .merchant-switcher small {
+  color: var(--reference-muted);
+  font-size: 10px;
+  line-height: 1.2;
+}
+
+.reference-page .merchant-switcher b,
+.reference-page .merchant-switcher select {
+  margin-top: 1px;
+  padding: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--reference-navy);
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.reference-page .merchant-switcher select {
+  appearance: none;
+  cursor: pointer;
+}
+
+.reference-page .icon-button,
+.reference-page .mh-notification-trigger {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 43px;
+  height: 43px;
+  padding: 0;
+  border: 1px solid var(--reference-line);
+  border-radius: 15px;
+  background: #fff;
+  color: var(--reference-navy);
+  cursor: pointer;
+}
+
+.reference-page .mh-notification-trigger b {
+  top: -5px;
+  right: -5px;
+  min-width: 21px;
+  height: 21px;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  background: #ef2738;
+  font-size: 10px;
+}
+
+.reference-page .screen {
+  min-height: calc(100vh - 170px);
+}
+
+.reference-page .reference-home {
+  position: relative;
+  padding: 27px 28px 76px;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 100% 0, rgb(80 240 139 / 25%), transparent 34%),
+    linear-gradient(160deg, #079f45, #067b38 58%, #05672f);
+}
+
+.reference-page .reference-home::after {
+  position: absolute;
+  top: -110px;
+  right: -120px;
+  width: 250px;
+  height: 250px;
+  border: 1px solid rgb(255 255 255 / 15%);
+  border-radius: 50%;
+  box-shadow: 0 0 0 34px rgb(255 255 255 / 5%), 0 0 0 70px rgb(255 255 255 / 3%);
+  content: '';
+}
+
+.reference-page .home-terminal {
+  position: relative;
+  z-index: 2;
+  padding: 18px;
+  border: 1px solid #b9e7c8;
+  border-radius: 30px;
+  background:
+    radial-gradient(circle at 95% 0, #caffd8, transparent 45%),
+    linear-gradient(145deg, #fff, #ecfaf1);
+  color: var(--reference-navy);
+  box-shadow: 0 18px 35px rgb(0 62 28 / 22%), inset 0 1px #fff;
+}
+
+.reference-page .home-terminal-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.reference-page .home-terminal-status > span,
+.reference-page .home-terminal-status > b {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+}
+
+.reference-page .home-terminal-status > span {
+  color: #46705b;
+  font-weight: 600;
+}
+
+.reference-page .home-terminal-status > span i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #16bd50;
+  box-shadow: 0 0 5px rgb(22 189 80 / 13%);
+}
+
+.reference-page .home-terminal-status > b {
+  color: var(--reference-green-dark);
+  white-space: nowrap;
+}
+
+.reference-page .home-terminal > button {
+  position: relative;
+  display: grid;
+  grid-template-columns: 60px minmax(0, 1fr) 19px;
+  align-items: center;
+  gap: 13px;
+  width: 100%;
+  min-height: 104px;
+  margin-top: 16px;
+  padding: 14px 18px;
+  overflow: hidden;
+  border: 0;
+  border-radius: 26px;
+  background: linear-gradient(145deg, #19ba54, #068639);
+  color: #fff;
+  text-align: left;
+  cursor: pointer;
+  box-shadow: 0 15px 28px rgb(2 121 49 / 24%), inset 0 1px rgb(255 255 255 / 28%);
+}
+
+.reference-page .home-terminal > button::after,
+.reference-page .feature-card::after {
+  position: absolute;
+  inset: -40% auto -40% -45%;
+  width: 28%;
+  background: linear-gradient(90deg, transparent, rgb(255 255 255 / 24%), transparent);
+  content: '';
+  transform: rotate(18deg);
+  animation: reference-sheen 5s ease-in-out infinite;
+}
+
+.reference-page .terminal-scan {
+  display: grid;
+  place-items: center;
+  width: 58px;
+  height: 58px;
+  border: 1px solid rgb(255 255 255 / 32%);
+  border-radius: 18px;
+  background: rgb(255 255 255 / 16%);
+}
+
+.reference-page .home-terminal > button b,
+.reference-page .home-terminal > button small {
+  display: block;
+}
+
+.reference-page .home-terminal > button b {
+  font-size: 25px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.reference-page .home-terminal > button small {
+  margin-top: 3px;
+  color: #edfff2;
+  font-size: 14px;
+}
+
+.reference-page .terminal-methods {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 15px;
+}
+
+.reference-page .terminal-methods span {
+  display: grid;
+  place-items: center;
+  min-width: 0;
+  min-height: 48px;
+  padding: 0 7px;
+  border: 1px solid #cfe3d6;
+  border-radius: 15px;
+  background: rgb(255 255 255 / 62%);
+  color: #086e34;
+  font-size: 13px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.reference-page .merchant-line {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 64px;
+  margin-top: 20px;
+  padding: 10px 13px;
+  border: 1px solid rgb(255 255 255 / 24%);
+  border-radius: 21px;
+  background: rgb(0 78 35 / 54%);
+  color: #fff;
+  text-align: left;
+  cursor: pointer;
+  box-shadow: inset 0 1px rgb(255 255 255 / 13%);
+}
+
+.reference-page .merchant-line > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+.reference-page .merchant-line > span b {
+  font-size: 18px;
+}
+
+.reference-page .merchant-line > small {
+  min-width: 0;
+  overflow: hidden;
+  color: #effff4;
+  font-size: 12px;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.reference-page .merchant-line > time {
+  padding: 8px 10px;
+  border-radius: 13px;
+  background: #dfffea;
+  color: #06351b;
+  font-size: 16px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.reference-page .reference-content {
+  padding: 0 28px 115px;
+  background: #f4f8f6;
+}
+
+.reference-page .reference-summary {
+  position: relative;
+  z-index: 4;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0;
+  margin: -54px 0 0;
+  padding: 18px 9px;
+  border: 1px solid #e1e8e5;
+  border-radius: 0 0 27px 27px;
+  background: #fff;
+  box-shadow: 0 17px 35px rgb(10 48 30 / 12%);
+}
+
+.reference-page .reference-summary button {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr);
+  grid-template-rows: auto auto auto;
+  column-gap: 10px;
+  min-width: 0;
+  min-height: 88px;
+  padding: 7px 10px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--reference-navy);
+  text-align: left;
+  cursor: pointer;
+}
+
+.reference-page .reference-summary button + button {
+  border-left: 1px solid #dde5e2;
+}
+
+.reference-page .stat-icon {
+  display: grid;
+  grid-row: 1 / span 3;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  color: #fff;
+}
+
+.reference-page .stat-icon.green { background: linear-gradient(145deg, #20c75b, #078438); }
+.reference-page .stat-icon.blue { background: linear-gradient(145deg, #4598ff, #1260d1); }
+.reference-page .stat-icon.purple { background: linear-gradient(145deg, #9b65f5, #6c31d7); }
+
+.reference-page .reference-summary small {
+  color: var(--reference-muted);
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.reference-page .reference-summary strong {
+  color: var(--reference-green-dark);
+  font-size: 23px;
+  line-height: 1.15;
+}
+
+.reference-page .reference-summary button:nth-child(2) strong { color: var(--reference-blue); }
+.reference-page .reference-summary button:nth-child(3) strong { color: #7445db; }
+
+.reference-page .reference-summary em {
+  color: var(--reference-navy);
+  font-size: 10px;
+  font-style: normal;
+}
+
+.reference-page .mh-menu-section {
+  margin-top: 29px;
+}
+
+.reference-page .mh-section-heading {
+  height: auto;
+  min-height: 49px;
+  margin: 0 3px 11px;
+  padding: 0;
+}
+
+.reference-page .mh-section-heading > div {
+  gap: 0;
+}
+
+.reference-page .mh-section-heading span {
+  color: var(--reference-green-dark);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.reference-page .mh-section-heading h2 {
+  margin-top: 12px;
+  color: var(--reference-navy);
+  font-size: 34px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.reference-page .mh-section-heading > svg {
+  width: 30px;
+  height: 30px;
+  color: #8a9690;
+}
+
+.reference-page .feature-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.reference-page .feature-card {
+  position: relative;
+  display: grid;
+  grid-template-columns: 62px 1fr 18px;
+  grid-template-rows: 82px auto;
+  align-items: start;
+  gap: 6px;
+  min-height: 224px;
+  padding: 19px;
+  overflow: hidden;
+  border: 0;
+  border-radius: 28px;
+  color: #fff;
+  text-align: left;
+  cursor: pointer;
+  box-shadow: 0 12px 25px rgb(5 39 23 / 15%);
+}
+
+.reference-page .feature-card.green { background: linear-gradient(145deg, #20b75b, #067c35); }
+.reference-page .feature-card.blue { background: linear-gradient(145deg, #4b8cff, #1255bc); }
+.reference-page .feature-card.red { background: linear-gradient(145deg, #f45b64, #bd2c4a); }
+.reference-page .feature-card.purple { background: linear-gradient(145deg, #9667f4, #6233c3); }
+
+.reference-page .feature-icon {
+  display: grid;
+  place-items: center;
+  width: 60px;
+  height: 60px;
+  border: 1px solid rgb(255 255 255 / 28%);
+  border-radius: 19px;
+  background: rgb(255 255 255 / 16%);
+}
+
+.reference-page .feature-card > span:nth-child(2) {
+  align-self: end;
+  grid-column: 1 / 4;
+  padding-top: 14px;
+  border-top: 1px solid rgb(255 255 255 / 24%);
+}
+
+.reference-page .feature-card b,
+.reference-page .feature-card small {
+  display: block;
+}
+
+.reference-page .feature-card b {
+  color: #fff;
+  font-size: 25px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.reference-page .feature-card small {
+  margin-top: 7px;
+  color: #fff;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.reference-page .feature-card > svg {
+  align-self: center;
+  width: 18px;
+}
+
+.reference-page .benefit-banner {
+  position: relative;
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr) 38px;
+  align-items: center;
+  gap: 11px;
+  width: 100%;
+  min-height: 102px;
+  margin-top: 12px;
+  padding: 16px;
+  overflow: hidden;
+  border: 0;
+  border-radius: 22px;
+  background:
+    radial-gradient(circle at 87% 10%, rgb(255 255 255 / 28%), transparent 38%),
+    linear-gradient(135deg, #ffa423, #e66f00);
+  color: #fff;
+  text-align: left;
+  cursor: pointer;
+  box-shadow: 0 12px 24px rgb(218 104 0 / 20%);
+}
+
+.reference-page .benefit-icon {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border: 1px solid rgb(255 255 255 / 30%);
+  border-radius: 15px;
+  background: rgb(255 255 255 / 17%);
+}
+
+.reference-page .benefit-banner b,
+.reference-page .benefit-banner small {
+  display: block;
+}
+
+.reference-page .benefit-banner b {
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.reference-page .benefit-banner small {
+  margin-top: 3px;
+  color: #fff8ed;
+  font-size: 13px;
+}
+
+.reference-page .channel-panel {
+  margin-top: 13px;
+  padding: 17px;
+  border: 1px solid var(--reference-line);
+  border-radius: 22px;
+  background: #fff;
+  box-shadow: 0 9px 22px rgb(13 48 31 / 6%);
+}
+
+.reference-page .section-title.compact {
+  margin-top: 0;
+}
+
+.reference-page .section-title.compact h2 {
+  margin: 1px 0 11px;
+  font-size: 20px;
+}
+
+.reference-page .channel-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.reference-page .channel-grid > span {
+  display: grid;
+  place-items: center;
+  min-width: 0;
+  padding: 11px 7px;
+  border: 1px solid #e2e9e6;
+  border-radius: 15px;
+  background: #fbfdfc;
+  text-align: center;
+}
+
+.reference-page .channel-logo {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 11px;
+  color: #fff;
+  font-size: 17px;
+  font-style: normal;
+  font-weight: 700;
+}
+
+.reference-page .channel-logo.c1 { background: #102c67; }
+.reference-page .channel-logo.c2 { background: #1269e5; }
+.reference-page .channel-logo.c3 { background: #0aaa43; }
+.reference-page .channel-logo.c4 { background: #168ae5; }
+.reference-page .channel-logo.c5 { background: #183a73; }
+.reference-page .channel-logo.c6 { background: #f17508; }
+
+.reference-page .channel-grid b {
+  width: 100%;
+  margin-top: 6px;
+  overflow: hidden;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.reference-page .channel-grid small {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-top: 4px;
+  color: var(--reference-green);
+  font-size: 10px;
+}
+
+.reference-page .system-status {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  margin-top: 13px;
+  padding: 11px 5px;
+  border: 1px solid var(--reference-line);
+  border-radius: 18px;
+  background: #fff;
+}
+
+.reference-page .system-status span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  color: var(--reference-green-dark);
+  font-size: 10px;
+  text-align: center;
+}
+
+.reference-page .system-status span + span {
+  border-left: 1px solid var(--reference-line);
+}
+
+.reference-page .system-status span.is-warning {
+  color: #a95d00;
+}
+
+.reference-page .system-status b {
+  font-weight: 600;
+}
+
+.merchant-app-home .mh-stale-notice {
+  margin-top: 13px;
+  border-radius: 15px;
+}
+
+.merchant-app-home .mh-global-bottom-bar {
+  display: grid;
+  grid-template-columns: 1fr 1fr 174px 1fr 1fr;
+  align-items: center;
+  width: min(100%, 620px);
+  min-height: 94px;
+  left: 50%;
+  right: auto;
+  padding: 8px 8px max(9px, env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  border-top: 1px solid rgb(255 255 255 / 15%);
+  border-radius: 0;
+  background: linear-gradient(#087c3d, #055f2f);
+  box-shadow: 0 -12px 30px rgb(0 57 27 / 22%);
+}
+
+.merchant-app-home .mh-bottom-item,
+.merchant-app-home .mh-bottom-center-group button {
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 3px;
+  min-width: 0;
+  min-height: 65px;
+  padding: 5px 2px;
+  border: 0;
+  border-radius: 15px;
+  background: transparent;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  text-shadow: 0 1px 2px rgb(0 35 15 / 30%);
+}
+
+.merchant-app-home .mh-bottom-item.active {
+  background: rgb(255 255 255 / 12%);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 16%);
+}
+
+.merchant-app-home .mh-bottom-item.active svg {
+  color: #fff;
+}
+
+.merchant-app-home .mh-bottom-center-group {
+  display: flex;
+  width: 174px;
+  height: 80px;
+  margin: -25px 0 0;
+  padding: 5px;
+  box-sizing: border-box;
+  gap: 8px;
+  overflow: visible;
+  transform: none;
+  border-radius: 27px;
+  background: #075b32;
+  box-shadow: 0 10px 25px rgb(0 41 20 / 32%);
+}
+
+.merchant-app-home .mh-bottom-center-group button {
+  width: 72px;
+  flex: 1 1 0;
+  height: 70px;
+  min-height: 70px;
+  border-radius: 20px;
+}
+
+.merchant-app-home .mh-bottom-home-btn {
+  background: linear-gradient(145deg, #19c661, #09a247) !important;
+}
+
+.merchant-app-home .mh-bottom-pay-btn {
+  background: linear-gradient(145deg, #ff9f35, #ed7309) !important;
+}
+
+.reference-page button:focus-visible,
+.merchant-app-home .mh-global-bottom-bar button:focus-visible {
+  outline: 3px solid rgb(20 110 232 / 45%);
+  outline-offset: 2px;
+}
+
+.reference-page .is-disabled {
+  filter: saturate(.72);
+  opacity: .63;
+}
+
+@keyframes reference-sheen {
+  0%, 55% { left: -45%; }
+  82%, 100% { left: 130%; }
+}
+
+@media (max-width: 760px) {
+  .merchant-app-home .merchant-home-content {
+    width: 100%;
+    max-width: none;
+  }
+}
+
+@media (max-width: 430px) {
+  .reference-page .app-header {
+    padding-inline: 13px;
+  }
+
+  .reference-page .app-header-row {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    gap: 6px;
+  }
+
+  .reference-page .brand {
+    font-size: 20px;
+  }
+
+  .reference-page .brand-bubble {
+    width: 31px;
+    height: 31px;
+    margin-right: 5px;
+  }
+
+  .reference-page .icon-button {
+    display: none;
+  }
+
+  .reference-page .reference-home {
+    padding: 22px 13px 70px;
+  }
+
+  .reference-page .home-terminal {
+    padding: 15px;
+    border-radius: 25px;
+  }
+
+  .reference-page .home-terminal > button {
+    grid-template-columns: 52px minmax(0, 1fr) 17px;
+    min-height: 92px;
+    padding-inline: 13px;
+  }
+
+  .reference-page .terminal-scan {
+    width: 51px;
+    height: 51px;
+  }
+
+  .reference-page .home-terminal > button b {
+    font-size: 21px;
+  }
+
+  .reference-page .home-terminal > button small {
+    font-size: 12px;
+  }
+
+  .reference-page .terminal-methods span {
+    min-height: 44px;
+    font-size: 11px;
+  }
+
+  .reference-page .merchant-line {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    gap: 7px;
+    padding-inline: 9px;
+  }
+
+  .reference-page .merchant-line > span b {
+    font-size: 15px;
+  }
+
+  .reference-page .merchant-line > span svg {
+    width: 21px;
+  }
+
+  .reference-page .merchant-line > small {
+    font-size: 10px;
+  }
+
+  .reference-page .merchant-line > time {
+    padding: 7px 8px;
+    font-size: 14px;
+  }
+
+  .reference-page .reference-content {
+    padding-inline: 13px;
+  }
+
+  .reference-page .reference-summary {
+    margin-top: -49px;
+    padding-inline: 5px;
+  }
+
+  .reference-page .reference-summary button {
+    grid-template-columns: 34px minmax(0, 1fr);
+    column-gap: 5px;
+    padding-inline: 5px;
+  }
+
+  .reference-page .stat-icon {
+    width: 34px;
+    height: 34px;
+  }
+
+  .reference-page .stat-icon svg {
+    width: 19px;
+  }
+
+  .reference-page .reference-summary strong {
+    font-size: 19px;
+  }
+
+  .reference-page .reference-summary small {
+    font-size: 10px;
+  }
+
+  .reference-page .mh-section-heading h2 {
+    font-size: 30px;
+  }
+
+  .reference-page .feature-grid {
+    gap: 10px;
+  }
+
+  .reference-page .feature-card {
+    grid-template-columns: 52px 1fr 15px;
+    grid-template-rows: 69px auto;
+    min-height: 205px;
+    padding: 15px;
+  }
+
+  .reference-page .feature-icon {
+    width: 51px;
+    height: 51px;
+  }
+
+  .reference-page .feature-card b {
+    font-size: 21px;
+  }
+
+  .reference-page .feature-card small {
+    font-size: 12px;
+    line-height: 1.55;
+  }
+
+  .merchant-app-home .mh-bottom-item,
+  .merchant-app-home .mh-bottom-center-group button {
+    font-size: 9.5px;
+  }
+
+  .merchant-app-home .mh-bottom-item svg,
+  .merchant-app-home .mh-bottom-center-group button svg {
+    width: 22px;
+    height: 22px;
+  }
+}
+
+@media (max-width: 350px) {
+  .reference-page .notification-button {
+    display: none;
+  }
+
+  .reference-page .terminal-methods,
+  .reference-page .feature-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .reference-page .merchant-line > small {
+    display: none;
+  }
+
+  .reference-page .reference-summary button {
+    grid-template-columns: 1fr;
+    place-items: center;
+    text-align: center;
+  }
+
+  .reference-page .stat-icon {
+    grid-row: auto;
+  }
+
+  .reference-page .system-status {
+    grid-template-columns: 1fr;
+  }
+
+  .reference-page .system-status span {
+    min-height: 32px;
+  }
+
+  .reference-page .system-status span + span {
+    border-top: 1px solid var(--reference-line);
+    border-left: 0;
   }
 }
