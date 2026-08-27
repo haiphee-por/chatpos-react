@@ -2,9 +2,91 @@ const assert = require('node:assert/strict');
 const test = require('node:test');
 const {
   buildDocumentCommandBody,
+  intakeKycDocument,
   validateDocumentBody,
   validateProfileBody,
 } = require('./profileKycService.cjs');
+
+const storeId = '30000000-0000-4000-8000-000000000001';
+const caseId = '40000000-0000-4000-8000-000000000001';
+
+function createDocumentPool() {
+  const state = {
+    latestVersion: 0,
+    versions: [],
+    sql: [],
+  };
+  const caseRow = {
+    id: caseId,
+    storeId,
+    verificationId: null,
+    case_number: 'KYC-202608-TEST01',
+    status: 'draft',
+    submissionVersion: 0,
+    submissionSnapshotJson: null,
+    submissionProfileVersion: 0,
+  };
+  const client = {
+    async query(sql, parameters = []) {
+      state.sql.push(sql);
+      if (/^(BEGIN|COMMIT|ROLLBACK)/.test(sql.trim())) return { rows: [], rowCount: 0 };
+      if (sql.includes('FROM merchant_kyc_cases')) return { rows: [caseRow], rowCount: 1 };
+      if (sql.includes('SELECT id, "documentId"') && sql.includes('"sourceRequestId"')) {
+        const row = state.versions.find((version) => version.sourceRequestId === parameters[1] || version.idempotencyKey === parameters[2]);
+        return { rows: row ? [row] : [], rowCount: row ? 1 : 0 };
+      }
+      if (sql.includes('INSERT INTO kyc_documents')) {
+        return { rows: [{ id: '50000000-0000-4000-8000-000000000001', latestVersion: state.latestVersion }], rowCount: 1 };
+      }
+      if (sql.includes('FROM kyc_document_versions') && sql.includes('"documentId" = $1')) {
+        const row = state.versions.find((version) => version.documentId === parameters[0] && version.checksumSha256 === parameters[1]);
+        return { rows: row ? [row] : [], rowCount: row ? 1 : 0 };
+      }
+      if (sql.includes('INSERT INTO kyc_document_versions')) {
+        const row = {
+          id: `60000000-0000-4000-8000-00000000000${state.latestVersion + 1}`,
+          documentId: parameters[0],
+          version: parameters[3],
+          fileName: parameters[4],
+          mimeType: parameters[5],
+          fileSize: parameters[6],
+          checksumSha256: parameters[7],
+          storageLocator: parameters[8],
+          status: parameters[9],
+          scanStatus: parameters[10],
+          sourceIssuedAt: parameters[16],
+          sourceRequestId: parameters[14],
+          idempotencyKey: parameters[15],
+          createdAt: '2026-08-27T00:00:00.000Z',
+        };
+        state.latestVersion = row.version;
+        state.versions.push(row);
+        return { rows: [row], rowCount: 1 };
+      }
+      return { rows: [], rowCount: 1 };
+    },
+    release() {},
+  };
+  return {
+    state,
+    pool: {
+      connect: async () => client,
+    },
+  };
+}
+
+function documentBody(sourceRequestId, checksumSha256) {
+  return {
+    documentType: 'id-card-front',
+    fileName: 'id-card.png',
+    mimeType: 'image/png',
+    fileSize: 3,
+    checksumSha256,
+    storageLocator: `private/kyc/${storeId}/${caseId}/id-card-${sourceRequestId}.png`,
+    sourceRequestId,
+    sourceIssuedAt: '2026-08-27T00:00:00.000Z',
+  };
+}
 
 test('profile validator accepts only nested allowlisted fields', () => {
   const result = validateProfileBody({
@@ -134,4 +216,79 @@ test('document command payload matches the Backoffice guide exactly', () => {
     'sourceIssuedAt',
     'sourceRequestId',
   ]);
+});
+
+test('document intake creates immutable versions and forwards the Backoffice command', async () => {
+  const { pool, state } = createDocumentPool();
+  const requests = [];
+  const backofficeClient = {
+    request: async (path, options) => {
+      requests.push({ path, options });
+      return { ok: true, status: 201, data: { accepted: true } };
+    },
+  };
+  const originalScannerUrl = process.env.DOCUMENT_SCANNER_URL;
+  delete process.env.DOCUMENT_SCANNER_URL;
+
+  try {
+    const first = await intakeKycDocument({
+      pool,
+      backofficeClient,
+      storeId,
+      caseId,
+      body: documentBody('document-upload-001', 'a'.repeat(64)),
+      idempotencyKey: 'document-idempotency-001',
+      requestId: 'request-document-001',
+    });
+    const second = await intakeKycDocument({
+      pool,
+      backofficeClient,
+      storeId,
+      caseId,
+      body: documentBody('document-upload-002', 'b'.repeat(64)),
+      idempotencyKey: 'document-idempotency-002',
+      requestId: 'request-document-002',
+    });
+
+    assert.equal(first.document.version, 1);
+    assert.equal(second.document.version, 2);
+    assert.deepEqual(state.versions.map((version) => version.version), [1, 2]);
+    assert.equal(requests.length, 2);
+    assert.equal(requests[0].path, `/api/v1/kyc/cases/${caseId}/documents`);
+    assert.equal(requests[0].options.body.version, 1);
+    assert.equal(requests[1].options.body.version, 2);
+    assert.equal(requests[0].options.body.sourceRequestId, 'document-upload-001');
+    assert.equal(state.sql.some((sql) => sql.includes('"submittedBy"')), true);
+  } finally {
+    if (originalScannerUrl === undefined) delete process.env.DOCUMENT_SCANNER_URL;
+    else process.env.DOCUMENT_SCANNER_URL = originalScannerUrl;
+  }
+});
+
+test('document intake replay does not create another version or call Backoffice', async () => {
+  const { pool, state } = createDocumentPool();
+  let requestCount = 0;
+  const backofficeClient = {
+    request: async () => {
+      requestCount += 1;
+      return { ok: true, status: 201, data: { accepted: true } };
+    },
+  };
+  const originalScannerUrl = process.env.DOCUMENT_SCANNER_URL;
+  delete process.env.DOCUMENT_SCANNER_URL;
+
+  try {
+    const body = documentBody('document-upload-replay', 'c'.repeat(64));
+    const first = await intakeKycDocument({ pool, backofficeClient, storeId, caseId, body, idempotencyKey: 'document-replay-001' });
+    const replay = await intakeKycDocument({ pool, backofficeClient, storeId, caseId, body, idempotencyKey: 'document-replay-001' });
+
+    assert.equal(first.document.version, 1);
+    assert.equal(replay.replayed, true);
+    assert.equal(replay.document.version, 1);
+    assert.equal(state.versions.length, 1);
+    assert.equal(requestCount, 1);
+  } finally {
+    if (originalScannerUrl === undefined) delete process.env.DOCUMENT_SCANNER_URL;
+    else process.env.DOCUMENT_SCANNER_URL = originalScannerUrl;
+  }
 });
