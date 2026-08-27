@@ -66,21 +66,17 @@ function parsePositiveInteger(value, fallback) {
 }
 
 function loadBackofficeConfig(env = process.env) {
-  const secretCandidates = (currentKey, previousKey) => [env[currentKey], env[previousKey]]
+  const secretCandidates = (...keys) => keys.flatMap((key) => [env[key]])
     .map((value) => String(value || '').trim())
     .filter(Boolean);
   return {
-    baseUrl: String(env.AGENT_PD_BACKOFFICE_BASE_URL || '').replace(/\/$/, ''),
-    storeId: String(env.AGENT_PD_STORE_ID || ''),
-    chatposStoreId: String(env.AGENT_PD_CHATPOS_STORE_ID || ''),
-    keyId: String(env.AGENT_PD_KEY_ID || ''),
     credentialEnvironment: String(env.AGENT_PD_CREDENTIAL_ENVIRONMENT || env.CHATPOS_ENVIRONMENT || env.NODE_ENV || 'development'),
     keyIdHeaderName: String(env.AGENT_PD_KEY_ID_HEADER || 'X-ChatPOS-Key-Id'),
-    bearerSecret: String(env.AGENT_PD_BEARER_SECRET || ''),
-    signingSecret: String(env.AGENT_PD_SIGNING_SECRET || ''),
-    signingSecrets: secretCandidates('AGENT_PD_SIGNING_SECRET', 'AGENT_PD_SIGNING_SECRET_PREVIOUS'),
-    callbackSecret: String(env.AGENT_PD_CALLBACK_SECRET || ''),
-    callbackSecrets: secretCandidates('AGENT_PD_CALLBACK_SECRET', 'AGENT_PD_CALLBACK_SECRET_PREVIOUS'),
+    bearerSecret: String(env.CHATPOS_BACKOFFICE_BEARER_SECRET || env.AGENT_PD_BEARER_SECRET || ''),
+    signingSecret: String(env.CHATPOS_BACKOFFICE_SIGNING_SECRET || env.AGENT_PD_SIGNING_SECRET || ''),
+    signingSecrets: secretCandidates('CHATPOS_BACKOFFICE_SIGNING_SECRET', 'CHATPOS_BACKOFFICE_SIGNING_SECRET_PREVIOUS', 'AGENT_PD_SIGNING_SECRET', 'AGENT_PD_SIGNING_SECRET_PREVIOUS'),
+    callbackSecret: String(env.CHATPOS_BACKOFFICE_CALLBACK_SECRET || env.AGENT_PD_CALLBACK_SECRET || ''),
+    callbackSecrets: secretCandidates('CHATPOS_BACKOFFICE_CALLBACK_SECRET', 'CHATPOS_BACKOFFICE_CALLBACK_SECRET_PREVIOUS', 'AGENT_PD_CALLBACK_SECRET', 'AGENT_PD_CALLBACK_SECRET_PREVIOUS'),
     enabled: parseBoolean(env.AGENT_PD_INTEGRATION_ENABLED, false),
     assignmentEnabled: parseBoolean(env.AGENT_PD_ASSIGNMENT_ENABLED, false),
     profileUpdateEnabled: parseBoolean(env.MERCHANT_PROFILE_UPDATE_ENABLED, false),

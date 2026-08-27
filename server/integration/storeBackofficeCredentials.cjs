@@ -78,15 +78,6 @@ function createStoreCredentialResolver({ pool, fallbackConfig = {}, environment,
   async function resolve(storeId) {
     const row = await getCredentialRow(storeId);
     if (!row) {
-      const fallbackStoreId = String(fallbackConfig.chatposStoreId || '').trim();
-      if (fallbackStoreId && fallbackStoreId === String(storeId)) {
-        return {
-          ...fallbackConfig,
-          storeId: String(storeId),
-          keyId: String(fallbackConfig.keyId || ''),
-          credentialSource: 'environment-fallback',
-        };
-      }
       throw new StoreCredentialError(
         `No active Backoffice credential mapping exists for Store ${storeId} in ${targetEnvironment}`,
         'STORE_CREDENTIAL_MAPPING_MISSING',

@@ -146,10 +146,10 @@ npm run lint
 | `KYC_OTP_TTL_SECONDS` / `KYC_OTP_MAX_ATTEMPTS` / `KYC_OTP_RESEND_COOLDOWN_SECONDS` / `KYC_OTP_LOCK_SECONDS` | `server/integration/otpService.cjs` | policy ของ local KYC challenge; SMSUP adapter รองรับการส่งและตรวจ OTP เมื่อ `SMS_OTP_ENABLED` และ provider readiness เปิด |
 | `KYC_DOCUMENT_INTAKE_ENABLED` | `server.cjs` / `server/integration/signedMerchantClient.cjs` | gate ของการส่ง KYC document metadata ไปยัง PD/Agent Backoffice; ค่า default เป็น `false`, production ปัจจุบันเป็น `true` |
 | `KYC_DOCUMENT_LINK_TTL_SECONDS` | `server/integration/signedMerchantClient.cjs` | อายุ signed document download URL; `86400` เท่ากับ 24 ชั่วโมง |
-| `AGENT_PD_BACKOFFICE_BASE_URL` / `AGENT_PD_INTEGRATION_ENABLED` | `server/integration/signedMerchantClient.cjs` | upstream base URL และ global integration gate; Store-scoped mapping ยังต้องเลือก credential ต่อ request |
-| `AGENT_PD_CHATPOS_STORE_ID` / `AGENT_PD_STORE_ID` / `AGENT_PD_KEY_ID` | `server/integration/signedMerchantClient.cjs` | transitional single-Store fallback เท่านั้น; `AGENT_PD_CHATPOS_STORE_ID` คือ local Store และ `AGENT_PD_STORE_ID` คือ Backoffice Store |
-| `AGENT_PD_CREDENTIAL_ENVIRONMENT` / `AGENT_PD_KEY_ID_HEADER` | `server/integration/storeBackofficeCredentials.cjs` / signed client | environment ของ mapping และชื่อ header Key ID ต้องตรงกับ signed contract |
-| `backoffice_store_credentials` | `server/integration/storeBackofficeCredentials.cjs` | mapping ต่อ Store; เก็บ Base URL, Backoffice Store ID, Key ID และ secret reference เท่านั้น ไม่เก็บ secret จริง |
+| `AGENT_PD_INTEGRATION_ENABLED` / `AGENT_PD_ASSIGNMENT_ENABLED` / feature flags อื่น | `server.cjs` / integration services | ค่า static ระดับ deployment สำหรับเปิด-ปิด capability; ไม่ใช่ credential หรือ Store mapping |
+| `AGENT_PD_CREDENTIAL_ENVIRONMENT` / `AGENT_PD_KEY_ID_HEADER` | `server/integration/storeBackofficeCredentials.cjs` / signed client | environment ที่ใช้เลือก mapping และชื่อ header Key ID ซึ่งเป็นค่า static ของ deployment |
+| `backoffice_store_credentials` | `server/integration/storeBackofficeCredentials.cjs` | dynamic mapping ต่อ Store และ environment; เก็บ Base URL, Backoffice Store ID, Key ID และ secret reference เท่านั้น ไม่เก็บ secret จริง |
+| `CHATPOS_BACKOFFICE_BEARER_SECRET` / `CHATPOS_BACKOFFICE_SIGNING_SECRET` / `CHATPOS_BACKOFFICE_CALLBACK_SECRET` | `server/integration/storeBackofficeCredentials.cjs` ผ่าน `env:` secret reference | ค่าจริงอยู่ใน server secret manager/environment เท่านั้น; ชื่อ reference ของแต่ละ Store อยู่ใน database และห้ามส่งเข้า browser |
 | `LLGW_PAYMENT_WEBHOOK_ENABLED` | `server.cjs` | local LLGW receiver ปิดเป็นค่าเริ่มต้น; อย่าเปิดจนกว่า ownership/exception จะได้รับอนุมัติ |
 | `AGENT_PD_SIGNING_SECRET_PREVIOUS` / `AGENT_PD_CALLBACK_SECRET_PREVIOUS` | signed PD/Agent Backoffice integration | รับ secret เดิมชั่วคราวระหว่าง rotation แล้วต้องลบเพื่อ revoke |
 | `LLGW_PAYMENT_WEBHOOK_SECRET_PREVIOUS` | LLGW webhook verification | รับ secret เดิมชั่วคราวระหว่าง rotation แล้วต้องลบเพื่อ revoke |
@@ -162,7 +162,7 @@ npm run lint
 
 `.env.example` ยังมีตัวแปรชื่อ `VITE_API_URL` และ `VITE_APP_ENV` จากยุค Vite เดิม ซึ่งไม่ใช่ตัวแปรที่ Next routing ชุดปัจจุบันอ่านโดยตรง ให้ใช้ `CHATPOS_API_URL` และ `NEXT_PUBLIC_APP_URL` เป็นหลัก
 
-ใน `.env.production` เปิด `AGENT_PD_INTEGRATION_ENABLED`, `KYC_DOCUMENT_INTAKE_ENABLED` และ `KYC_DOCUMENT_LINK_TTL_SECONDS="86400"` แล้ว ส่วน `CHATPOS_API_URL="http://127.0.0.1:3001"` เป็น URL ภายในระหว่าง Next.js กับ custom API server; URL ภายนอกสำหรับลิงก์ที่ผู้ใช้เปิดคือ `NEXT_PUBLIC_APP_URL` ไม่ใช่ loopback address
+ใน `.env.production` เปิด `AGENT_PD_INTEGRATION_ENABLED`, `KYC_DOCUMENT_INTAKE_ENABLED` และ `KYC_DOCUMENT_LINK_TTL_SECONDS="86400"` แล้ว ส่วน `CHATPOS_API_URL="http://127.0.0.1:3001"` เป็น URL ภายในระหว่าง Next.js กับ custom API server; URL ภายนอกสำหรับลิงก์ที่ผู้ใช้เปิดคือ `NEXT_PUBLIC_APP_URL` ไม่ใช่ loopback address. ห้ามใส่ Base URL, Backoffice Store ID, Key ID หรือค่า credential ต่อ Store ลง `.env`; ให้ provision ลง `backoffice_store_credentials` เท่านั้น
 
 ## Frontend routes
 
@@ -213,7 +213,7 @@ Phase 2 มี assignment service ใน `server/integration/assignmentService.c
 
 Merchant portal แสดงสถานะ `PENDING_ADMIN_ASSIGNMENT`, `PENDING_AGENT_ACCEPTANCE`, `ACCEPTED`, `REJECTED`, `EXPIRED` และ `REASSIGNED` พร้อม next action และจะแสดง Agent/PD เฉพาะเมื่อ status เป็น `ACCEPTED` การสมัคร Merchant จะส่ง assignment request หลังสร้าง Store สำเร็จ โดยรองรับทั้งการระบุเบอร์ Agent และการเว้นว่างให้ Admin จัดสรร หาก `AGENT_PD_INTEGRATION_ENABLED` หรือ `AGENT_PD_ASSIGNMENT_ENABLED` ยังปิดอยู่ การสมัครบัญชียังสำเร็จแต่จะไม่ forward assignment ไป Backoffice
 
-Phase 2 command/callback ใช้ `storeId` จาก server-side authorization เพื่อ resolve mapping ใน `backoffice_store_credentials`; `AGENT_PD_*` แบบ global เหลือไว้เฉพาะ transitional single-Store fallback ที่ต้องกำหนด `AGENT_PD_CHATPOS_STORE_ID` ให้ตรงกับ local Store. Browser request ใช้ server session และ API ตรวจ Store/Case ownership จากฐานข้อมูล; `X-Store-Id`, `X-Actor-Id` และ `X-Actor-Role` ไม่ได้รับความเชื่อถือและไม่อยู่ใน CORS allowlist แล้ว. ต้องทดสอบ command/callback กับ PD/Agent Backoffice staging จริง รวมถึง receiver downtime, secret rotation และ retry recovery
+Phase 2 command/callback ใช้ `storeId` จาก server-side authorization เพื่อ resolve mapping ใน `backoffice_store_credentials`; ไม่มี global Store/credential fallback และ request ที่ไม่มี active mapping จะถูกปฏิเสธแบบ fail-closed. Browser request ใช้ server session และ API ตรวจ Store/Case ownership จากฐานข้อมูล; `X-Store-Id`, `X-Actor-Id` และ `X-Actor-Role` ไม่ได้รับความเชื่อถือและไม่อยู่ใน CORS allowlist แล้ว. ต้องทดสอบ command/callback กับ PD/Agent Backoffice staging จริง รวมถึง receiver downtime, secret rotation และ retry recovery
 
 Phase 3 เพิ่ม `profileKycService.cjs` สำหรับ profile update, KYC document intake และ KYC Chat/Post โดย profile รับเฉพาะ nested `profile` allowlist ตาม contract, ใช้ `expectedProfileVersion`, `Idempotency-Key` และ snapshot ใน `merchant_profile_versions`; conflict ตอบ `PROFILE_VERSION_CONFLICT` และ replay ของ payload เดิมไม่เพิ่ม version ซ้ำ การแก้ field ที่กระทบ KYC จะเก็บ submission snapshot เดิมแบบไม่ overwrite, เปลี่ยน case เป็น `WAITING_AGENT_REVIEW`, อัปเดต `KycVerification`, สร้าง notification ให้ Agent และเขียน audit
 
@@ -440,9 +440,11 @@ Merchant Home เป็น authenticated product surface ที่ `/merchant#ho
 
 ### Store-scoped Backoffice credentials
 
-ตาราง `backoffice_store_credentials` ใช้ map `ChatPOS Store` ไปยัง `Backoffice Store` แยกตาม environment. ค่า `bearerSecretRef`, `signingSecretRef` และ `callbackSecretRef` เป็น reference ไปยัง managed secret resolver เท่านั้น; ห้ามใส่ secret จริงใน database, seed, `.env.example`, log หรือ request body. Resolver จะ fail-closed ถ้า Store ไม่มี mapping ที่ active หรือ secret reference ถูก resolve ไม่ได้
+ตาราง `backoffice_store_credentials` เป็น source of truth สำหรับค่าที่เปลี่ยนตาม Store หรือ environment โดยใช้ unique key `(storeId, environment)`. ต้องเก็บ `backofficeBaseUrl`, `backofficeStoreId`, `keyId`, `validFrom`, `expiresAt`, `status` และ secret references ของแต่ละ mapping ใน database. ค่า `bearerSecretRef`, `signingSecretRef` และ `callbackSecretRef` เป็น reference ไปยัง managed secret resolver เท่านั้น; ห้ามใส่ secret จริงใน database, seed, `.env.example`, log หรือ request body. Resolver จะ query mapping ใหม่ตาม request และ fail-closed ถ้า Store ไม่มี mapping ที่ active หรือ secret reference ถูก resolve ไม่ได้
 
-สำหรับ local/staging ชั่วคราว resolver รองรับ reference รูปแบบ `env:VARIABLE_NAME`; deployment ที่ mount secret จาก managed secret manager รองรับ `file:/run/secrets/name`. Production ที่มี secret manager API ควร inject `secretResolver` ของ platform เพิ่มเติม. `AGENT_PD_*` แบบ global รองรับได้เพียง Store เดียวที่ระบุทั้ง `AGENT_PD_CHATPOS_STORE_ID` และ `AGENT_PD_STORE_ID` และไม่ควรใช้เป็นรูปแบบ multi-Store production
+สำหรับ local/staging ชั่วคราว resolver รองรับ reference รูปแบบ `env:VARIABLE_NAME`; deployment ที่ mount secret จาก managed secret manager รองรับ `file:/run/secrets/name`. Production ที่มี secret manager API ควร inject `secretResolver` ของ platform เพิ่มเติม. `CHATPOS_BACKOFFICE_*` เป็นเพียงชื่อ secret ที่ runtime อ่านเมื่อ database mapping อ้างด้วย `env:` ไม่ใช่ที่เก็บ mapping และไม่ควรใช้ global Store/credential fallback. การสร้างหรือเปลี่ยน mapping ให้ใช้ migration/provisioning job หรือ Admin API ที่เขียนลง `backoffice_store_credentials` โดยไม่เปิดเผย secret value
+
+คำสั่ง `npm run db:provision-backoffice-mapping` ใช้ `BACKOFFICE_MAPPING_*` เป็น input ของผู้ดูแลเพื่อ upsert mapping ลง database ครั้งเดียวหรือเมื่อมีการเปลี่ยนค่าเท่านั้น. ตัวแปรชุดนี้ไม่ถูกอ่านโดย runtime หลัง provision เสร็จ และค่า secret ที่ส่งให้คำสั่งต้องเป็น reference รูปแบบ `env:NAME` หรือ `file:/run/secrets/name` ไม่ใช่ secret value. หลังจากนั้น runtime จะอ่าน row ต่อ Store/environment ใหม่ทุก request และ resolve secret จาก managed secret source
 
 สถานะของ local payment flow จึงต้องเรียกอย่างตรงไปตรงมาว่า `local implementation` หรือ `legacy receiver` จนกว่า external contract จะผ่าน staging. การมี `TRANSACTION_ROUTING_ENABLED=true` หรือ `TRANSACTION_QUERY_ROUTING_ENABLED=true` ไม่ได้ยืนยันว่า Backoffice รองรับ path/payload จริง หรือว่า webhook ownership ถูกย้ายแล้ว
 

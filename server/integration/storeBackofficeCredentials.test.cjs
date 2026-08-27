@@ -56,7 +56,14 @@ test('fails closed when a Store has no active credential mapping', async () => {
   const resolver = createStoreCredentialResolver({
     pool: { query: async () => ({ rows: [] }) },
     environment: 'staging',
-    fallbackConfig: { enabled: true, storeId: 'backoffice-only-id' },
+    fallbackConfig: {
+      enabled: true,
+      chatposStoreId: storeA,
+      storeId: 'backoffice-only-id',
+      keyId: 'environment-key-id',
+      bearerSecret: 'environment-bearer-secret',
+      signingSecret: 'environment-signing-secret',
+    },
   });
 
   await assert.rejects(
