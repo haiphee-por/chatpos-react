@@ -16,11 +16,14 @@ function storageRoot(env = process.env) {
 
 function locatorToPath(storageLocator, root = storageRoot()) {
   const locator = String(storageLocator || '');
-  if (!/^private:\/\/merchant\/[A-Za-z0-9._/-]+$/.test(locator) || locator.includes('..')) {
+  const isContractLocator = /^private\/kyc\/[A-Za-z0-9._/-]+$/.test(locator);
+  const isLegacyLocator = /^private:\/\/merchant\/[A-Za-z0-9._/-]+$/.test(locator);
+  if ((!isContractLocator && !isLegacyLocator) || locator.includes('..')) {
     throw new PrivateDocumentStorageError('Only merchant private storage locators are accepted', 'PRIVATE_STORAGE_LOCATOR_REQUIRED', 422);
   }
   const resolvedRoot = path.resolve(root);
-  const resolvedPath = path.resolve(resolvedRoot, locator.slice('private://'.length));
+  const relativeLocator = isContractLocator ? locator.slice('private/'.length) : locator.slice('private://'.length);
+  const resolvedPath = path.resolve(resolvedRoot, relativeLocator);
   if (resolvedPath !== resolvedRoot && !resolvedPath.startsWith(`${resolvedRoot}${path.sep}`)) {
     throw new PrivateDocumentStorageError('Storage path is outside the private root', 'PRIVATE_STORAGE_PATH_INVALID', 422);
   }

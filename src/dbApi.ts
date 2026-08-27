@@ -104,6 +104,7 @@ export interface KycDocumentVersion {
   fileSize: number | string
   checksumSha256: string
   storageLocator: string
+  sourceIssuedAt: string
   status: string
   reason: string | null
   reviewNotes: string | null
@@ -506,6 +507,7 @@ export interface KycDocumentUpload {
   file: File
   reason?: string
   sourceRequestId: string
+  sourceIssuedAt: string
 }
 
 export async function submitKycDocument(storeId: string, caseId: string, payload: KycDocumentUpload) {
@@ -518,13 +520,14 @@ export async function submitKycDocument(storeId: string, caseId: string, payload
       'X-Source-Request-Id': payload.sourceRequestId,
       'X-KYC-File-Name': encodeURIComponent(payload.file.name),
       'X-KYC-Document-Type': encodeURIComponent(payload.documentType),
+      'X-KYC-Source-Issued-At': encodeURIComponent(payload.sourceIssuedAt),
       ...(payload.reason ? { 'X-KYC-Reason': encodeURIComponent(payload.reason) } : {}),
     },
     body: payload.file,
   })
   const data = await response.json().catch(() => ({}))
   if (!response.ok) throw new Error(data?.error || `Document API error ${response.status}`)
-  return data as { success: boolean; data: { document: KycDocumentVersion; documentUrl: string; documentUrlExpiresAt: string; replayed: boolean } }
+  return data as { success: boolean; data: { document: KycDocumentVersion; access?: { url: string; expiresAt: string }; replayed: boolean } }
 }
 
 export async function postKycMessage(storeId: string, caseId: string, payload: { message?: string; recipientId?: string; attachments?: Array<Record<string, unknown>> }) {

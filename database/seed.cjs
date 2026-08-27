@@ -162,15 +162,15 @@ async function seed() {
     await query(
       `INSERT INTO kyc_documents (id, "caseId", "storeId", "documentType", status, "latestVersion", "scanStatus", "scanReportJson", "scannedAt", "createdAt", "updatedAt")
        VALUES
-         ($1, $3, $4, 'national_id', 'approved', 1, 'CLEAN', '{"engine":"seed","result":"clean"}'::jsonb, NOW() - INTERVAL '19 days', NOW() - INTERVAL '20 days', NOW()),
-         ($2, $5, $6, 'business_registration', 'not_uploaded', 0, 'PENDING', '{}'::jsonb, null, NOW(), NOW())
-       ON CONFLICT (id) DO UPDATE SET status = EXCLUDED.status, "latestVersion" = EXCLUDED."latestVersion", "scanStatus" = EXCLUDED."scanStatus", "updatedAt" = NOW()`,
+         ($1, $3, $4, 'id-card-front', 'quarantined', 1, 'PENDING', '{"engine":"seed","result":"not-scanned"}'::jsonb, null, NOW() - INTERVAL '20 days', NOW()),
+         ($2, $5, $6, 'business-document', 'not_uploaded', 0, 'PENDING', '{}'::jsonb, null, NOW(), NOW())
+       ON CONFLICT (id) DO UPDATE SET "documentType" = EXCLUDED."documentType", status = EXCLUDED.status, "latestVersion" = EXCLUDED."latestVersion", "scanStatus" = EXCLUDED."scanStatus", "updatedAt" = NOW()`,
       [ids.document, ids.documentTwo, ids.case, ids.store, ids.caseTwo, ids.storeTwo]
     );
 
     await query(
-      `INSERT INTO kyc_document_versions (id, "documentId", "caseId", "storeId", version, "fileName", "mimeType", "fileSize", "checksumSha256", "storageLocator", status, "submittedBy", reason, "sourceRequestId", "idempotencyKey", "scanStatus", "scanReportJson", "scannedAt", "createdAt")
-      VALUES ($1, $2, $3, $4, 1, 'demo-national-id.png', 'image/png', 245678, 'seed-checksum-national-id-001', 'demo://kyc/merchant-001/national-id-v1', 'uploaded', 'merchant', 'Seed clean document', 'seed-document-001', 'seed:document:001', 'CLEAN', '{"engine":"seed","result":"clean"}'::jsonb, NOW() - INTERVAL '19 days', NOW() - INTERVAL '19 days')
+      `INSERT INTO kyc_document_versions (id, "documentId", "caseId", "storeId", version, "fileName", "mimeType", "fileSize", "checksumSha256", "storageLocator", status, "submittedBy", reason, "sourceRequestId", "idempotencyKey", "scanStatus", "scanReportJson", "scannedAt", "sourceIssuedAt", "createdAt")
+      VALUES ($1, $2, $3, $4, 1, 'demo-national-id.png', 'image/png', 245678, 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 'private/kyc/demo-store/demo-case/demo-national-id.png', 'quarantined', 'merchant', 'Seed fixture is not a stored binary', 'seed-document-001', 'seed:document:001', 'PENDING', '{"engine":"seed","result":"not-scanned"}'::jsonb, null, NOW() - INTERVAL '19 days', NOW() - INTERVAL '19 days')
        ON CONFLICT (id) DO UPDATE SET status = EXCLUDED.status, "scanStatus" = EXCLUDED."scanStatus"`,
       [ids.documentVersion, ids.document, ids.case, ids.store]
     );

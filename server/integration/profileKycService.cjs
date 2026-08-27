@@ -39,6 +39,18 @@ const FORBIDDEN_PROFILE_FIELDS = new Set([
   'settlementStatus',
 ]);
 const ALLOWED_MIME_TYPES = new Set(['application/pdf', 'image/jpeg', 'image/png', 'image/webp']);
+const ALLOWED_DOCUMENT_TYPES = new Set([
+  'id-card-front',
+  'id-card-back',
+  'selfie-with-id',
+  'bank-book',
+  'business-document',
+  'store-front',
+  'store-interior',
+  'product-photos',
+  'sales-evidence',
+  'shipping-evidence',
+]);
 const MAX_DOCUMENT_BYTES = 10 * 1024 * 1024;
 
 class ProfileKycError extends Error {
@@ -69,6 +81,14 @@ function stableJson(value) {
 
 function bodyDigest(value) {
   return sha256(JSON.stringify(stableJson(value)));
+}
+
+function stableDocumentId(caseId, documentType) {
+  const bytes = crypto.createHash('sha256').update(`chatpos:kyc-document:${caseId}:${documentType}`, 'utf8').digest();
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  const hex = bytes.toString('hex');
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20, 32)}`;
 }
 
 function assertString(value, field, maxLength = 500) {
@@ -329,7 +349,12 @@ function validateDocumentBody(body) {
   const fileSize = Number(body.fileSize);
   const checksumSha256 = String(body.checksumSha256 || '').toLowerCase();
   const storageLocator = String(body.storageLocator || '');
-  if (!documentType || !fileName || !ALLOWED_MIME_TYPES.has(mimeType)) {
+  const sourceIssuedAtValue = body.sourceIssuedAt === undefined ? new Date() : new Date(String(body.sourceIssuedAt));
+  if (Number.isNaN(sourceIssuedAtValue.getTime())) {
+    throw new ProfileKycError('sourceIssuedAt must be a valid timestamp', 'DOCUMENT_SOURCE_ISSUED_AT_INVALID', 422);
+  }
+  const sourceIssuedAt = sourceIssuedAtValue.toISOString();
+  if (!documentType || !ALLOWED_DOCUMENT_TYPES.has(documentType) || !fileName || !ALLOWED_MIME_TYPES.has(mimeType)) {
     throw new ProfileKycError('Document type, file name and allowed MIME type are required', 'DOCUMENT_METADATA_INVALID', 422);
   }
   if (!Number.isSafeInteger(fileSize) || fileSize <= 0 || fileSize > MAX_DOCUMENT_BYTES) {
@@ -338,7 +363,7 @@ function validateDocumentBody(body) {
   if (!/^[a-f0-9]{64}$/.test(checksumSha256)) {
     throw new ProfileKycError('checksumSha256 must be a SHA-256 hex digest', 'DOCUMENT_CHECKSUM_INVALID', 422);
   }
-  if (!/^private:\/\/[A-Za-z0-9._/-]+$/.test(storageLocator) || storageLocator.includes('..')) {
+  if (!/^private\/kyc\/[A-Za-z0-9._/-]+$/.test(storageLocator) || storageLocator.includes('..')) {
     throw new ProfileKycError('Only private storage locators are accepted', 'PRIVATE_STORAGE_LOCATOR_REQUIRED', 422);
   }
   if (body.contentBase64 !== undefined) {
@@ -351,8 +376,28 @@ function validateDocumentBody(body) {
     fileSize,
     checksumSha256,
     storageLocator,
+    sourceIssuedAt,
     reason: body.reason === undefined ? null : assertString(body.reason, 'reason', 500),
   };
+}
+
+function buildDocumentCommandBody({ documentId, documentType, version, checksumSha256, storageLocator, sourceIssuedAt, sourceRequestId }) {
+  return {
+    documentId: String(documentId),
+    documentType: String(documentType),
+    version: Number(version),
+    checksumSha256: String(checksumSha256).toLowerCase(),
+    storageLocator: String(storageLocator),
+    sourceIssuedAt: new Date(sourceIssuedAt).toISOString(),
+    sourceRequestId: String(sourceRequestId),
+  };
+}
+
+function assertDocumentLocatorScope(storageLocator, storeId, caseId) {
+  const expectedPrefix = `private/kyc/${storeId}/${caseId}/`;
+  if (!String(storageLocator).startsWith(expectedPrefix)) {
+    throw new ProfileKycError('Document locator is outside the Store and Case scope', 'DOCUMENT_LOCATOR_SCOPE_INVALID', 403);
+  }
 }
 
 async function getKycCaseForStore(client, caseId, storeId, lock = false) {
@@ -369,16 +414,18 @@ async function getKycCaseForStore(client, caseId, storeId, lock = false) {
 
 async function intakeKycDocument({ pool, backofficeClient, storeId, caseId, body, idempotencyKey, requestId, documentLinkTtlSeconds = 86400, publicBaseUrl = process.env.NEXT_PUBLIC_APP_URL }) {
   const metadata = validateDocumentBody(body);
+  assertDocumentLocatorScope(metadata.storageLocator, storeId, caseId);
   const scan = await scanDocument({ metadata });
   const normalizedIdempotencyKey = assertIdempotencyKey(idempotencyKey);
   const sourceRequestId = String(body.sourceRequestId || requestId || crypto.randomUUID());
+  const sourceIssuedAt = metadata.sourceIssuedAt;
 
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
     const kycCase = await getKycCaseForStore(client, caseId, storeId, true);
     const replayResult = await client.query(
-      `SELECT id, "documentId", version, "fileName", "mimeType", "fileSize", "checksumSha256", "storageLocator", status, "createdAt"
+      `SELECT id, "documentId", version, "fileName", "mimeType", "fileSize", "checksumSha256", "storageLocator", status, "sourceIssuedAt", "sourceRequestId", "createdAt"
        FROM kyc_document_versions
        WHERE "caseId" = $1 AND ("sourceRequestId" = $2 OR "idempotencyKey" = $3)`,
       [caseId, sourceRequestId, normalizedIdempotencyKey]
@@ -388,23 +435,17 @@ async function intakeKycDocument({ pool, backofficeClient, storeId, caseId, body
       if (existing.checksumSha256 !== metadata.checksumSha256 || existing.storageLocator !== metadata.storageLocator) {
         throw new ProfileKycError('The document request was replayed with different content', 'DOCUMENT_IDEMPOTENCY_CONFLICT', 409);
       }
-      const download = createDocumentDownloadUrl({
-        baseUrl: publicBaseUrl,
-        versionId: existing.id,
-        storeId,
-        ttlSeconds: documentLinkTtlSeconds,
-        nowSeconds: Math.floor(new Date(existing.createdAt).getTime() / 1000),
-      });
+
       await client.query('COMMIT');
-      return { replayed: true, idempotentReplay: true, document: existing, documentUrl: download.url, documentUrlExpiresAt: download.expiresAt, backoffice: null };
+      return { replayed: true, idempotentReplay: true, document: existing, backoffice: null };
     }
 
     const documentResult = await client.query(
-      `INSERT INTO kyc_documents ("caseId", "storeId", "documentType")
-       VALUES ($1, $2, $3)
+      `INSERT INTO kyc_documents (id, "caseId", "storeId", "documentType")
+       VALUES ($1, $2, $3, $4)
        ON CONFLICT ("caseId", "documentType") DO UPDATE SET "updatedAt" = NOW()
        RETURNING id, "latestVersion"`,
-      [caseId, storeId, metadata.documentType]
+      [stableDocumentId(caseId, metadata.documentType), caseId, storeId, metadata.documentType]
     );
     const document = documentResult.rows[0];
     const checksumResult = await client.query(
@@ -419,29 +460,20 @@ async function intakeKycDocument({ pool, backofficeClient, storeId, caseId, body
     const version = Number(document.latestVersion) + 1;
     const versionResult = await client.query(
       `INSERT INTO kyc_document_versions
-        ("documentId", "caseId", "storeId", version, "fileName", "mimeType", "fileSize", "checksumSha256", "storageLocator", status, "scanStatus", "scanReportJson", "scannedAt", "submittedBy", reason, "sourceRequestId", "idempotencyKey")
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::jsonb, $13, 'merchant', $14, $15, $16)
-       RETURNING id, "documentId", version, "fileName", "mimeType", "fileSize", "checksumSha256", "storageLocator", status, "scanStatus", "createdAt"`,
-      [document.id, caseId, storeId, version, metadata.fileName, metadata.mimeType, metadata.fileSize, metadata.checksumSha256, metadata.storageLocator, scan.status === 'CLEAN' ? 'uploaded' : 'quarantined', scan.status, JSON.stringify(scan), scan.status === 'CLEAN' ? new Date().toISOString() : null, metadata.reason, sourceRequestId, normalizedIdempotencyKey]
+        ("documentId", "caseId", "storeId", version, "fileName", "mimeType", "fileSize", "checksumSha256", "storageLocator", status, "scanStatus", "scanReportJson", "scannedAt", submittedBy, reason, "sourceRequestId", "idempotencyKey", "sourceIssuedAt")
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::jsonb, $13, 'merchant', $14, $15, $16, $17)
+       RETURNING id, "documentId", version, "fileName", "mimeType", "fileSize", "checksumSha256", "storageLocator", status, "scanStatus", "sourceIssuedAt", "sourceRequestId", "createdAt"`,
+      [document.id, caseId, storeId, version, metadata.fileName, metadata.mimeType, metadata.fileSize, metadata.checksumSha256, metadata.storageLocator, scan.status === 'CLEAN' ? 'uploaded' : 'quarantined', scan.status, JSON.stringify(scan), scan.status === 'CLEAN' ? new Date().toISOString() : null, metadata.reason, sourceRequestId, normalizedIdempotencyKey, sourceIssuedAt]
     );
-    const download = createDocumentDownloadUrl({
-      baseUrl: publicBaseUrl,
-      versionId: versionResult.rows[0].id,
-      storeId,
-      ttlSeconds: documentLinkTtlSeconds,
-    });
-    const commandBody = {
-      sourceRequestId,
-      caseId,
+    const commandBody = buildDocumentCommandBody({
+      documentId: versionResult.rows[0].documentId,
       documentType: metadata.documentType,
-      fileName: metadata.fileName,
-      mimeType: metadata.mimeType,
-      fileSize: metadata.fileSize,
+      version,
       checksumSha256: metadata.checksumSha256,
-      reason: metadata.reason,
-      documentUrl: download.url,
-      documentUrlExpiresAt: download.expiresAt,
-    };
+      storageLocator: metadata.storageLocator,
+      sourceIssuedAt: versionResult.rows[0].sourceIssuedAt,
+      sourceRequestId,
+    });
     const remoteResult = await callBackoffice(backofficeClient, `/api/v1/kyc/cases/${caseId}/documents`, 'POST', commandBody, normalizedIdempotencyKey, requestId, sourceRequestId, storeId);
     await client.query(
       `UPDATE kyc_documents SET status = $1, "scanStatus" = $2, "scanReportJson" = $3::jsonb, "scannedAt" = $4, "latestVersion" = $5, "updatedAt" = NOW() WHERE id = $6`,
@@ -456,7 +488,7 @@ async function intakeKycDocument({ pool, backofficeClient, storeId, caseId, body
       [versionResult.rows[0].id, JSON.stringify({ caseId, documentType: metadata.documentType, version, checksumSha256: metadata.checksumSha256, scanStatus: scan.status }), requestId || sourceRequestId]
     );
     await client.query('COMMIT');
-    return { replayed: false, idempotentReplay: false, document: versionResult.rows[0], documentUrl: download.url, documentUrlExpiresAt: download.expiresAt, backoffice: remoteResult };
+    return { replayed: false, idempotentReplay: false, document: versionResult.rows[0], backoffice: remoteResult };
   } catch (error) {
     await client.query('ROLLBACK');
     if (error.code === '23505') {
@@ -499,7 +531,7 @@ async function getKycWorkspace({ pool, storeId }) {
               COALESCE(json_agg(json_build_object(
                 'id', v.id, 'version', v.version, 'fileName', v."fileName", 'mimeType', v."mimeType",
                 'fileSize', v."fileSize", 'checksumSha256', v."checksumSha256", 'storageLocator', v."storageLocator",
-                'status', v.status, 'scanStatus', v."scanStatus", 'reason', v.reason, 'reviewNotes', v."reviewNotes", 'createdAt', v."createdAt"
+                'sourceIssuedAt', v."sourceIssuedAt", 'status', v.status, 'scanStatus', v."scanStatus", 'reason', v.reason, 'reviewNotes', v."reviewNotes", 'createdAt', v."createdAt"
               ) ORDER BY v.version DESC) FILTER (WHERE v.id IS NOT NULL), '[]') AS versions
        FROM kyc_documents d
        LEFT JOIN kyc_document_versions v ON v."documentId" = d.id
@@ -528,7 +560,7 @@ async function getKycWorkspace({ pool, storeId }) {
   }
 }
 
-function validateAttachments(value) {
+function validateAttachments(value, storeId, caseId) {
   if (value === undefined) return [];
   if (!Array.isArray(value) || value.length > 10) throw new ProfileKycError('attachments must be an array', 'ATTACHMENTS_INVALID', 422);
   return value.map((item) => {
@@ -540,16 +572,17 @@ function validateAttachments(value) {
       checksumSha256: String(item.checksumSha256 || '').toLowerCase(),
       storageLocator: String(item.storageLocator || ''),
     };
-    if (!Number.isSafeInteger(metadata.fileSize) || metadata.fileSize <= 0 || metadata.fileSize > MAX_DOCUMENT_BYTES || !ALLOWED_MIME_TYPES.has(metadata.mimeType) || !/^[a-f0-9]{64}$/.test(metadata.checksumSha256) || !/^private:\/\/[A-Za-z0-9._/-]+$/.test(metadata.storageLocator) || metadata.storageLocator.includes('..')) {
+    if (!Number.isSafeInteger(metadata.fileSize) || metadata.fileSize <= 0 || metadata.fileSize > MAX_DOCUMENT_BYTES || !ALLOWED_MIME_TYPES.has(metadata.mimeType) || !/^[a-f0-9]{64}$/.test(metadata.checksumSha256) || !/^private\/kyc\/[A-Za-z0-9._/-]+$/.test(metadata.storageLocator) || metadata.storageLocator.includes('..')) {
       throw new ProfileKycError('Attachment metadata failed private storage validation', 'ATTACHMENT_METADATA_INVALID', 422);
     }
+    assertDocumentLocatorScope(metadata.storageLocator, storeId, caseId);
     return metadata;
   });
 }
 
 async function appendKycMessage({ pool, storeId, caseId, body, actorId, actorRole }) {
   const message = assertString(body?.message, 'message', 5000);
-  const attachments = validateAttachments(body?.attachments);
+  const attachments = validateAttachments(body?.attachments, storeId, caseId);
   if (!message && !attachments.length) throw new ProfileKycError('Message or attachment is required', 'MESSAGE_CONTENT_REQUIRED', 422);
   const client = await pool.connect();
   try {
@@ -604,7 +637,9 @@ async function getDocumentAccess({ pool, storeId, versionId, documentLinkTtlSeco
   const version = result.rows[0];
   if (!version) throw new ProfileKycError('Document version was not found', 'DOCUMENT_VERSION_NOT_FOUND', 404);
   if (version.scanStatus !== 'CLEAN') throw new ProfileKycError('Document is not available until malware scanning completes', 'DOCUMENT_QUARANTINED', 423);
-  if (!String(version.storageLocator).startsWith('private://')) throw new ProfileKycError('Public document locators are forbidden', 'PRIVATE_STORAGE_LOCATOR_REQUIRED', 422);
+  if (!/^private\/kyc\/[A-Za-z0-9._/-]+$/.test(String(version.storageLocator)) && !/^private:\/\/merchant\/[A-Za-z0-9._/-]+$/.test(String(version.storageLocator))) {
+    throw new ProfileKycError('Public document locators are forbidden', 'PRIVATE_STORAGE_LOCATOR_REQUIRED', 422);
+  }
   const download = createDocumentDownloadUrl({
     baseUrl: publicBaseUrl,
     versionId,
@@ -635,13 +670,16 @@ async function getKycDocumentDownload({ pool, versionId, token, nowSeconds }) {
 
 module.exports = {
   MAX_DOCUMENT_BYTES,
+  ALLOWED_DOCUMENT_TYPES,
   ProfileKycError,
   appendKycMessage,
+  buildDocumentCommandBody,
   getDocumentAccess,
   getKycDocumentDownload,
   getKycWorkspace,
   intakeKycDocument,
   markKycMessageRead,
+  stableDocumentId,
   updateStoreProfile,
   validateDocumentBody,
   validateProfileBody,

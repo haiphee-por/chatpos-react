@@ -276,7 +276,7 @@ function decodeRequestHeader(value, field, maxLength = 500) {
 function documentStorageLocator({ storeId, caseId, sourceRequestId, fileName }) {
   const requestHash = crypto.createHash('sha256').update(sourceRequestId).digest('hex');
   const safeName = fileName.replace(/[^A-Za-z0-9._-]/g, '_').slice(0, 180) || 'document';
-  return `private://merchant/${storeId}/${caseId}/${requestHash}-${safeName}`;
+  return `private/kyc/${storeId}/${caseId}/${requestHash}-${safeName}`;
 }
 
 async function withDocumentUploadLock(storageLocator, callback) {
@@ -597,6 +597,10 @@ const server = http.createServer(async (req, res) => {
         const idempotencyKey = req.headers['idempotency-key'];
         const requestId = String(req.headers['x-request-id'] || crypto.randomUUID());
         const sourceRequestId = decodeRequestHeader(req.headers['x-source-request-id'] || idempotencyKey || crypto.randomUUID(), 'sourceRequestId', 120);
+        const sourceIssuedAt = decodeRequestHeader(req.headers['x-kyc-source-issued-at'], 'sourceIssuedAt', 80);
+        if (!sourceIssuedAt) {
+          throw new AssignmentError('sourceIssuedAt is required for an idempotent document operation', 'DOCUMENT_SOURCE_ISSUED_AT_REQUIRED', 422);
+        }
         const fileName = decodeRequestHeader(req.headers['x-kyc-file-name'], 'fileName', 255);
         const documentType = decodeRequestHeader(req.headers['x-kyc-document-type'], 'documentType', 120);
         const reason = decodeRequestHeader(req.headers['x-kyc-reason'], 'reason', 500);
@@ -626,7 +630,7 @@ const server = http.createServer(async (req, res) => {
               backofficeClient: kycDocumentBackofficeClient,
               storeId,
               caseId: documentRoute[1],
-              body: { documentType, fileName, mimeType: contentType, fileSize: data.length, checksumSha256, storageLocator, reason: reason || null, sourceRequestId },
+              body: { documentType, fileName, mimeType: contentType, fileSize: data.length, checksumSha256, storageLocator, reason: reason || null, sourceRequestId, ...(sourceIssuedAt ? { sourceIssuedAt } : {}) },
               idempotencyKey,
               requestId,
               documentLinkTtlSeconds: backofficeConfig.documentLinkTtlSeconds,

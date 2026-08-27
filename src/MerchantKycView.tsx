@@ -84,7 +84,7 @@ export function MerchantKycView({ storeId }: MerchantKycViewProps) {
   const [workspace, setWorkspace] = useState<KycWorkspace | null>(null)
   const [loading, setLoading] = useState(Boolean(storeId))
   const [error, setError] = useState('')
-  const [documentType, setDocumentType] = useState('identity_card')
+  const [documentType, setDocumentType] = useState('id-card-front')
   const [correctionReason, setCorrectionReason] = useState('')
   const [uploading, setUploading] = useState(false)
   const [chatText, setChatText] = useState('')
@@ -121,6 +121,7 @@ export function MerchantKycView({ storeId }: MerchantKycViewProps) {
         file,
         reason: correctionReason || undefined,
         sourceRequestId: crypto.randomUUID(),
+        sourceIssuedAt: new Date().toISOString(),
       })
       setCorrectionReason('')
       await loadWorkspace()
@@ -186,7 +187,7 @@ export function MerchantKycView({ storeId }: MerchantKycViewProps) {
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
             <div><h3 style={{ margin: 0, color: '#315a4d', fontSize: 17 }}>Document timeline</h3><p style={{ margin: '5px 0 0', color: '#78968a', fontSize: 12 }}>เอกสารเก่าจะคงอยู่เสมอ การแก้ไขจะสร้าง version ใหม่</p></div>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-              <select value={documentType} onChange={(event) => setDocumentType(event.target.value)} style={{ border: '1px solid #cfe1d8', borderRadius: 7, padding: '8px 10px', color: '#315a4d', background: '#fff' }}><option value="identity_card">บัตรประชาชน</option><option value="business_registration">ทะเบียนพาณิชย์ / บริษัท</option><option value="store_photo">รูปหน้าร้าน</option><option value="bank_ownership">หลักฐานบัญชีธนาคาร</option></select>
+              <select value={documentType} onChange={(event) => setDocumentType(event.target.value)} style={{ border: '1px solid #cfe1d8', borderRadius: 7, padding: '8px 10px', color: '#315a4d', background: '#fff' }}><option value="id-card-front">บัตรประชาชนด้านหน้า</option><option value="id-card-back">บัตรประชาชนด้านหลัง</option><option value="selfie-with-id">ภาพถ่ายคู่บัตรประชาชน</option><option value="business-document">ทะเบียนพาณิชย์ / บริษัท</option><option value="store-front">รูปหน้าร้าน</option><option value="store-interior">รูปภายในร้าน</option><option value="product-photos">รูปสินค้า</option><option value="bank-book">หลักฐานบัญชีธนาคาร</option><option value="sales-evidence">หลักฐานการขาย</option><option value="shipping-evidence">หลักฐานการจัดส่ง</option></select>
               <label style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '8px 11px', borderRadius: 7, background: '#28745c', color: '#fff', fontSize: 12, fontWeight: 700, cursor: uploading ? 'wait' : 'pointer' }}><Upload size={15} />{uploading ? 'กำลังตรวจไฟล์...' : 'เพิ่ม version'}<input type="file" accept="application/pdf,image/jpeg,image/png,image/webp" onChange={handleUpload} disabled={uploading} hidden /></label>
             </div>
           </div>

@@ -1,6 +1,7 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
 const {
+  buildDocumentCommandBody,
   validateDocumentBody,
   validateProfileBody,
 } = require('./profileKycService.cjs');
@@ -60,10 +61,10 @@ test('document validator requires a private locator and matching SHA-256 metadat
     mimeType: 'image/png',
     fileSize: 3,
     checksumSha256: '039058c6f2c0cb492c533b0a4d14ef77cc0a1c7f6e2f6d2f3e6e4e4e7e9e4e4e',
-    storageLocator: 'private://merchant/store/case/object.png',
+    storageLocator: 'private/kyc/store/case/object.png',
   });
 
-  assert.equal(valid.storageLocator.startsWith('private://'), true);
+  assert.equal(valid.storageLocator.startsWith('private/kyc/'), true);
 
   assert.throws(
     () => validateDocumentBody({
@@ -86,7 +87,7 @@ test('document validator rejects unsupported MIME and oversized files', () => {
       mimeType: 'application/octet-stream',
       fileSize: 100,
       checksumSha256: 'a'.repeat(64),
-      storageLocator: 'private://merchant/store/case/object.exe',
+      storageLocator: 'private/kyc/store/case/object.exe',
     }),
     (error) => error.code === 'DOCUMENT_METADATA_INVALID'
   );
@@ -98,8 +99,39 @@ test('document validator rejects unsupported MIME and oversized files', () => {
       mimeType: 'image/png',
       fileSize: 10 * 1024 * 1024 + 1,
       checksumSha256: 'a'.repeat(64),
-      storageLocator: 'private://merchant/store/case/object.png',
+      storageLocator: 'private/kyc/store/case/object.png',
     }),
     (error) => error.code === 'DOCUMENT_SIZE_INVALID'
   );
+});
+
+test('document command payload matches the Backoffice guide exactly', () => {
+  const payload = buildDocumentCommandBody({
+    documentId: 'document-1',
+    documentType: 'id-card-front',
+    version: 1,
+    checksumSha256: 'A'.repeat(64),
+    storageLocator: 'private/kyc/store/case/document.jpg',
+    sourceIssuedAt: '2026-08-14T03:30:00.000Z',
+    sourceRequestId: 'upload-1',
+  });
+
+  assert.deepEqual(payload, {
+    documentId: 'document-1',
+    documentType: 'id-card-front',
+    version: 1,
+    checksumSha256: 'a'.repeat(64),
+    storageLocator: 'private/kyc/store/case/document.jpg',
+    sourceIssuedAt: '2026-08-14T03:30:00.000Z',
+    sourceRequestId: 'upload-1',
+  });
+  assert.deepEqual(Object.keys(payload), [
+    'documentId',
+    'documentType',
+    'version',
+    'checksumSha256',
+    'storageLocator',
+    'sourceIssuedAt',
+    'sourceRequestId',
+  ]);
 });

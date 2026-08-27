@@ -20,7 +20,7 @@ async function temporaryRoot() {
 test('writes and reads a private document with verified metadata', async () => {
   const root = await temporaryRoot();
   try {
-    const locator = 'private://merchant/store-1/case-1/document.pdf';
+    const locator = 'private/kyc/store-1/case-1/document.pdf';
     await writePrivateDocument({ storageLocator: locator, data, expectedSize: data.length, checksumSha256, root });
     const result = await readPrivateDocument(locator, root);
     assert.deepEqual(result.data, data);
@@ -37,13 +37,13 @@ test('writes and reads a private document with verified metadata', async () => {
 test('rejects traversal and mismatched document metadata', async () => {
   const root = await temporaryRoot();
   try {
-    assert.throws(() => locatorToPath('private://merchant/store/../../outside.pdf', root), (error) => error.code === 'PRIVATE_STORAGE_LOCATOR_REQUIRED');
+    assert.throws(() => locatorToPath('private/kyc/store/../../outside.pdf', root), (error) => error.code === 'PRIVATE_STORAGE_LOCATOR_REQUIRED');
     await assert.rejects(
-      writePrivateDocument({ storageLocator: 'private://merchant/store/case/file.pdf', data, expectedSize: data.length + 1, checksumSha256, root }),
+      writePrivateDocument({ storageLocator: 'private/kyc/store/case/file.pdf', data, expectedSize: data.length + 1, checksumSha256, root }),
       (error) => error.code === 'DOCUMENT_SIZE_MISMATCH'
     );
     await assert.rejects(
-      writePrivateDocument({ storageLocator: 'private://merchant/store/case/file.pdf', data, expectedSize: data.length, checksumSha256: '0'.repeat(64), root }),
+      writePrivateDocument({ storageLocator: 'private/kyc/store/case/file.pdf', data, expectedSize: data.length, checksumSha256: '0'.repeat(64), root }),
       (error) => error.code === 'DOCUMENT_CHECKSUM_MISMATCH'
     );
   } finally {
