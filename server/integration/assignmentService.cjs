@@ -10,7 +10,7 @@ const ASSIGNMENT_STATUSES = new Set([
   'REQUEST_FAILED',
   'PENDING_BACKOFFICE_DISPATCH',
 ]);
-const CALLBACK_STATUSES = new Set(['ACCEPTED', 'REJECTED', 'EXPIRED', 'REASSIGNED', 'ASSIGNED_FOR_ACCEPTANCE']);
+const CALLBACK_STATUSES = new Set(['PENDING_AGENT_ACCEPTANCE', 'ACCEPTED', 'REJECTED', 'EXPIRED', 'REASSIGNED', 'ASSIGNED_FOR_ACCEPTANCE']);
 const CALLBACK_PROVIDER = 'agent_pd_backoffice';
 const CALLBACK_EVENT_TYPE = 'assignment.status.changed';
 const DEFAULT_TIMESTAMP_TOLERANCE_SECONDS = 300;
@@ -58,6 +58,20 @@ function initialStatus(agentPhone) {
   return agentPhone ? 'PENDING_AGENT_ACCEPTANCE' : 'PENDING_ADMIN_ASSIGNMENT';
 }
 
+function normalizeWebhookUrl(value) {
+  let url;
+  try {
+    url = new URL(String(value || ''));
+  } catch {
+    throw new AssignmentError('A valid assignment webhook URL is required', 'WEBHOOK_URL_INVALID', 503);
+  }
+  const localhost = ['localhost', '127.0.0.1', '::1'].includes(url.hostname);
+  if ((!localhost && url.protocol !== 'https:') || (localhost && !['http:', 'https:'].includes(url.protocol)) || url.username || url.password || url.hash) {
+    throw new AssignmentError('Assignment webhook URL must be HTTPS without credentials or fragment', 'WEBHOOK_URL_INVALID', 503);
+  }
+  return url.toString().replace(/\/$/, '');
+}
+
 function responseData(response) {
   if (!response || !response.data) return {};
   return response.data.data && typeof response.data.data === 'object' ? response.data.data : response.data;
@@ -96,8 +110,9 @@ async function withTransaction(pool, callback) {
   }
 }
 
-async function createAssignmentRequest({ pool, backofficeClient, storeId, sourceRequestId, agentPhone, requestId }) {
+async function createAssignmentRequest({ pool, backofficeClient, storeId, sourceRequestId, agentPhone, requestId, webhookUrl, callbackSecretWriter }) {
   const input = validateInput({ storeId, sourceRequestId, agentPhone });
+  const normalizedWebhookUrl = normalizeWebhookUrl(webhookUrl);
   const idempotencyKey = buildIdempotencyKey(input.storeId, input.sourceRequestId);
   const pendingStatus = initialStatus(input.agentPhone);
   let localAssignment;
@@ -154,7 +169,7 @@ async function createAssignmentRequest({ pool, backofficeClient, storeId, source
     return { statusCode: 200, data: publicAssignment(prepared.assignment, true) };
   }
 
-  const payload = { sourceRequestId: input.sourceRequestId };
+  const payload = { sourceRequestId: input.sourceRequestId, webhookUrl: normalizedWebhookUrl };
   if (input.agentPhone) payload.agentPhone = input.agentPhone;
 
   try {
@@ -173,10 +188,20 @@ async function createAssignmentRequest({ pool, backofficeClient, storeId, source
     }
 
     const data = responseData(response);
+    const assignmentRequestId = String(data.id || data.assignmentRequestId || '').trim();
+    if (!assignmentRequestId) {
+      throw new AssignmentError('Backoffice response did not include an assignment request ID', 'BACKOFFICE_RESPONSE_INVALID', 502);
+    }
+    if (!String(data.webhookSecret || '').trim()) {
+      throw new AssignmentError('Backoffice response did not include the callback secret', 'CALLBACK_SECRET_MISSING', 502);
+    }
+    if (typeof callbackSecretWriter !== 'function') {
+      throw new AssignmentError('Callback secret storage is not configured', 'CALLBACK_SECRET_STORAGE_NOT_CONFIGURED', 503);
+    }
+    await callbackSecretWriter(input.storeId, data.webhookSecret);
     const upstreamStatus = ASSIGNMENT_STATUSES.has(String(data.status || '').toUpperCase())
       ? String(data.status).toUpperCase()
       : pendingStatus;
-    const assignmentRequestId = data.id || data.assignmentRequestId || null;
     const updated = await withTransaction(pool, async (client) => {
       const updateResult = await client.query(
         `UPDATE agent_assignments
@@ -213,6 +238,8 @@ async function createAssignmentRequest({ pool, backofficeClient, storeId, source
       'SECRET_VALUE_MISSING',
       'SIGNING_SECRET_MISSING',
       'STORE_CREDENTIAL_MAPPING_MISSING',
+      'CALLBACK_SECRET_STORAGE_NOT_CONFIGURED',
+      'CALLBACK_SECRET_MISSING',
     ]);
     if (deferredCodes.has(error.code)) {
       const pending = await withTransaction(pool, async (client) => {

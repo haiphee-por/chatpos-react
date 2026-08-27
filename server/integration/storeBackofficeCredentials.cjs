@@ -48,12 +48,39 @@ function resolveEnvironmentSecret(reference, env = process.env) {
   return value;
 }
 
-function createStoreCredentialResolver({ pool, fallbackConfig = {}, environment, secretResolver, env = process.env } = {}) {
+function encryptCallbackSecret(secret, encryptionKey) {
+  const key = crypto.createHash('sha256').update(String(encryptionKey || ''), 'utf8').digest();
+  const iv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
+  const ciphertext = Buffer.concat([cipher.update(String(secret), 'utf8'), cipher.final()]);
+  return `v1:${iv.toString('base64url')}:${cipher.getAuthTag().toString('base64url')}:${ciphertext.toString('base64url')}`;
+}
+
+function decryptCallbackSecret(encryptedSecret, encryptionKey) {
+  const [version, encodedIv, encodedTag, encodedCiphertext] = String(encryptedSecret || '').split(':');
+  if (version !== 'v1' || !encodedIv || !encodedTag || !encodedCiphertext) {
+    throw new StoreCredentialError('Encrypted callback secret is invalid', 'SECRET_VALUE_INVALID');
+  }
+  try {
+    const key = crypto.createHash('sha256').update(String(encryptionKey || ''), 'utf8').digest();
+    const decipher = crypto.createDecipheriv('aes-256-gcm', key, Buffer.from(encodedIv, 'base64url'));
+    decipher.setAuthTag(Buffer.from(encodedTag, 'base64url'));
+    return Buffer.concat([
+      decipher.update(Buffer.from(encodedCiphertext, 'base64url')),
+      decipher.final(),
+    ]).toString('utf8');
+  } catch {
+    throw new StoreCredentialError('Encrypted callback secret could not be decrypted', 'SECRET_VALUE_INVALID');
+  }
+}
+
+function createStoreCredentialResolver({ pool, fallbackConfig = {}, environment, secretResolver, env = process.env, callbackSecretEncryptionKey } = {}) {
   if (!pool || typeof pool.query !== 'function') {
     throw new TypeError('A PostgreSQL pool is required');
   }
   const targetEnvironment = String(environment || env.CHATPOS_ENVIRONMENT || env.NODE_ENV || 'development').trim();
   const resolveSecret = secretResolver || ((reference) => resolveEnvironmentSecret(reference, env));
+  const encryptionKey = callbackSecretEncryptionKey || env.CHATPOS_CALLBACK_SECRET_ENCRYPTION_KEY || env.SESSION_SECRET;
 
   async function getCredentialRow(storeId) {
     if (!isUuid(storeId)) {
@@ -62,7 +89,8 @@ function createStoreCredentialResolver({ pool, fallbackConfig = {}, environment,
     const result = await pool.query(
       `SELECT "storeId", environment, "backofficeBaseUrl", "backofficeStoreId", "keyId",
               "bearerSecretRef", "signingSecretRef", "signingSecretPreviousRef",
-              "callbackSecretRef", "callbackSecretPreviousRef", status, "validFrom", "expiresAt"
+              "callbackSecretRef", "callbackSecretPreviousRef", "callbackSecretEncrypted",
+              status, "validFrom", "expiresAt"
        FROM backoffice_store_credentials
        WHERE "storeId" = $1 AND environment = $2
          AND status = 'ACTIVE'
@@ -101,16 +129,6 @@ function createStoreCredentialResolver({ pool, fallbackConfig = {}, environment,
     const signingSecretPrevious = fallbackConfig.signingSecrets?.[1] || (row.signingSecretPreviousRef
       ? await resolveSecret(row.signingSecretPreviousRef, { storeId, keyId: row.keyId, environment: targetEnvironment, type: 'signing-previous' })
       : '');
-    const callbackSecret = await resolveSecret(normalizeReference(row.callbackSecretRef, 'Callback secret reference'), {
-      storeId,
-      keyId: row.keyId,
-      environment: targetEnvironment,
-      type: 'callback',
-    });
-    const callbackSecretPrevious = row.callbackSecretPreviousRef
-      ? await resolveSecret(row.callbackSecretPreviousRef, { storeId, keyId: row.keyId, environment: targetEnvironment, type: 'callback-previous' })
-      : '';
-
     return {
       ...fallbackConfig,
       baseUrl: row.backofficeBaseUrl,
@@ -119,8 +137,8 @@ function createStoreCredentialResolver({ pool, fallbackConfig = {}, environment,
       bearerSecret: String(bearerSecret || ''),
       signingSecret: String(signingSecret || ''),
       signingSecrets: [signingSecret, signingSecretPrevious].filter(Boolean),
-      callbackSecret: String(callbackSecret || ''),
-      callbackSecrets: [callbackSecret, callbackSecretPrevious].filter(Boolean),
+      callbackSecret: '',
+      callbackSecrets: [],
       credentialSource: 'database-secret-reference',
       chatposStoreId: row.storeId,
       environment: row.environment,
@@ -128,11 +146,56 @@ function createStoreCredentialResolver({ pool, fallbackConfig = {}, environment,
   }
 
   async function resolveCallbackSecrets(storeId) {
-    const credential = await resolve(storeId);
-    return credential.callbackSecrets?.length ? credential.callbackSecrets : [credential.callbackSecret].filter(Boolean);
+    const row = await getCredentialRow(storeId);
+    if (!row) {
+      throw new StoreCredentialError(
+        `No active Backoffice credential mapping exists for Store ${storeId} in ${targetEnvironment}`,
+        'STORE_CREDENTIAL_MAPPING_MISSING',
+        503,
+        { storeId, environment: targetEnvironment }
+      );
+    }
+    const callbackSecret = row.callbackSecretRef === 'db:encrypted'
+      ? decryptCallbackSecret(row.callbackSecretEncrypted, encryptionKey)
+      : await resolveSecret(normalizeReference(row.callbackSecretRef, 'Callback secret reference'), {
+        storeId,
+        keyId: row.keyId,
+        environment: targetEnvironment,
+        type: 'callback',
+      });
+    const callbackSecretPrevious = row.callbackSecretPreviousRef
+      ? (row.callbackSecretPreviousRef === 'db:encrypted'
+        ? decryptCallbackSecret(row.callbackSecretEncrypted, encryptionKey)
+        : await resolveSecret(row.callbackSecretPreviousRef, { storeId, keyId: row.keyId, environment: targetEnvironment, type: 'callback-previous' }))
+      : '';
+    return [callbackSecret, callbackSecretPrevious].filter(Boolean);
   }
 
-  return { environment: targetEnvironment, resolve, resolveCallbackSecrets };
+  async function saveCallbackSecret(storeId, callbackSecret) {
+    if (!isUuid(storeId)) {
+      throw new StoreCredentialError('A valid ChatPOS Store ID is required', 'STORE_CREDENTIAL_STORE_ID_INVALID', 422);
+    }
+    if (!String(callbackSecret || '').trim()) {
+      throw new StoreCredentialError('Callback secret is empty', 'CALLBACK_SECRET_MISSING', 503);
+    }
+    if (!encryptionKey) {
+      throw new StoreCredentialError('Callback secret encryption key is not configured', 'CALLBACK_SECRET_STORAGE_NOT_CONFIGURED', 503);
+    }
+    const encryptedSecret = encryptCallbackSecret(callbackSecret, encryptionKey);
+    const result = await pool.query(
+      `UPDATE backoffice_store_credentials
+       SET "callbackSecretRef" = 'db:encrypted', "callbackSecretEncrypted" = $1, "updatedAt" = NOW()
+       WHERE "storeId" = $2 AND environment = $3 AND status = 'ACTIVE'
+       RETURNING "storeId"`,
+      [encryptedSecret, storeId, targetEnvironment]
+    );
+    if (result.rowCount === 0) {
+      throw new StoreCredentialError('Active Backoffice credential mapping was not found', 'STORE_CREDENTIAL_MAPPING_MISSING', 503);
+    }
+    return { storeId, environment: targetEnvironment };
+  }
+
+  return { environment: targetEnvironment, resolve, resolveCallbackSecrets, saveCallbackSecret };
 }
 
 function createSecretReference(value) {
@@ -149,6 +212,8 @@ module.exports = {
   StoreCredentialError,
   createSecretReference,
   createStoreCredentialResolver,
+  decryptCallbackSecret,
+  encryptCallbackSecret,
   hashSecretReference,
   resolveEnvironmentSecret,
 };

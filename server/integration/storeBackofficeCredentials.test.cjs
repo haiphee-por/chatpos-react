@@ -3,11 +3,24 @@ const test = require('node:test');
 const {
   StoreCredentialError,
   createStoreCredentialResolver,
+  decryptCallbackSecret,
+  encryptCallbackSecret,
 } = require('./storeBackofficeCredentials.cjs');
 const { SignedMerchantApiClient } = require('./signedMerchantClient.cjs');
 
 const storeA = '10000000-0000-4000-8000-000000000001';
 const storeB = '10000000-0000-4000-8000-000000000002';
+
+test('encrypts callback secrets for database storage', () => {
+  const encrypted = encryptCallbackSecret('callback-secret', 'encryption-key');
+
+  assert.notEqual(encrypted, 'callback-secret');
+  assert.equal(decryptCallbackSecret(encrypted, 'encryption-key'), 'callback-secret');
+  assert.throws(
+    () => decryptCallbackSecret(encrypted, 'wrong-key'),
+    (error) => error instanceof StoreCredentialError && error.code === 'SECRET_VALUE_INVALID'
+  );
+});
 
 function credentialRow(storeId, suffix) {
   return {

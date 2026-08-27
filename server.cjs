@@ -322,6 +322,7 @@ function isPublicApiRequest(requestPath, method) {
   if (requestPath === '/api/health/live' && method === 'GET') return true;
   if (requestPath === '/api/health/ready' && method === 'GET') return true;
   if (/^\/api\/v1\/kyc\/documents\/[^/]+\/download$/.test(requestPath) && method === 'GET') return true;
+  if (requestPath === '/api/webhooks/chatpos' && method === 'POST') return true;
   if (requestPath === '/api/webhooks/assignment-status' && method === 'POST') return true;
   if (requestPath === '/api/webhooks/llgw/payment' && method === 'POST') return true;
   if (requestPath === '/api/webhooks/payment-status' && method === 'POST') return true;
@@ -387,6 +388,7 @@ const server = http.createServer(async (req, res) => {
     url.startsWith('/api/db') ||
     url.startsWith('/api/v1') ||
     url.startsWith('/api/health') ||
+    requestPath === '/api/webhooks/chatpos' ||
     requestPath === '/api/webhooks/assignment-status' ||
     requestPath === '/api/webhooks/llgw/payment' ||
     requestPath === '/api/webhooks/payment-status'
@@ -506,7 +508,7 @@ const server = http.createServer(async (req, res) => {
         return;
       }
 
-      if (requestPath === '/api/webhooks/assignment-status' && req.method === 'POST') {
+      if ((requestPath === '/api/webhooks/chatpos' || requestPath === '/api/webhooks/assignment-status') && req.method === 'POST') {
         const rawBody = await readRawBody(req);
         const callbackResult = await processAssignmentCallback({
           pool,
@@ -543,6 +545,8 @@ const server = http.createServer(async (req, res) => {
           sourceRequestId: body.sourceRequestId,
           agentPhone: body.agentPhone,
           requestId,
+          webhookUrl: backofficeConfig.assignmentWebhookUrl,
+          callbackSecretWriter: storeCredentialResolver.saveCallbackSecret,
         });
         await writeAudit({
           poolOrClient: pool,
@@ -620,6 +624,8 @@ const server = http.createServer(async (req, res) => {
             sourceRequestId,
             agentPhone: body.agentPhone,
             requestId,
+            webhookUrl: backofficeConfig.assignmentWebhookUrl,
+            callbackSecretWriter: storeCredentialResolver.saveCallbackSecret,
           });
           assignment = assignmentResult.data;
           backoffice = assignment.status === 'PENDING_BACKOFFICE_DISPATCH'

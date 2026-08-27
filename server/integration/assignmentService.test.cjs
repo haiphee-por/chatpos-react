@@ -3,6 +3,7 @@ const test = require('node:test');
 const { createAssignmentRequest } = require('./assignmentService.cjs');
 
 const storeId = '30000000-0000-4000-8000-000000000001';
+const webhookUrl = 'https://merchant.example.test/api/webhooks/chatpos';
 
 function createPool() {
   const state = { assignment: null, auditActions: [] };
@@ -67,6 +68,7 @@ test('keeps a local assignment pending when Store Backoffice mapping is missing'
     storeId,
     sourceRequestId: 'merchant-kyc-submit-case-001',
     requestId: 'request-001',
+    webhookUrl,
   });
 
   assert.equal(result.statusCode, 202);
@@ -88,14 +90,72 @@ test('retries a pending local assignment after Backoffice configuration is resto
       throw error;
     },
   };
-  await createAssignmentRequest({ pool, backofficeClient: firstClient, storeId, sourceRequestId: 'merchant-kyc-submit-case-002', requestId: 'request-002' });
+  await createAssignmentRequest({ pool, backofficeClient: firstClient, storeId, sourceRequestId: 'merchant-kyc-submit-case-002', requestId: 'request-002', webhookUrl });
 
   const secondClient = {
-    request: async () => ({ ok: true, status: 201, data: { id: 'BO-ASSIGN-002', status: 'PENDING_ADMIN_ASSIGNMENT' } }),
+    request: async () => ({ ok: true, status: 201, data: { id: 'BO-ASSIGN-002', status: 'PENDING_ADMIN_ASSIGNMENT', webhookSecret: 'callback-secret-002' } }),
   };
-  const result = await createAssignmentRequest({ pool, backofficeClient: secondClient, storeId, sourceRequestId: 'merchant-kyc-submit-case-002', requestId: 'request-003' });
+  const result = await createAssignmentRequest({
+    pool,
+    backofficeClient: secondClient,
+    storeId,
+    sourceRequestId: 'merchant-kyc-submit-case-002',
+    requestId: 'request-003',
+    webhookUrl,
+    callbackSecretWriter: async () => {},
+  });
 
   assert.equal(result.statusCode, 201);
   assert.equal(result.data.assignmentRequestId, 'BO-ASSIGN-002');
   assert.equal(result.data.status, 'PENDING_ADMIN_ASSIGNMENT');
+});
+
+test('sends webhook URL and persists the one-time webhook secret from the first response', async () => {
+  const { pool } = createPool();
+  let requestOptions;
+  let savedSecret;
+  const result = await createAssignmentRequest({
+    pool,
+    backofficeClient: {
+      request: async (_path, options) => {
+        requestOptions = options;
+        return { ok: true, status: 201, data: { id: 'BO-ASSIGN-003', status: 'PENDING_ADMIN_ASSIGNMENT', webhookSecret: 'callback-test-secret' } };
+      },
+    },
+    storeId,
+    sourceRequestId: 'merchant-assignment-case-003',
+    requestId: 'request-003',
+    webhookUrl,
+    callbackSecretWriter: async (_storeId, secret) => {
+      savedSecret = secret;
+    },
+  });
+
+  assert.equal(requestOptions.body.webhookUrl, webhookUrl);
+  assert.equal(savedSecret, 'callback-test-secret');
+  assert.equal(result.data.assignmentRequestId, 'BO-ASSIGN-003');
+});
+
+test('keeps assignment retryable when the first Backoffice response omits webhook secret', async () => {
+  const { pool, state } = createPool();
+  let calls = 0;
+  const backofficeClient = {
+    request: async () => {
+      calls += 1;
+      return calls === 1
+        ? { ok: true, status: 201, data: { id: 'BO-ASSIGN-004', status: 'PENDING_ADMIN_ASSIGNMENT' } }
+        : { ok: true, status: 200, data: { id: 'BO-ASSIGN-004', status: 'PENDING_ADMIN_ASSIGNMENT', webhookSecret: 'callback-secret-004' } };
+    },
+  };
+
+  const pending = await createAssignmentRequest({ pool, backofficeClient, storeId, sourceRequestId: 'merchant-assignment-case-004', requestId: 'request-004', webhookUrl, callbackSecretWriter: async () => {} });
+  const recovered = await createAssignmentRequest({ pool, backofficeClient, storeId, sourceRequestId: 'merchant-assignment-case-004', requestId: 'request-005', webhookUrl, callbackSecretWriter: async () => {} });
+
+  assert.equal(pending.statusCode, 202);
+  assert.equal(pending.data.status, 'PENDING_BACKOFFICE_DISPATCH');
+  assert.equal(pending.data.reason, 'CALLBACK_SECRET_MISSING');
+  assert.equal(recovered.statusCode, 200);
+  assert.equal(recovered.data.assignmentRequestId, 'BO-ASSIGN-004');
+  assert.equal(state.assignment.status, 'PENDING_ADMIN_ASSIGNMENT');
+  assert.equal(calls, 2);
 });

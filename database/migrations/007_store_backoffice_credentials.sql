@@ -3,7 +3,7 @@ CREATE TABLE IF NOT EXISTS backoffice_store_credentials (
   "storeId" uuid NOT NULL REFERENCES "Store"(id) ON DELETE CASCADE,
   environment text NOT NULL DEFAULT 'production',
   "backofficeBaseUrl" text NOT NULL,
-  "backofficeStoreId" text NOT NULL,
+  "backofficeStoreId" text,
   "keyId" text NOT NULL,
   "bearerSecretRef" text NOT NULL,
   "signingSecretRef" text NOT NULL,

@@ -14,11 +14,11 @@ const required = (name) => {
 const storeId = required('BACKOFFICE_MAPPING_STORE_ID');
 const environment = String(process.env.BACKOFFICE_MAPPING_ENVIRONMENT || process.env.AGENT_PD_CREDENTIAL_ENVIRONMENT || 'production').trim();
 const baseUrl = required('BACKOFFICE_MAPPING_BASE_URL');
-const backofficeStoreId = required('BACKOFFICE_MAPPING_BACKOFFICE_STORE_ID');
+const backofficeStoreId = String(process.env.BACKOFFICE_MAPPING_BACKOFFICE_STORE_ID || '').trim() || null;
 const keyId = required('BACKOFFICE_MAPPING_KEY_ID');
-const bearerSecretRef = required('BACKOFFICE_MAPPING_BEARER_SECRET_REF');
-const signingSecretRef = required('BACKOFFICE_MAPPING_SIGNING_SECRET_REF');
-const callbackSecretRef = required('BACKOFFICE_MAPPING_CALLBACK_SECRET_REF');
+const bearerSecretRef = String(process.env.BACKOFFICE_MAPPING_BEARER_SECRET_REF || 'env:CHATPOS_BACKOFFICE_BEARER_SECRET').trim();
+const signingSecretRef = String(process.env.BACKOFFICE_MAPPING_SIGNING_SECRET_REF || 'env:CHATPOS_BACKOFFICE_SIGNING_SECRET').trim();
+const callbackSecretRef = String(process.env.BACKOFFICE_MAPPING_CALLBACK_SECRET_REF || 'db:encrypted').trim();
 
 if (missing.length > 0) {
   throw new Error(`Missing required mapping configuration: ${missing.join(', ')}`);
@@ -30,10 +30,13 @@ if (!/^https:\/\/[^/]+(?:\/[^/]*)?$/.test(baseUrl)) {
 if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(storeId)) {
   throw new Error('BACKOFFICE_MAPPING_STORE_ID must be a valid UUID');
 }
-for (const [name, value] of Object.entries({ bearerSecretRef, signingSecretRef, callbackSecretRef })) {
+for (const [name, value] of Object.entries({ bearerSecretRef, signingSecretRef })) {
   if (!value.startsWith('env:') && !value.startsWith('file:')) {
     throw new Error(`${name} must use an env: or file: secret-manager reference`);
   }
+}
+if (!callbackSecretRef.startsWith('env:') && !callbackSecretRef.startsWith('file:') && callbackSecretRef !== 'db:encrypted') {
+  throw new Error('callbackSecretRef must use env:, file:, or db:encrypted');
 }
 
 const client = new Client({
@@ -56,7 +59,7 @@ async function provision() {
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'ACTIVE', NOW(), NULL)
        ON CONFLICT ("storeId", environment) DO UPDATE SET
          "backofficeBaseUrl" = EXCLUDED."backofficeBaseUrl",
-         "backofficeStoreId" = EXCLUDED."backofficeStoreId",
+         "backofficeStoreId" = COALESCE(EXCLUDED."backofficeStoreId", backoffice_store_credentials."backofficeStoreId"),
          "keyId" = EXCLUDED."keyId",
          "bearerSecretRef" = EXCLUDED."bearerSecretRef",
          "signingSecretRef" = EXCLUDED."signingSecretRef",

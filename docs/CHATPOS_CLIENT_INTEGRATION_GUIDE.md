@@ -172,6 +172,19 @@ Credential ออกแยกต่อ Store และใช้ข้าม Stor
 | Merchant webhook secret | verify Assignment, ownership, KYC, Store และ payment events | secret manager เท่านั้น; คืนจาก Assignment registration ครั้งแรก |
 | Commission webhook secret | sign settlement event; ส่งเมื่อ integration นี้ได้รับอนุมัติ | secret manager เท่านั้น |
 
+ตัวอย่างชื่อ configuration ฝั่ง `chatpos.biz`:
+
+```env
+CHATPOS_BACKOFFICE_BASE_URL=https://member.chatpos.biz
+CHATPOS_BACKOFFICE_BEARER_SECRET=<Bearer Secret จาก Backoffice provisioning>
+CHATPOS_BACKOFFICE_SIGNING_SECRET=<Signing Secret จาก Backoffice provisioning>
+CHATPOS_BACKOFFICE_CALLBACK_SECRET=<webhookSecret จาก Assignment registration response>
+```
+
+`CHATPOS_BACKOFFICE_BEARER_SECRET` และ `CHATPOS_BACKOFFICE_SIGNING_SECRET` มาจากหน้า `/admin/integrations`. `CHATPOS_BACKOFFICE_CALLBACK_SECRET` ไม่ได้มาจากหน้านั้นและห้ามใช้ Signing Secret แทน; ต้องใช้ `webhookSecret` ที่ `POST /api/v1/assignments/requests` คืนให้หลังลงทะเบียน Merchant webhook. ตัวแปรทั้งสี่เป็น configuration ฝั่ง Merchant และไม่ต้องเพิ่มใน environment ของ Backoffice
+
+สำหรับ repository `chatpos-react` นี้ ค่า Base URL และ Key ID เป็น Store-scoped configuration ใน `backoffice_store_credentials` ไม่ได้อ่าน `CHATPOS_BACKOFFICE_BASE_URL` จาก `.env`; ตัวแปรด้านบนเป็นตัวอย่างสำหรับ Integration Partner ทั่วไป. Bearer/Signing ยังคงอ่านจาก server environment และห้ามส่งไป browser
+
 ห้ามส่ง bearer/signing/webhook secret ผ่าน ticket, email, source code, URL, browser storage หรือ application log
 
 ## 3. Base URL และ Endpoints
@@ -238,6 +251,7 @@ PD/Agent derive จำนวนเงิน, order reference, Merchant, Agent �
 ```http
 Authorization: Bearer <bearer-secret>
 Content-Type: application/json
+X-ChatPOS-Key-Id: <key-id>
 X-ChatPOS-Timestamp: <unix-seconds>
 X-ChatPOS-Nonce: <unique-16-to-128-characters>
 X-ChatPOS-Signature: v1=<lowercase-hmac-sha256-hex>
@@ -339,14 +353,14 @@ POST /api/v1/assignments/requests
 }
 ```
 
-`webhookUrl` เป็น required, ต้องเป็น HTTPS ที่ไม่มี credentials หรือ fragment และอนุญาต localhost เฉพาะ development. ระบบ normalize URL และผูก subscription กับ Store จาก API key; ห้ามส่ง `storeId` เพื่อเลือก tenant. การเรียกครั้งแรกจะสร้าง callback secret แยกจาก secret ที่ใช้ sign API request และคืน `webhookSecret` เพียงครั้งนั้น. Secret ถูกเก็บ encrypted ใน Backoffice และต้องถูกเก็บต่อใน server-side secret manager ของ Merchant. ถ้า response ครั้งแรกหาย ให้ retry ด้วย `Idempotency-Key`, `sourceRequestId` และ raw body เดิมเพื่อ exact replay; ห้ามสร้าง request ใหม่ด้วย source ID อื่นเพื่อกู้ secret
+`webhookUrl` เป็น required, ต้องเป็น HTTPS ที่ไม่มี credentials หรือ fragment และอนุญาต localhost เฉพาะ development. ระบบ normalize URL และผูก subscription กับ Store จาก API key; ห้ามส่ง `storeId` เพื่อเลือก tenant. การลงทะเบียนครั้งแรกจะสร้าง callback secret แยกจาก secret ที่ใช้ sign API request และคืน `webhookSecret`. Exact idempotent replay ที่ผ่าน signed authentication สามารถคืน callback secret ของ Store เดิมได้อีกครั้งเมื่อ request digest ตรงกัน; payload ต่างกันภายใต้ key เดิมต้องถูกปฏิเสธ. Secret ถูกเก็บ encrypted ใน Backoffice และต้องถูกเก็บต่อใน server-side secret manager ของ Merchant. ถ้า response หาย ให้ retry ด้วย `Idempotency-Key`, `sourceRequestId` และ raw body เดิม; ห้ามสร้าง request ใหม่ด้วย source ID อื่นเพื่อกู้ secret
 
 ตัวอย่างเรียก API:
 
 ```ts
-const baseUrl = process.env.AGENT_PD_BACKOFFICE_BASE_URL!;
-const bearerSecret = process.env.AGENT_PD_BEARER_SECRET!;
-const signingSecret = process.env.AGENT_PD_SIGNING_SECRET!;
+const baseUrl = process.env.CHATPOS_BACKOFFICE_BASE_URL!;
+const bearerSecret = process.env.CHATPOS_BACKOFFICE_BEARER_SECRET!;
+const signingSecret = process.env.CHATPOS_BACKOFFICE_SIGNING_SECRET!;
 const url = `${baseUrl}/api/v1/assignments/requests`;
 const idempotencyKey = "assignment:store-123:attempt-1";
 const rawBody = JSON.stringify({
@@ -368,6 +382,7 @@ const response = await fetch(url, {
   headers: {
     Authorization: `Bearer ${bearerSecret}`,
     "Content-Type": "application/json",
+    "X-ChatPOS-Key-Id": process.env.CHATPOS_BACKOFFICE_KEY_ID!,
     "Idempotency-Key": idempotencyKey,
     "X-ChatPOS-Timestamp": signed.timestamp,
     "X-ChatPOS-Nonce": signed.nonce,
@@ -377,7 +392,7 @@ const response = await fetch(url, {
 });
 ```
 
-Response ใหม่จะคืน `webhookUrl`; `webhookSecret` จะมีเฉพาะการสร้าง subscription ครั้งแรกหรือ exact idempotent replay ที่กู้ response เดิม. Merchant ต้องเก็บ secret โดยไม่เขียนลง log, browser storage, source control หรือ URL:
+Response ใหม่จะคืน `webhookUrl`; `webhookSecret` จะมีเมื่อสร้าง subscription ครั้งแรก และ exact idempotent replay ที่ authenticated สามารถคืน secret ของ subscription เดิมได้เมื่อ request digest ตรงกัน. Merchant ต้องเก็บค่านี้เป็น `CHATPOS_BACKOFFICE_CALLBACK_SECRET` โดยไม่เขียนลง log, browser storage, source control หรือ URL:
 
 ```json
 {
@@ -423,7 +438,7 @@ Response ใหม่จะคืน `webhookUrl`; `webhookSecret` จะมี�
 
 การจัดสรรนี้เป็น Admin workflow ของ Backoffice ไม่ใช่สิทธิ์ของ Merchant API และ request body จาก `chatpos.biz` ห้ามเลือก `agentId` หรือ `pdId` แทน Admin
 
-### 5.3 Merchant profile update
+### 5.4 Merchant profile update
 
 `chatpos.biz` ต้องใช้ endpoint นี้เมื่อข้อมูล Merchant/Store ที่ส่งไว้ก่อนหน้าเปลี่ยนแปลง โดย `storeId` ต้อง derive จาก authenticated API key เท่านั้น ห้ามให้ request body เลือกหรือเปลี่ยน Store อื่น
 
@@ -469,7 +484,7 @@ Implementation รับ allowlist ได้แก่ `businessName`, `ownerName
 
 Profile update ที่กระทบ KYC จะเปลี่ยน Case เป็น `WAITING_AGENT_REVIEW`, แจ้ง Agent และคง KYC Submission snapshot เดิมไว้; จนกว่า E2E จะผ่าน ให้ใช้ endpoint นี้ผ่าน signed API เท่านั้นและห้ามแก้ Store โดยตรงจาก client
 
-### 5.4 ขอและ verify KYC OTP
+### 5.5 ขอและ verify KYC OTP
 
 OTP request ต้องสร้างจาก partner backend หลังจากมี `caseId` ที่เป็นของ Store เดียวกับ API key แล้วเท่านั้น:
 
@@ -665,6 +680,7 @@ Body ตัวอย่าง:
 {
   "eventId": "payment-event-id",
   "eventType": "payment.status.changed",
+  "schemaVersion": 1,
   "transactionId": "transaction-123",
   "storeId": "store-123",
   "transactionReference": "order-123",
