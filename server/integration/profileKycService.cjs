@@ -460,7 +460,7 @@ async function intakeKycDocument({ pool, backofficeClient, storeId, caseId, body
     const version = Number(document.latestVersion) + 1;
     const versionResult = await client.query(
       `INSERT INTO kyc_document_versions
-        ("documentId", "caseId", "storeId", version, "fileName", "mimeType", "fileSize", "checksumSha256", "storageLocator", status, "scanStatus", "scanReportJson", "scannedAt", submittedBy, reason, "sourceRequestId", "idempotencyKey", "sourceIssuedAt")
+        ("documentId", "caseId", "storeId", version, "fileName", "mimeType", "fileSize", "checksumSha256", "storageLocator", status, "scanStatus", "scanReportJson", "scannedAt", "submittedBy", reason, "sourceRequestId", "idempotencyKey", "sourceIssuedAt")
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::jsonb, $13, 'merchant', $14, $15, $16, $17)
        RETURNING id, "documentId", version, "fileName", "mimeType", "fileSize", "checksumSha256", "storageLocator", status, "scanStatus", "sourceIssuedAt", "sourceRequestId", "createdAt"`,
       [document.id, caseId, storeId, version, metadata.fileName, metadata.mimeType, metadata.fileSize, metadata.checksumSha256, metadata.storageLocator, scan.status === 'CLEAN' ? 'uploaded' : 'quarantined', scan.status, JSON.stringify(scan), scan.status === 'CLEAN' ? new Date().toISOString() : null, metadata.reason, sourceRequestId, normalizedIdempotencyKey, sourceIssuedAt]
