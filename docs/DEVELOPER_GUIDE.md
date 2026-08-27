@@ -141,7 +141,9 @@ npm run lint
 | `AUTH_LOGIN_RATE_LIMIT` / `AUTH_LOGIN_RATE_WINDOW_SECONDS` | `server.cjs` | login limit ต่อ IP/email bucket |
 | `SETTLEMENT_RETRY_INTERVAL_MS` / `SETTLEMENT_MAX_ATTEMPTS` | `server.cjs` | durable settlement retry และ dead-letter policy |
 | `DOCUMENT_SCANNER_URL` / `DOCUMENT_SCANNER_TOKEN` / `DOCUMENT_SCANNER_TIMEOUT_MS` | `server/integration/documentSecurity.cjs` | scanner ไม่พร้อมจะ quarantine เอกสาร ไม่ถือว่าสแกนผ่าน |
-| `KYC_OTP_TTL_SECONDS` / `KYC_OTP_MAX_ATTEMPTS` / `KYC_OTP_RESEND_COOLDOWN_SECONDS` / `KYC_OTP_LOCK_SECONDS` | `server/integration/otpService.cjs` | policy ของ local KYC challenge; การส่งและตรวจ SMS เป็นความรับผิดชอบของ PD/Agent และยังไม่เปิดใน scope ปัจจุบัน |
+| `KYC_OTP_TTL_SECONDS` / `KYC_OTP_MAX_ATTEMPTS` / `KYC_OTP_RESEND_COOLDOWN_SECONDS` / `KYC_OTP_LOCK_SECONDS` | `server/integration/otpService.cjs` | policy ของ local KYC challenge; SMSUP adapter รองรับการส่งและตรวจ OTP เมื่อ `SMS_OTP_ENABLED` และ provider readiness เปิด |
+| `KYC_DOCUMENT_INTAKE_ENABLED` | `server.cjs` / `server/integration/signedMerchantClient.cjs` | gate ของการส่ง KYC document metadata ไปยัง PD/Agent Backoffice; ค่า default เป็น `false`, production ปัจจุบันเป็น `true` |
+| `KYC_DOCUMENT_LINK_TTL_SECONDS` | deployment configuration | อายุที่เตรียมไว้สำหรับ signed document download URL; `86400` เท่ากับ 24 ชั่วโมง แต่ repository ปัจจุบันยังไม่มี signed download endpoint |
 | `AGENT_PD_BACKOFFICE_BASE_URL` / `AGENT_PD_INTEGRATION_ENABLED` | `server/integration/signedMerchantClient.cjs` | upstream base URL และ global integration gate; Store-scoped mapping ยังต้องเลือก credential ต่อ request |
 | `AGENT_PD_CHATPOS_STORE_ID` / `AGENT_PD_STORE_ID` / `AGENT_PD_KEY_ID` | `server/integration/signedMerchantClient.cjs` | transitional single-Store fallback เท่านั้น; `AGENT_PD_CHATPOS_STORE_ID` คือ local Store และ `AGENT_PD_STORE_ID` คือ Backoffice Store |
 | `AGENT_PD_CREDENTIAL_ENVIRONMENT` / `AGENT_PD_KEY_ID_HEADER` | `server/integration/storeBackofficeCredentials.cjs` / signed client | environment ของ mapping และชื่อ header Key ID ต้องตรงกับ signed contract |
@@ -157,6 +159,8 @@ npm run lint
 | `AGENT_PD_TRANSACTION_COMMAND_PATH` / `AGENT_PD_TRANSACTION_QUERY_PATH` | signed Backoffice client | path placeholder ที่ต้องตรงกับ signed contract ก่อนเปิด routing |
 
 `.env.example` ยังมีตัวแปรชื่อ `VITE_API_URL` และ `VITE_APP_ENV` จากยุค Vite เดิม ซึ่งไม่ใช่ตัวแปรที่ Next routing ชุดปัจจุบันอ่านโดยตรง ให้ใช้ `CHATPOS_API_URL` และ `NEXT_PUBLIC_APP_URL` เป็นหลัก
+
+ใน `.env.production` เปิด `AGENT_PD_INTEGRATION_ENABLED`, `KYC_DOCUMENT_INTAKE_ENABLED` และ `KYC_DOCUMENT_LINK_TTL_SECONDS="86400"` แล้ว ส่วน `CHATPOS_API_URL="http://127.0.0.1:3001"` เป็น URL ภายในระหว่าง Next.js กับ custom API server; URL ภายนอกสำหรับลิงก์ที่ผู้ใช้เปิดคือ `NEXT_PUBLIC_APP_URL` ไม่ใช่ loopback address
 
 ## Frontend routes
 
@@ -201,6 +205,8 @@ API ที่เกี่ยวข้อง:
 - `GET /api/db/kyc`
 - `POST /api/db/kyc/update-status`
 
+ปัจจุบันยังไม่มี `GET /api/v1/kyc/documents/{versionId}/download?token=...` สำหรับ signed download URL. ค่า `KYC_DOCUMENT_LINK_TTL_SECONDS="86400"` เป็น configuration contract ที่เตรียมไว้สำหรับลิงก์อายุ 24 ชั่วโมงเท่านั้น; ก่อนเปิดใช้งานจริงต้องต่อ private object storage, binary upload, token verification, streaming/download และ audit ของการเปิดไฟล์ให้ครบ
+
 Phase 2 มี assignment service ใน `server/integration/assignmentService.cjs` ซึ่งบันทึก request และ event history แบบ durable, ใช้ idempotency ตาม `storeId + sourceRequestId`, ตรวจ callback ด้วย raw body และ HMAC แบบ constant-time และเปลี่ยน `Store.currentAgentId`/`Store.currentPdId` เฉพาะ callback สถานะ `ACCEPTED` ที่ resolve Agent และ PD ที่ active ได้เท่านั้น สถานะ `REJECTED`, `EXPIRED` และ `REASSIGNED` จะไม่ทำให้ Store ถูกผูก Agent ต่อ ส่วน callback ซ้ำหรือ callback ที่มาช้ากว่าจะถูก dedupe/ignore ใน transaction เดียวกับ state update
 
 Merchant portal แสดงสถานะ `PENDING_ADMIN_ASSIGNMENT`, `PENDING_AGENT_ACCEPTANCE`, `ACCEPTED`, `REJECTED`, `EXPIRED` และ `REASSIGNED` พร้อม next action และจะแสดง Agent/PD เฉพาะเมื่อ status เป็น `ACCEPTED` การสมัคร Merchant จะส่ง assignment request หลังสร้าง Store สำเร็จ โดยรองรับทั้งการระบุเบอร์ Agent และการเว้นว่างให้ Admin จัดสรร หาก `AGENT_PD_INTEGRATION_ENABLED` หรือ `AGENT_PD_ASSIGNMENT_ENABLED` ยังปิดอยู่ การสมัครบัญชียังสำเร็จแต่จะไม่ forward assignment ไป Backoffice
@@ -211,7 +217,7 @@ Phase 3 เพิ่ม `profileKycService.cjs` สำหรับ profile updat
 
 Document intake ตรวจ MIME (`application/pdf`, `image/jpeg`, `image/png`, `image/webp`), ขนาดไม่เกิน 10 MB, SHA-256 checksum และ `private://` locator เท่านั้น พร้อม unique `caseId + sourceRequestId`, `caseId + idempotencyKey`, `documentId + version` และ `documentId + checksum` เพื่อป้องกัน replay, overwrite และการใช้ version เดิมกับไฟล์ใหม่ การแก้เอกสารจึงต้องส่ง request ใหม่พร้อม locator/checksum ใหม่เสมอ ส่วน Chat/Post เก็บข้อความและ attachment metadata แบบ append-only และรองรับ read status
 
-Phase 3 ยังเป็น feature-flagged integration: `MERCHANT_PROFILE_UPDATE_ENABLED` และ `KYC_DOCUMENT_INTAKE_ENABLED` ปิดเป็นค่าเริ่มต้น, route command จะ forward ผ่าน signed PD/Agent Backoffice client เมื่อเปิด flag เท่านั้น. Document intake ตรวจ MIME/size/checksum/private locator, เรียก scanner adapter และเก็บ `scanStatus`; scanner ที่ไม่มีหรือไม่พร้อมจะทำให้ version อยู่ในสถานะ quarantine และ `GET /api/db/kyc/documents/{versionId}/access` จะไม่คืน access จนกว่าจะเป็น `CLEAN`. private locator ยังเป็น metadata contract ไม่ใช่ object-storage implementation ใน repository; production ต้องยืนยัน private storage, encryption at rest, scanner service, staging replay/conflict, role/Store/Case authorization และ Agent review -> PD/Compliance final decision
+Phase 3 ยังเป็น feature-flagged integration: `MERCHANT_PROFILE_UPDATE_ENABLED` และ `KYC_DOCUMENT_INTAKE_ENABLED` ปิดเป็นค่าเริ่มต้น แต่ production ปัจจุบันเปิด `KYC_DOCUMENT_INTAKE_ENABLED=true`; route command จะ forward ผ่าน signed PD/Agent Backoffice client เมื่อเปิด flag เท่านั้น. Document intake ตรวจ MIME/size/checksum/private locator, เรียก scanner adapter และเก็บ `scanStatus`; scanner ที่ไม่มีหรือไม่พร้อมจะทำให้ version อยู่ในสถานะ quarantine และ `GET /api/db/kyc/documents/{versionId}/access` จะไม่คืน access จนกว่าจะเป็น `CLEAN`. private locator ยังเป็น metadata contract ไม่ใช่ object-storage implementation ใน repository และ `KYC_DOCUMENT_LINK_TTL_SECONDS` ยังไม่ถูกใช้สร้าง download URL; production ต้องยืนยัน private storage, encryption at rest, scanner service, signed download, staging replay/conflict, role/Store/Case authorization และ Agent review -> PD/Compliance final decision
 
 ข้อควรเข้าใจ: โค้ดปัจจุบันมี assignment, KYC Chat/Post, immutable document versions, server session, role/Store/Case authorization และ audit/retry foundations แล้ว แต่ยังไม่ใช่ implementation เต็มรูปแบบของ Merchant KYC ที่ผ่าน staging, PostgreSQL E2E, storage encryption/scanner verification, multi-level approval sign-off และ production operations ครบทุกขั้น หากพัฒนาต่อให้ใช้ skill [`merchant-kyc`](../.github/skills/merchant-kyc/SKILL.md) เป็นข้อกำหนด workflow
 
@@ -267,7 +273,7 @@ flowchart TD
 6. หลังยืนยันสำเร็จให้บันทึก `phoneVerifiedAt` และออก registration session/server-side token ห้ามถือว่าแค่ส่ง OTP สำเร็จคือยืนยันตัวตนแล้ว
 7. การส่ง OTP ซ้ำต้อง invalidate OTP เดิมตาม policy และห้ามส่งรหัสผ่าน query string, browser storage หรือ log
 
-SMS/OTP delivery เป็นความรับผิดชอบของ PD/Agent Backoffice โดย ChatPOS ไม่เก็บ SMS credential และไม่เรียก SMS provider โดยตรง. Local KYC case OTP routes และ challenge persistence มีแล้วใน [`server.cjs`](../server.cjs), [`server/integration/otpService.cjs`](../server/integration/otpService.cjs) และ migration `006` แต่ยังปิดไว้จนกว่าจะยืนยัน signed Backoffice OTP contract, endpoint, payload, callback/verification และ staging E2E ที่เกี่ยวข้อง
+KYC case SMS/OTP ปัจจุบันมี SMSUP adapter ใน [`server/integration/smsupClient.cjs`](../server/integration/smsupClient.cjs), local challenge persistence และ routes ใน [`server.cjs`](../server.cjs) โดยเปิดใช้งานเมื่อ `SMS_OTP_ENABLED=true`, `SMS_OTP_PROVIDER_READY=true` และ `SMS_PROVIDER=smsup_plus`. ต้องทำ real delivery/verification E2E, ตรวจการหมุน credential และยืนยัน owner/contract กับ PD/Agent ให้ครบก่อนถือว่าเป็น production-ready
 
 #### 2. สร้างบัญชี Merchant และข้อมูลร้านค้า
 
@@ -363,9 +369,9 @@ API ปัจจุบันมี `GET /api/db/kyc` และ `POST /api/db/kyc
 
 | ขั้นตอน | สถานะปัจจุบัน | จุดที่ต้องทำต่อก่อน production |
 |---|---|---|
-| KYC case OTP ผ่าน PD/Agent | มี route, challenge persistence, TTL, attempt limit, resend cooldown, lock และ audit foundation แต่ flow ยังปิด | ยืนยัน Backoffice OTP contract และทำ staging E2E โดยให้ PD/Agent เป็นผู้จัดการ SMS |
+| KYC case OTP ผ่าน PD/Agent | มี route, challenge persistence, TTL, attempt limit, resend cooldown, lock, audit foundation และ SMSUP adapter | ทำ real SMSUP delivery/verification E2E และยืนยัน owner/contract กับ PD/Agent ก่อน production |
 | สร้าง Merchant/Store/KYC | มี `POST /api/db/auth/register-merchant`, core tables และ server session สำหรับ login | บังคับ OTP, transaction boundary, validation และ staging authorization |
-| KYC document/version | มี API, checksum, immutable version, private locator, quarantine/scanner status และ access audit | ต่อ private upload/scanner จริง, encryption at rest, review queue และ PostgreSQL E2E |
+| KYC document/version | มี API, checksum, immutable version, private locator, quarantine/scanner status และ access audit | ต่อ private binary upload, signed download อายุ 24 ชั่วโมง, scanner จริง, encryption at rest, review queue และ PostgreSQL E2E |
 | สินค้า | มี `Product` และ `/api/db/products` | ownership, validation, history และ production authorization |
 | บริการ | ส่วนใหญ่ยังเป็น prototype/localStorage | service/availability schema และ API persistence |
 | บัญชีรับเงิน | มี field ใน `Store`/`KycVerification` | dedicated account/version tables, verification และ change control |
