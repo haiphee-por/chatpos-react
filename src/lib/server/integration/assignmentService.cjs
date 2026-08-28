@@ -17,6 +17,7 @@ const WORKFLOW_CALLBACK_EVENT_TYPES = new Set([
   'kyc.case.status.changed',
   'store.assignment.changed',
   'store.status.changed',
+  'store.data.synced',
 ]);
 const DEFAULT_TIMESTAMP_TOLERANCE_SECONDS = 300;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;

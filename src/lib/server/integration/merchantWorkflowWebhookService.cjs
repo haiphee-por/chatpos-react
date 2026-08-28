@@ -200,6 +200,70 @@ async function syncStoreStatus(client, { body, storeId }) {
   return { updated: true, isActive: status === 'DELETED' ? false : isActive };
 }
 
+async function syncStoreData(client, { body, storeId }) {
+  const snapshot = body.data && typeof body.data === 'object' && body.data.store && typeof body.data.store === 'object'
+    ? body.data.store
+    : null;
+  if (!snapshot) return { updated: false };
+
+  const incomingVersion = Number.isFinite(Number(snapshot.profileVersion)) ? Number(snapshot.profileVersion) : null;
+  const incomingUpdatedAt = snapshot.updatedAt ? new Date(snapshot.updatedAt) : null;
+  const current = await client.query(
+    `SELECT "profileVersion", "updatedAt", "profileJson" FROM "Store" WHERE id = $1 FOR UPDATE`,
+    [storeId]
+  );
+  if (current.rowCount === 0) return { updated: false, missing: true };
+  const currentVersion = Number(current.rows[0].profileVersion) || 0;
+  const currentUpdatedAt = current.rows[0].updatedAt ? new Date(current.rows[0].updatedAt) : null;
+  if (incomingVersion !== null && incomingVersion < currentVersion) {
+    return { updated: false, late: true };
+  }
+  if (
+    incomingVersion !== null &&
+    incomingVersion === currentVersion &&
+    incomingUpdatedAt &&
+    currentUpdatedAt &&
+    incomingUpdatedAt.getTime() <= currentUpdatedAt.getTime()
+  ) {
+    return { updated: false, late: true };
+  }
+
+  const mergedProfile = { ...(current.rows[0].profileJson || {}) };
+  const profileFields = ['ownerName', 'contactEmail', 'contactPhone', 'province', 'district', 'businessCategory', 'businessMode'];
+  for (const key of profileFields) {
+    if (Object.prototype.hasOwnProperty.call(snapshot, key) && snapshot[key] !== undefined && snapshot[key] !== null) {
+      mergedProfile[key] = snapshot[key];
+    }
+  }
+
+  const nextVersion = incomingVersion !== null ? Math.max(incomingVersion, currentVersion) : currentVersion;
+  await client.query(
+    `UPDATE "Store"
+     SET name = COALESCE($1, name),
+         phone = COALESCE($2, phone),
+         address = COALESCE($3, address),
+         "isActive" = COALESCE($4, "isActive"),
+         "isOnboarded" = COALESCE($5, "isOnboarded"),
+         tier = COALESCE($6, tier),
+         "profileVersion" = $7,
+         "profileJson" = $8::jsonb,
+         "updatedAt" = NOW()
+     WHERE id = $9`,
+    [
+      snapshot.name ?? null,
+      snapshot.contactPhone ?? null,
+      snapshot.address ?? null,
+      typeof snapshot.isActive === 'boolean' ? snapshot.isActive : null,
+      typeof snapshot.isOnboarded === 'boolean' ? snapshot.isOnboarded : null,
+      snapshot.tier ?? null,
+      nextVersion,
+      JSON.stringify(mergedProfile),
+      storeId,
+    ]
+  );
+  return { updated: true, profileVersion: nextVersion };
+}
+
 async function processMerchantWorkflowCallback({ pool, rawBody, headers, callbackSecret, callbackSecretResolver, nowSeconds = Math.floor(Date.now() / 1000) }) {
   const { body, storeReference } = parseCallbackBody(rawBody);
   const resolvedCallbackSecret = callbackSecretResolver
@@ -248,6 +312,8 @@ async function processMerchantWorkflowCallback({ pool, rawBody, headers, callbac
       data = await syncKycCase(client, { body, storeId: callbackContext.storeId, occurredAt });
     } else if (verified.eventType === 'store.assignment.changed') {
       data = await syncStoreAssignment(client, { body, storeId: callbackContext.storeId });
+    } else if (verified.eventType === 'store.data.synced') {
+      data = await syncStoreData(client, { body, storeId: callbackContext.storeId });
     } else {
       data = await syncStoreStatus(client, { body, storeId: callbackContext.storeId });
     }
