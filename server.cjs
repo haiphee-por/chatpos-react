@@ -66,6 +66,9 @@ const {
 const { deletePrivateDocument, readPrivateDocument, writePrivateDocument } = require('./server/integration/privateDocumentStorage.cjs');
 
 dotenv.config();
+if (process.env.NODE_ENV === 'production') {
+  dotenv.config({ path: path.resolve(__dirname, '.env.production'), override: true });
+}
 
 const port = process.env.API_PORT || 3001;
 const merchantHomeContractEnabled = process.env.MERCHANT_HOME_CONTRACT_ENABLED === 'true';

@@ -111,7 +111,7 @@ npm run build
 npm run start
 ```
 
-Dockerfile จะ build Next.js แล้วรันทั้ง Next.js และ API server ใน container เดียว โดยเปิดพอร์ต `3000` และ `3001` ควร route traffic ภายนอกไปที่พอร์ต `3000`
+Dockerfile จะ build Next.js แล้วรันทั้ง Next.js และ API server ใน container เดียว โดยเปิดพอร์ต `3000` และ `3001` ควร route traffic ภายนอกไปที่พอร์ต `3000`. Next.js rewrites ใน [`next.config.ts`](../next.config.ts) forward `/api/db/*` และ `/api/v1/*` ไปที่ `CHATPOS_API_URL` (default `http://127.0.0.1:3001`) ที่ `server.cjs` เปิดฟังอยู่; browser จึงต้องเรียก same-origin เท่านั้น ห้าม hard-code external domain. `server.cjs` โหลด `.env` ก่อน แล้ว override ด้วย `.env.production` เมื่อ `NODE_ENV=production` เพื่อให้ feature flag เช่น `TRANSACTION_ROUTING_ENABLED`, `MERCHANT_HOME_CONTRACT_ENABLED` ตรงกับ Next.js. หากได้ 404 จาก `/api/v1/*` ให้ตรวจว่า `server.cjs` ยังทำงานอยู่ด้วย `curl https://<host>/api/health/live` และ endpoint นี้เป็น POST-only จึงจะได้ 404 หาก navigate จาก browser bar โดยตรง (GET)
 
 ### ตรวจสอบโค้ด
 
