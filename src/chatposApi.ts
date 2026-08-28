@@ -1,16 +1,10 @@
 /**
  * ChatPOS API Utility Helper
- * Base URL: https://chatpos.biz
+ * Browser calls same-origin `/api/v1/*`; Next.js rewrites forward to the custom API server via `CHATPOS_API_URL`.
  */
 
 export const STORAGE_KEY_API_KEY = 'chatpos_api_key'
-export const DEFAULT_API_BASE_URL =
-  typeof window !== 'undefined' &&
-  (window.location.hostname === 'localhost' ||
-    window.location.hostname === '127.0.0.1' ||
-    window.location.hostname.endsWith('.local'))
-    ? ''
-    : 'https://chatpos.biz'
+export const DEFAULT_API_BASE_URL = ''
 
 /**
  * API keys are intentionally never restored from browser storage.

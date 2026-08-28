@@ -2,6 +2,7 @@ const assert = require('node:assert/strict');
 const test = require('node:test');
 const {
   buildDocumentCommandBody,
+  dispatchPendingKycDocuments,
   intakeKycDocument,
   validateDocumentBody,
   validateProfileBody,
@@ -10,7 +11,7 @@ const {
 const storeId = '30000000-0000-4000-8000-000000000001';
 const caseId = '40000000-0000-4000-8000-000000000001';
 
-function createDocumentPool() {
+function createDocumentPool({ backofficeCaseId = 'backoffice-case-001' } = {}) {
   const state = {
     latestVersion: 0,
     versions: [],
@@ -20,6 +21,7 @@ function createDocumentPool() {
     id: caseId,
     storeId,
     verificationId: null,
+    backofficeCaseId,
     case_number: 'KYC-202608-TEST01',
     status: 'draft',
     submissionVersion: 0,
@@ -258,7 +260,7 @@ test('document intake creates immutable versions and forwards the Backoffice com
     assert.equal(second.document.version, 2);
     assert.deepEqual(state.versions.map((version) => version.version), [1, 2]);
     assert.equal(requests.length, 2);
-    assert.equal(requests[0].path, `/api/v1/kyc/cases/${caseId}/documents`);
+    assert.equal(requests[0].path, `/api/v1/kyc/cases/backoffice-case-001/documents`);
     assert.equal(requests[0].options.body.version, 1);
     assert.equal(requests[1].options.body.version, 2);
     assert.equal(requests[0].options.body.sourceRequestId, 'document-upload-001');
@@ -319,4 +321,70 @@ test('document intake keeps the local version pending when Store Backoffice mapp
   assert.deepEqual(result.backoffice, { status: 'PENDING_CONFIGURATION', code: 'STORE_CREDENTIAL_MAPPING_MISSING' });
   assert.equal(state.versions.length, 1);
   assert.equal(state.versions[0].status, result.document.status);
+});
+
+test('document intake keeps the local version pending until Backoffice opens the KYC case', async () => {
+  const { pool, state } = createDocumentPool({ backofficeCaseId: null });
+  let requestCount = 0;
+  const result = await intakeKycDocument({
+    pool,
+    backofficeClient: {
+      request: async () => {
+        requestCount += 1;
+        return { ok: true, status: 201, data: { accepted: true } };
+      },
+    },
+    storeId,
+    caseId,
+    body: documentBody('document-waiting-for-agent-001', 'd'.repeat(64)),
+    idempotencyKey: 'document-waiting-for-agent-idempotency-001',
+  });
+
+  assert.equal(result.backoffice.status, 'PENDING_ASSIGNMENT');
+  assert.equal(result.backoffice.code, 'BACKOFFICE_CASE_NOT_READY');
+  assert.equal(state.versions.length, 1);
+  assert.equal(requestCount, 0);
+});
+
+test('pending documents are dispatched with the remote KYC case ID after assignment acceptance', async () => {
+  const calls = [];
+  const document = {
+    id: '60000000-0000-4000-8000-000000000001',
+    documentId: '50000000-0000-4000-8000-000000000001',
+    documentType: 'id-card-front',
+    version: 1,
+    checksumSha256: 'e'.repeat(64),
+    storageLocator: `private/kyc/${storeId}/${caseId}/id-card.png`,
+    sourceIssuedAt: '2026-08-27T00:00:00.000Z',
+    sourceRequestId: 'document-pending-forward-001',
+    idempotencyKey: 'document-pending-forward-key-001',
+  };
+  const pool = {
+    query: async (sql) => {
+      if (sql.includes('FROM merchant_kyc_cases')) {
+        return { rows: [{ id: caseId, storeId, backofficeCaseId: 'backoffice-case-001' }], rowCount: 1 };
+      }
+      if (sql.includes('FROM kyc_document_versions')) return { rows: [document], rowCount: 1 };
+      if (sql.includes('UPDATE kyc_document_versions')) return { rows: [], rowCount: 1 };
+      return { rows: [], rowCount: 1 };
+    },
+  };
+  const result = await dispatchPendingKycDocuments({
+    pool,
+    backofficeClient: {
+      request: async (path, options) => {
+        calls.push({ path, options });
+        return { ok: true, status: 200, data: { idempotentReplay: true } };
+      },
+    },
+    storeId,
+    caseId,
+    requestId: 'callback-kyc-event-001',
+  });
+
+  assert.deepEqual(result, { status: 'FORWARDED', scanned: 1, forwarded: 1, pending: 0, failed: 0 });
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].path, '/api/v1/kyc/cases/backoffice-case-001/documents');
+  assert.equal(calls[0].options.body.documentId, document.documentId);
+  assert.equal(calls[0].options.body.sourceRequestId, document.sourceRequestId);
 });

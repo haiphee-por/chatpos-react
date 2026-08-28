@@ -16,6 +16,7 @@ const {
 const { processMerchantWorkflowCallback } = require('./server/integration/merchantWorkflowWebhookService.cjs');
 const {
   appendKycMessage,
+  dispatchPendingKycDocuments,
   getDocumentAccess,
   getKycDocumentDownload,
   getKycWorkspace,
@@ -521,12 +522,26 @@ const server = http.createServer(async (req, res) => {
           headers: req.headers,
           callbackSecretResolver: storeCredentialResolver.resolveCallbackContext,
         });
+        let documentDispatch = null;
+        if (processCallback === processMerchantWorkflowCallback && eventType === 'kyc.case.status.changed' && callbackResult.data?.caseId) {
+          try {
+            documentDispatch = await dispatchPendingKycDocuments({
+              pool,
+              backofficeClient: kycDocumentBackofficeClient,
+              storeId: callbackResult.data.storeId,
+              caseId: callbackResult.data.caseId,
+              requestId: callbackResult.data.backofficeCaseId,
+            });
+          } catch (error) {
+            console.error('[KYC Document Dispatch Error]:', error.message);
+          }
+        }
         res.statusCode = callbackResult.statusCode || 200;
         res.end(JSON.stringify({
           success: true,
           duplicate: Boolean(callbackResult.duplicate),
           late: Boolean(callbackResult.late),
-          data: callbackResult.data || null,
+          data: callbackResult.data ? { ...callbackResult.data, ...(documentDispatch ? { documentDispatch } : {}) } : null,
         }));
         return;
       }
@@ -635,6 +650,15 @@ const server = http.createServer(async (req, res) => {
             callbackSecretResolver: storeCredentialResolver.resolveCallbackSecrets,
           });
           assignment = assignmentResult.data;
+          if (assignment?.status === 'ACCEPTED') {
+            await dispatchPendingKycDocuments({
+              pool,
+              backofficeClient: kycDocumentBackofficeClient,
+              storeId,
+              caseId: kycSubmitRoute[1],
+              requestId,
+            });
+          }
           backoffice = assignment.status === 'PENDING_BACKOFFICE_DISPATCH'
             ? { status: 'PENDING_CONFIGURATION', code: assignment.reason || 'BACKOFFICE_DISPATCH_PENDING', assignment }
             : { status: 'FORWARDED', assignment };
@@ -2627,3 +2651,11 @@ const settlementRetryInterval = setInterval(() => {
   }).catch((error) => console.error('[Settlement Retry Error]:', error.message));
 }, Number(process.env.SETTLEMENT_RETRY_INTERVAL_MS || 30000));
 settlementRetryInterval.unref();
+
+const kycDocumentRetryInterval = setInterval(() => {
+  dispatchPendingKycDocuments({
+    pool,
+    backofficeClient: kycDocumentBackofficeClient,
+  }).catch((error) => console.error('[KYC Document Retry Error]:', error.message));
+}, Number(process.env.KYC_DOCUMENT_RETRY_INTERVAL_MS || 30000));
+kycDocumentRetryInterval.unref();

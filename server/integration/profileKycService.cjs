@@ -175,12 +175,44 @@ async function callBackoffice(backofficeClient, path, method, body, idempotencyK
     sourceRequestId,
   });
   if (!response.ok) {
-    throw new ProfileKycError('Backoffice rejected the command', 'BACKOFFICE_COMMAND_REJECTED', response.status >= 400 ? response.status : 502, {
+    const remoteError = response.data?.error;
+    const remoteCode = typeof remoteError === 'object' && remoteError !== null
+      ? remoteError.code
+      : response.data?.code;
+    const remoteMessage = typeof remoteError === 'object' && remoteError !== null
+      ? remoteError.message
+      : typeof remoteError === 'string'
+        ? remoteError
+        : null;
+    throw new ProfileKycError(remoteMessage || 'Backoffice rejected the command', 'BACKOFFICE_COMMAND_REJECTED', response.status >= 400 ? response.status : 502, {
       backofficeStatus: response.status,
+      backofficeCode: remoteCode || null,
       backofficeResponse: response.data,
     });
   }
   return response.data;
+}
+
+function isBackofficeCaseNotReady(error) {
+  return error?.code === 'BACKOFFICE_COMMAND_REJECTED'
+    && (error.backofficeCode === 'CASE_NOT_FOUND' || error.backofficeStatus === 404);
+}
+
+function dispatchErrorCode(error) {
+  return isBackofficeCaseNotReady(error)
+    ? 'BACKOFFICE_CASE_NOT_READY'
+    : error?.code || 'BACKOFFICE_COMMAND_REJECTED';
+}
+
+async function markDocumentDispatch(pool, documentVersionId, status, errorCode = null) {
+  await pool.query(
+    `UPDATE kyc_document_versions
+     SET "backofficeDispatchStatus" = $1,
+         "backofficeDispatchError" = $2,
+         "backofficeDispatchedAt" = CASE WHEN $1 = 'DELIVERED' THEN NOW() ELSE "backofficeDispatchedAt" END
+     WHERE id = $3`,
+    [status, errorCode, documentVersionId]
+  );
 }
 
 async function getProfileReplay(pool, storeId, idempotencyKey, digest) {
@@ -412,7 +444,7 @@ function assertDocumentLocatorScope(storageLocator, storeId, caseId) {
 async function getKycCaseForStore(client, caseId, storeId, lock = false) {
   if (!isUuid(caseId) || !isUuid(storeId)) throw new ProfileKycError('A valid case and Store context are required', 'KYC_CONTEXT_REQUIRED', 422);
   const result = await client.query(
-    `SELECT id, "storeId", "verificationId", case_number, status, "submissionVersion", "submissionSnapshotJson", "submissionProfileVersion"
+    `SELECT id, "storeId", "verificationId", "backofficeCaseId", case_number, status, "submissionVersion", "submissionSnapshotJson", "submissionProfileVersion"
      FROM merchant_kyc_cases
      WHERE id = $1 AND "storeId" = $2${lock ? ' FOR UPDATE' : ''}`,
     [caseId, storeId]
@@ -434,7 +466,7 @@ async function intakeKycDocument({ pool, backofficeClient, storeId, caseId, body
     await client.query('BEGIN');
     const kycCase = await getKycCaseForStore(client, caseId, storeId, true);
     const replayResult = await client.query(
-      `SELECT id, "documentId", version, "fileName", "mimeType", "fileSize", "checksumSha256", "storageLocator", status, "sourceIssuedAt", "sourceRequestId", "createdAt"
+      `SELECT id, "documentId", version, "fileName", "mimeType", "fileSize", "checksumSha256", "storageLocator", status, "sourceIssuedAt", "sourceRequestId", "idempotencyKey", "backofficeDispatchStatus", "createdAt"
        FROM kyc_document_versions
        WHERE "caseId" = $1 AND ("sourceRequestId" = $2 OR "idempotencyKey" = $3)`,
       [caseId, sourceRequestId, normalizedIdempotencyKey]
@@ -446,7 +478,29 @@ async function intakeKycDocument({ pool, backofficeClient, storeId, caseId, body
       }
 
       await client.query('COMMIT');
-      return { replayed: true, idempotentReplay: true, document: existing, backoffice: null };
+      if (kycCase.backofficeCaseId && existing.backofficeDispatchStatus !== 'DELIVERED') {
+        const dispatch = await dispatchPendingKycDocuments({
+          pool,
+          backofficeClient,
+          storeId,
+          caseId,
+          requestId,
+        });
+        return {
+          replayed: true,
+          idempotentReplay: true,
+          document: existing,
+          backoffice: dispatch,
+        };
+      }
+      return {
+        replayed: true,
+        idempotentReplay: true,
+        document: existing,
+        backoffice: kycCase.backofficeCaseId
+          ? { status: 'FORWARDED', code: 'BACKOFFICE_DOCUMENT_ALREADY_DELIVERED' }
+          : { status: 'PENDING_ASSIGNMENT', code: 'BACKOFFICE_CASE_NOT_READY' },
+      };
     }
 
     const documentResult = await client.query(
@@ -496,23 +550,41 @@ async function intakeKycDocument({ pool, backofficeClient, storeId, caseId, body
       [versionResult.rows[0].id, JSON.stringify({ caseId, documentType: metadata.documentType, version, checksumSha256: metadata.checksumSha256, scanStatus: scan.status }), requestId || sourceRequestId]
     );
     await client.query('COMMIT');
+    if (!kycCase.backofficeCaseId) {
+      await markDocumentDispatch(pool, versionResult.rows[0].id, 'PENDING', 'BACKOFFICE_CASE_NOT_READY');
+      await pool.query(
+        `INSERT INTO audit_logs ("actorId", "actorRole", action, "targetType", "targetId", reason, "requestId", "afterJson")
+         VALUES ('merchant-session', 'merchant', 'KYC_DOCUMENT_PENDING_BACKOFFICE_DISPATCH', 'KycDocumentVersion', $1, $2, $3, $4::jsonb)`,
+        [versionResult.rows[0].id, 'BACKOFFICE_CASE_NOT_READY', requestId || sourceRequestId, JSON.stringify({ status: 'PENDING_ASSIGNMENT', caseId, version })]
+      );
+      return {
+        replayed: false,
+        idempotentReplay: false,
+        document: versionResult.rows[0],
+        backoffice: { status: 'PENDING_ASSIGNMENT', code: 'BACKOFFICE_CASE_NOT_READY' },
+      };
+    }
     let remoteResult;
     try {
-      remoteResult = await callBackoffice(backofficeClient, `/api/v1/kyc/cases/${caseId}/documents`, 'POST', commandBody, normalizedIdempotencyKey, requestId, sourceRequestId, storeId);
+      remoteResult = await callBackoffice(backofficeClient, `/api/v1/kyc/cases/${kycCase.backofficeCaseId}/documents`, 'POST', commandBody, normalizedIdempotencyKey, requestId, sourceRequestId, storeId);
+      await markDocumentDispatch(pool, versionResult.rows[0].id, 'DELIVERED');
     } catch (error) {
-      if (DEFERRED_BACKOFFICE_CODES.has(error.code)) {
+      if (DEFERRED_BACKOFFICE_CODES.has(error.code) || isBackofficeCaseNotReady(error)) {
+        const code = dispatchErrorCode(error);
+        await markDocumentDispatch(pool, versionResult.rows[0].id, 'PENDING', code);
         await pool.query(
           `INSERT INTO audit_logs ("actorId", "actorRole", action, "targetType", "targetId", reason, "requestId", "afterJson")
            VALUES ('merchant-session', 'merchant', 'KYC_DOCUMENT_PENDING_BACKOFFICE_DISPATCH', 'KycDocumentVersion', $1, $2, $3, $4::jsonb)`,
-          [versionResult.rows[0].id, error.code, requestId || sourceRequestId, JSON.stringify({ status: 'PENDING_CONFIGURATION', caseId, version })]
+          [versionResult.rows[0].id, code, requestId || sourceRequestId, JSON.stringify({ status: code === 'BACKOFFICE_CASE_NOT_READY' ? 'PENDING_ASSIGNMENT' : 'PENDING_CONFIGURATION', caseId, version })]
         );
         return {
           replayed: false,
           idempotentReplay: false,
           document: versionResult.rows[0],
-          backoffice: { status: 'PENDING_CONFIGURATION', code: error.code },
+          backoffice: { status: code === 'BACKOFFICE_CASE_NOT_READY' ? 'PENDING_ASSIGNMENT' : 'PENDING_CONFIGURATION', code },
         };
       }
+      await markDocumentDispatch(pool, versionResult.rows[0].id, 'FAILED', dispatchErrorCode(error));
       error.localCommitted = true;
       throw error;
     }
@@ -528,9 +600,77 @@ async function intakeKycDocument({ pool, backofficeClient, storeId, caseId, body
   }
 }
 
+async function dispatchPendingKycDocuments({ pool, backofficeClient, storeId, caseId, requestId, limit = 100 }) {
+  if (!backofficeClient) return { status: 'PENDING_CONFIGURATION', scanned: 0, forwarded: 0, pending: 0, failed: 0 };
+  const values = [];
+  const conditions = ['"backofficeCaseId" IS NOT NULL'];
+  if (storeId) {
+    values.push(storeId);
+    conditions.push(`"storeId" = $${values.length}`);
+  }
+  if (caseId) {
+    values.push(caseId);
+    conditions.push(`id = $${values.length}`);
+  }
+  const cases = await pool.query(
+    `SELECT id, "storeId", "backofficeCaseId"
+     FROM merchant_kyc_cases
+     WHERE ${conditions.join(' AND ')}
+     ORDER BY "updatedAt" ASC
+     LIMIT ${Math.min(Math.max(Number(limit) || 100, 1), 500)}`,
+    values
+  );
+  let scanned = 0;
+  let forwarded = 0;
+  let pending = 0;
+  let failed = 0;
+
+  for (const kycCase of cases.rows) {
+    const documents = await pool.query(
+      `SELECT id, "documentId", "documentType", version, "checksumSha256", "storageLocator", "sourceIssuedAt", "sourceRequestId", "idempotencyKey"
+       FROM kyc_document_versions
+       WHERE "caseId" = $1 AND "backofficeDispatchStatus" IN ('PENDING', 'FAILED')
+       ORDER BY version ASC
+       LIMIT $2`,
+      [kycCase.id, Math.min(Math.max(Number(limit) || 100, 1), 500)]
+    );
+
+    for (const document of documents.rows) {
+      scanned += 1;
+      const commandBody = buildDocumentCommandBody(document);
+      const idempotencyKey = document.idempotencyKey || document.sourceRequestId || `kyc-document-${document.id}`;
+      try {
+        await callBackoffice(
+          backofficeClient,
+          `/api/v1/kyc/cases/${kycCase.backofficeCaseId}/documents`,
+          'POST',
+          commandBody,
+          idempotencyKey,
+          requestId || document.sourceRequestId,
+          document.sourceRequestId,
+          kycCase.storeId
+        );
+        await markDocumentDispatch(pool, document.id, 'DELIVERED');
+        forwarded += 1;
+      } catch (error) {
+        const code = dispatchErrorCode(error);
+        if (DEFERRED_BACKOFFICE_CODES.has(error.code) || isBackofficeCaseNotReady(error)) {
+          await markDocumentDispatch(pool, document.id, 'PENDING', code);
+          pending += 1;
+        } else {
+          await markDocumentDispatch(pool, document.id, 'FAILED', code);
+          failed += 1;
+        }
+      }
+    }
+  }
+
+  return { status: failed > 0 ? 'PARTIAL_FAILURE' : pending > 0 ? 'PENDING' : 'FORWARDED', scanned, forwarded, pending, failed };
+}
+
 async function ensureKycCase(client, storeId) {
   const existing = await client.query(
-    `SELECT id, "storeId", "verificationId", case_number, status, "submissionVersion", "submissionSnapshotJson", "submissionProfileVersion"
+    `SELECT id, "storeId", "verificationId", "backofficeCaseId", case_number, status, "submissionVersion", "submissionSnapshotJson", "submissionProfileVersion"
      FROM merchant_kyc_cases WHERE "storeId" = $1 ORDER BY "updatedAt" DESC LIMIT 1`,
     [storeId]
   );
@@ -756,6 +896,7 @@ module.exports = {
   ProfileKycError,
   appendKycMessage,
   buildDocumentCommandBody,
+  dispatchPendingKycDocuments,
   getDocumentAccess,
   getKycDocumentDownload,
   getKycWorkspace,

@@ -139,7 +139,7 @@ async function syncKycCase(client, { body, storeId, occurredAt }) {
     ? new Date(kycCase.lastBackofficeEventOccurredAt)
     : null;
   if (previousOccurredAt && occurredAt.getTime() <= previousOccurredAt.getTime()) {
-    return { caseId: kycCase.id, status: kycCase.status, late: true };
+    return { storeId, caseId: kycCase.id, backofficeCaseId: caseId, status: kycCase.status, late: true };
   }
 
   const updated = await client.query(
@@ -163,7 +163,7 @@ async function syncKycCase(client, { body, storeId, occurredAt }) {
       [verificationStatus(status), approvalLevel(status), kycCase.verificationId]
     );
   }
-  return { caseId: updated.rows[0].id, status: updated.rows[0].status, late: false };
+  return { storeId, caseId: updated.rows[0].id, backofficeCaseId: caseId, status: updated.rows[0].status, late: false };
 }
 
 async function syncStoreAssignment(client, { body, storeId }) {

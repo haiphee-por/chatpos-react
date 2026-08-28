@@ -539,7 +539,15 @@ export async function submitKycDocument(storeId: string, caseId: string, payload
   })
   const data = await response.json().catch(() => ({}))
   if (!response.ok) throw new Error(data?.error || `Document API error ${response.status}`)
-  return data as { success: boolean; data: { document: KycDocumentVersion; access?: { url: string; expiresAt: string }; replayed: boolean } }
+  return data as {
+    success: boolean
+    data: {
+      document: KycDocumentVersion
+      access?: { url: string; expiresAt: string }
+      replayed: boolean
+      backoffice?: { status?: string; code?: string; forwarded?: number; pending?: number; failed?: number } | null
+    }
+  }
 }
 
 export async function postKycMessage(storeId: string, caseId: string, payload: { message?: string; recipientId?: string; attachments?: Array<Record<string, unknown>> }) {

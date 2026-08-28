@@ -124,7 +124,7 @@ export function MerchantKycView({ storeId }: MerchantKycViewProps) {
     setUploading(true)
     setError('')
     try {
-      await submitKycDocument(storeId, workspace.case.id, {
+      const uploadResult = await submitKycDocument(storeId, workspace.case.id, {
         documentType,
         file,
         reason: correctionReason || undefined,
@@ -132,6 +132,9 @@ export function MerchantKycView({ storeId }: MerchantKycViewProps) {
         sourceIssuedAt: new Date().toISOString(),
       })
       setCorrectionReason('')
+      setSuccessMessage(uploadResult.data.backoffice?.status === 'PENDING_ASSIGNMENT'
+        ? 'บันทึกเอกสารแล้ว ระบบจะส่งต่อให้ Agent เมื่อรับดูแลร้าน'
+        : 'บันทึกเอกสารเรียบร้อยแล้ว')
       await loadWorkspace()
     } catch (uploadError: any) {
       setError(uploadError?.message || 'อัปโหลดเอกสารไม่สำเร็จ')
