@@ -44,7 +44,10 @@ test('resolves independent credentials for each ChatPOS Store', async () => {
     [storeB, credentialRow(storeB, 'b')],
   ]);
   const pool = {
-    query: async (_sql, parameters) => ({ rows: rows.has(parameters[0]) ? [rows.get(parameters[0])] : [] }),
+    query: async (sql, parameters) => {
+      const storeReference = sql.includes('AND ("backofficeStoreId" = $2') ? parameters[1] : parameters[0];
+      return { rows: rows.has(storeReference) ? [rows.get(storeReference)] : [] };
+    },
   };
   const resolver = createStoreCredentialResolver({
     pool,
@@ -63,6 +66,26 @@ test('resolves independent credentials for each ChatPOS Store', async () => {
   assert.equal(resolvedA.bearerSecret, 'resolved-secret:bearer:a');
   assert.equal(resolvedB.signingSecret, 'resolved-secret:signing:b');
   assert.deepEqual(await resolver.resolveCallbackSecrets(storeA), ['resolved-secret:callback:a']);
+});
+
+test('resolves callback credentials from a Backoffice Store ID to the local Store', async () => {
+  const localStoreId = storeA;
+  const remoteStoreId = 'backoffice-store-a';
+  const row = { ...credentialRow(localStoreId, 'a'), backofficeStoreId: remoteStoreId };
+  const resolver = createStoreCredentialResolver({
+    pool: {
+      query: async (_sql, parameters) => ({ rows: parameters[1] === remoteStoreId ? [row] : [] }),
+    },
+    environment: 'staging',
+    secretResolver: async (reference) => `resolved-${reference}`,
+    fallbackConfig: { enabled: true },
+  });
+
+  await assert.deepEqual(await resolver.resolveCallbackContext(remoteStoreId), {
+    storeId: localStoreId,
+    backofficeStoreId: remoteStoreId,
+    secrets: ['resolved-secret:callback:a'],
+  });
 });
 
 test('fails closed when a Store has no active credential mapping', async () => {

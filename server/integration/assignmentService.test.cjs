@@ -159,3 +159,30 @@ test('keeps assignment retryable when the first Backoffice response omits webhoo
   assert.equal(state.assignment.status, 'PENDING_ADMIN_ASSIGNMENT');
   assert.equal(calls, 2);
 });
+
+test('accepts a new request when the existing callback secret is already stored', async () => {
+  const { pool, state } = createPool();
+  let resolvedStoreId;
+  const result = await createAssignmentRequest({
+    pool,
+    backofficeClient: {
+      request: async () => ({ ok: true, status: 201, data: { id: 'BO-ASSIGN-005', status: 'PENDING_AGENT_ACCEPTANCE' } }),
+    },
+    storeId,
+    sourceRequestId: 'merchant-assignment-case-005',
+    requestId: 'request-006',
+    webhookUrl,
+    callbackSecretWriter: async () => {
+      throw new Error('must not overwrite the existing callback secret');
+    },
+    callbackSecretResolver: async (resolvedId) => {
+      resolvedStoreId = resolvedId;
+      return ['existing-callback-secret'];
+    },
+  });
+
+  assert.equal(result.statusCode, 201);
+  assert.equal(result.data.status, 'PENDING_AGENT_ACCEPTANCE');
+  assert.equal(state.assignment.status, 'PENDING_AGENT_ACCEPTANCE');
+  assert.equal(resolvedStoreId, storeId);
+});

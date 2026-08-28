@@ -13,6 +13,7 @@ const {
   createAssignmentRequest,
   processAssignmentCallback,
 } = require('./server/integration/assignmentService.cjs');
+const { processMerchantWorkflowCallback } = require('./server/integration/merchantWorkflowWebhookService.cjs');
 const {
   appendKycMessage,
   getDocumentAccess,
@@ -510,11 +511,15 @@ const server = http.createServer(async (req, res) => {
 
       if ((requestPath === '/api/webhooks/chatpos' || requestPath === '/api/webhooks/assignment-status') && req.method === 'POST') {
         const rawBody = await readRawBody(req);
-        const callbackResult = await processAssignmentCallback({
+        const eventType = String(req.headers['x-chatpos-event-type'] || '');
+        const processCallback = requestPath === '/api/webhooks/assignment-status' || eventType === 'assignment.status.changed'
+          ? processAssignmentCallback
+          : processMerchantWorkflowCallback;
+        const callbackResult = await processCallback({
           pool,
           rawBody,
           headers: req.headers,
-          callbackSecretResolver: storeCredentialResolver.resolveCallbackSecrets,
+          callbackSecretResolver: storeCredentialResolver.resolveCallbackContext,
         });
         res.statusCode = callbackResult.statusCode || 200;
         res.end(JSON.stringify({
@@ -547,6 +552,7 @@ const server = http.createServer(async (req, res) => {
           requestId,
           webhookUrl: backofficeConfig.assignmentWebhookUrl,
           callbackSecretWriter: storeCredentialResolver.saveCallbackSecret,
+          callbackSecretResolver: storeCredentialResolver.resolveCallbackSecrets,
         });
         await writeAudit({
           poolOrClient: pool,
@@ -626,6 +632,7 @@ const server = http.createServer(async (req, res) => {
             requestId,
             webhookUrl: backofficeConfig.assignmentWebhookUrl,
             callbackSecretWriter: storeCredentialResolver.saveCallbackSecret,
+            callbackSecretResolver: storeCredentialResolver.resolveCallbackSecrets,
           });
           assignment = assignmentResult.data;
           backoffice = assignment.status === 'PENDING_BACKOFFICE_DISPATCH'
@@ -1483,7 +1490,7 @@ const server = http.createServer(async (req, res) => {
                 LEFT JOIN "Agent" a ON aa."agentId" = a.id
                 LEFT JOIN "ProvincialDirector" pd ON aa."pdId" = pd.id
                 WHERE aa."storeId" = $1
-                ORDER BY aa."createdAt" DESC
+                ORDER BY aa."updatedAt" DESC, aa."createdAt" DESC
                 LIMIT 20`,
               values: [requestedStoreId],
             }
@@ -1506,7 +1513,7 @@ const server = http.createServer(async (req, res) => {
                 FROM agent_assignments aa
                 LEFT JOIN "Agent" a ON aa."agentId" = a.id
                 LEFT JOIN "ProvincialDirector" pd ON aa."pdId" = pd.id
-                ORDER BY aa."createdAt" DESC
+                ORDER BY aa."updatedAt" DESC, aa."createdAt" DESC
                 LIMIT 20`,
               values: [],
             };

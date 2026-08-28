@@ -13,6 +13,11 @@ const ASSIGNMENT_STATUSES = new Set([
 const CALLBACK_STATUSES = new Set(['PENDING_AGENT_ACCEPTANCE', 'ACCEPTED', 'REJECTED', 'EXPIRED', 'REASSIGNED', 'ASSIGNED_FOR_ACCEPTANCE']);
 const CALLBACK_PROVIDER = 'agent_pd_backoffice';
 const CALLBACK_EVENT_TYPE = 'assignment.status.changed';
+const WORKFLOW_CALLBACK_EVENT_TYPES = new Set([
+  'kyc.case.status.changed',
+  'store.assignment.changed',
+  'store.status.changed',
+]);
 const DEFAULT_TIMESTAMP_TOLERANCE_SECONDS = 300;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -110,7 +115,7 @@ async function withTransaction(pool, callback) {
   }
 }
 
-async function createAssignmentRequest({ pool, backofficeClient, storeId, sourceRequestId, agentPhone, requestId, webhookUrl, callbackSecretWriter }) {
+async function createAssignmentRequest({ pool, backofficeClient, storeId, sourceRequestId, agentPhone, requestId, webhookUrl, callbackSecretWriter, callbackSecretResolver }) {
   const input = validateInput({ storeId, sourceRequestId, agentPhone });
   const normalizedWebhookUrl = normalizeWebhookUrl(webhookUrl);
   const idempotencyKey = buildIdempotencyKey(input.storeId, input.sourceRequestId);
@@ -192,13 +197,21 @@ async function createAssignmentRequest({ pool, backofficeClient, storeId, source
     if (!assignmentRequestId) {
       throw new AssignmentError('Backoffice response did not include an assignment request ID', 'BACKOFFICE_RESPONSE_INVALID', 502);
     }
-    if (!String(data.webhookSecret || '').trim()) {
-      throw new AssignmentError('Backoffice response did not include the callback secret', 'CALLBACK_SECRET_MISSING', 502);
-    }
     if (typeof callbackSecretWriter !== 'function') {
       throw new AssignmentError('Callback secret storage is not configured', 'CALLBACK_SECRET_STORAGE_NOT_CONFIGURED', 503);
     }
-    await callbackSecretWriter(input.storeId, data.webhookSecret);
+    const callbackSecret = String(data.webhookSecret || '').trim();
+    if (callbackSecret) {
+      await callbackSecretWriter(input.storeId, callbackSecret);
+    } else {
+      if (typeof callbackSecretResolver !== 'function') {
+        throw new AssignmentError('Backoffice response did not include the callback secret', 'CALLBACK_SECRET_MISSING', 502);
+      }
+      const existingSecrets = await callbackSecretResolver(input.storeId);
+      if (!existingSecrets || (Array.isArray(existingSecrets) && existingSecrets.length === 0)) {
+        throw new AssignmentError('Backoffice response did not include the callback secret', 'CALLBACK_SECRET_MISSING', 502);
+      }
+    }
     const upstreamStatus = ASSIGNMENT_STATUSES.has(String(data.status || '').toUpperCase())
       ? String(data.status).toUpperCase()
       : pendingStatus;
@@ -236,6 +249,7 @@ async function createAssignmentRequest({ pool, backofficeClient, storeId, source
       'INTEGRATION_DISABLED',
       'SECRET_RESOLVER_UNAVAILABLE',
       'SECRET_VALUE_MISSING',
+      'SECRET_VALUE_INVALID',
       'SIGNING_SECRET_MISSING',
       'STORE_CREDENTIAL_MAPPING_MISSING',
       'CALLBACK_SECRET_STORAGE_NOT_CONFIGURED',
@@ -289,7 +303,7 @@ function safeEqual(left, right) {
   return leftBuffer.length === rightBuffer.length && crypto.timingSafeEqual(leftBuffer, rightBuffer);
 }
 
-function verifyAssignmentCallback({ rawBody, headers, callbackSecret, nowSeconds = Math.floor(Date.now() / 1000), timestampToleranceSeconds = DEFAULT_TIMESTAMP_TOLERANCE_SECONDS }) {
+function verifyCallbackSignature({ rawBody, headers, callbackSecret, allowedEventTypes, unsupportedMessage, nowSeconds = Math.floor(Date.now() / 1000), timestampToleranceSeconds = DEFAULT_TIMESTAMP_TOLERANCE_SECONDS }) {
   if (!callbackSecret) throw new AssignmentError('Assignment callback secret is not configured', 'CALLBACK_SECRET_MISSING', 503);
   const callbackSecrets = Array.isArray(callbackSecret) ? callbackSecret.filter(Boolean) : [callbackSecret];
   const eventId = getHeader(headers, 'x-chatpos-event-id');
@@ -298,8 +312,8 @@ function verifyAssignmentCallback({ rawBody, headers, callbackSecret, nowSeconds
   const signature = getHeader(headers, 'x-chatpos-signature');
   if (!eventId) throw new AssignmentError('X-ChatPOS-Event-Id is required', 'EVENT_ID_REQUIRED');
   if (!eventType) throw new AssignmentError('X-ChatPOS-Event-Type is required', 'EVENT_TYPE_REQUIRED');
-  if (eventType !== CALLBACK_EVENT_TYPE) {
-    throw new AssignmentError('Unsupported assignment callback event type', 'UNSUPPORTED_EVENT_TYPE');
+  if (!allowedEventTypes.has(eventType)) {
+    throw new AssignmentError(unsupportedMessage, 'UNSUPPORTED_EVENT_TYPE');
   }
   if (!/^\d{10}$/.test(timestamp) || Math.abs(nowSeconds - Number(timestamp)) > timestampToleranceSeconds) {
     throw new AssignmentError('Callback timestamp is outside the allowed clock skew', 'STALE_TIMESTAMP', 401);
@@ -315,6 +329,22 @@ function verifyAssignmentCallback({ rawBody, headers, callbackSecret, nowSeconds
   return { eventId, eventType, timestamp: Number(timestamp) };
 }
 
+function verifyAssignmentCallback(input) {
+  return verifyCallbackSignature({
+    ...input,
+    allowedEventTypes: new Set([CALLBACK_EVENT_TYPE]),
+    unsupportedMessage: 'Unsupported assignment callback event type',
+  });
+}
+
+function verifyMerchantWorkflowCallback(input) {
+  return verifyCallbackSignature({
+    ...input,
+    allowedEventTypes: WORKFLOW_CALLBACK_EVENT_TYPES,
+    unsupportedMessage: 'Unsupported merchant workflow callback event type',
+  });
+}
+
 function normalizeCallbackStatus(status) {
   const normalized = String(status || '').toUpperCase();
   if (!CALLBACK_STATUSES.has(normalized)) {
@@ -323,16 +353,31 @@ function normalizeCallbackStatus(status) {
   return normalized === 'ASSIGNED_FOR_ACCEPTANCE' ? 'PENDING_AGENT_ACCEPTANCE' : normalized;
 }
 
+function normalizeCallbackContext(value, fallbackStoreId) {
+  if (Array.isArray(value) || typeof value === 'string') {
+    return { storeId: fallbackStoreId, secrets: value };
+  }
+  if (value && typeof value === 'object') {
+    return {
+      storeId: String(value.storeId || fallbackStoreId),
+      secrets: value.secrets || value.callbackSecrets || value.callbackSecret,
+    };
+  }
+  return { storeId: fallbackStoreId, secrets: value };
+}
+
 async function resolveTarget(client, body, assignment = null) {
-  const agentReference = body.agentId || body.agentCode || body.agent?.id || body.agent?.code;
-  const pdReference = body.pdId || body.pdCode || body.pd?.id || body.pd?.code;
   let agent = null;
   let pd = null;
 
-  if (agentReference) {
+  const agentReferences = [body.agentId, body.agentCode, body.agent?.id, body.agent?.code]
+    .map((reference) => String(reference || '').trim())
+    .filter((reference, index, references) => reference && references.indexOf(reference) === index);
+  for (const agentReference of agentReferences) {
     agent = (isUuid(agentReference)
       ? await client.query('SELECT id, "currentPdId" FROM "Agent" WHERE id = $1 AND status = \'active\'', [agentReference])
-      : await client.query('SELECT id, "currentPdId" FROM "Agent" WHERE code = $1 AND status = \'active\'', [String(agentReference)])).rows[0] || null;
+      : await client.query('SELECT id, "currentPdId" FROM "Agent" WHERE code = $1 AND status = \'active\'', [agentReference])).rows[0] || null;
+    if (agent) break;
   }
   if (!agent && assignment?.agentId) {
     const agentResult = await client.query('SELECT id, "currentPdId" FROM "Agent" WHERE id = $1 AND status = \'active\'', [assignment.agentId]);
@@ -349,10 +394,14 @@ async function resolveTarget(client, body, assignment = null) {
     );
     agent = agentResult.rows[0] || null;
   }
-  if (pdReference) {
+  const pdReferences = [body.pdId, body.pdCode, body.pd?.id, body.pd?.code]
+    .map((reference) => String(reference || '').trim())
+    .filter((reference, index, references) => reference && references.indexOf(reference) === index);
+  for (const pdReference of pdReferences) {
     pd = (isUuid(pdReference)
       ? await client.query('SELECT id FROM "ProvincialDirector" WHERE id = $1 AND status = \'active\'', [pdReference])
-      : await client.query('SELECT id FROM "ProvincialDirector" WHERE code = $1 AND status = \'active\'', [String(pdReference)])).rows[0] || null;
+      : await client.query('SELECT id FROM "ProvincialDirector" WHERE code = $1 AND status = \'active\'', [pdReference])).rows[0] || null;
+    if (pd) break;
   }
   if (!pd && agent?.currentPdId) {
     const pdResult = await client.query('SELECT id FROM "ProvincialDirector" WHERE id = $1 AND status = \'active\'', [agent.currentPdId]);
@@ -371,11 +420,16 @@ async function processAssignmentCallback({ pool, rawBody, headers, callbackSecre
   if (!body || typeof body !== 'object' || Array.isArray(body)) {
     throw new AssignmentError('Callback body must be an object', 'INVALID_BODY');
   }
-  if (!isUuid(body.storeId)) throw new AssignmentError('Callback storeId must be a UUID', 'INVALID_STORE_ID');
+  const callbackStoreId = String(body.storeId || '').trim();
+  if (!callbackStoreId || callbackStoreId.length > 200) throw new AssignmentError('Callback storeId is invalid', 'INVALID_STORE_ID');
   const resolvedCallbackSecret = callbackSecretResolver
-    ? await callbackSecretResolver(body.storeId)
+    ? await callbackSecretResolver(callbackStoreId)
     : callbackSecret;
-  const verified = verifyAssignmentCallback({ rawBody, headers, callbackSecret: resolvedCallbackSecret, nowSeconds });
+  const callbackContext = normalizeCallbackContext(resolvedCallbackSecret, callbackStoreId);
+  if (!isUuid(callbackContext.storeId)) {
+    throw new AssignmentError('Callback Store mapping is invalid', 'INVALID_STORE_ID');
+  }
+  const verified = verifyAssignmentCallback({ rawBody, headers, callbackSecret: callbackContext.secrets, nowSeconds });
   if (body.eventId !== verified.eventId) {
     throw new AssignmentError('Callback event ID header does not match body', 'EVENT_ID_MISMATCH');
   }
@@ -406,7 +460,7 @@ async function processAssignmentCallback({ pool, rawBody, headers, callbackSecre
       `SELECT * FROM agent_assignments
        WHERE "assignmentRequestId" = $1 AND "storeId" = $2
        FOR UPDATE`,
-      [String(body.assignmentRequestId), body.storeId]
+      [String(body.assignmentRequestId), callbackContext.storeId]
     );
     if (assignmentResult.rowCount === 0) {
       throw new AssignmentError('Assignment request was not found for callback', 'ASSIGNMENT_NOT_FOUND', 404);
@@ -513,8 +567,10 @@ module.exports = {
   AssignmentError,
   buildIdempotencyKey,
   createAssignmentRequest,
+  normalizeCallbackContext,
   normalizePhone,
   processAssignmentCallback,
   publicAssignment,
   verifyAssignmentCallback,
+  verifyMerchantWorkflowCallback,
 };

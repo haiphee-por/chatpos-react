@@ -103,6 +103,29 @@ function createStoreCredentialResolver({ pool, fallbackConfig = {}, environment,
     return result.rows[0] || null;
   }
 
+  async function getCallbackCredentialRow(storeReference) {
+    const reference = String(storeReference || '').trim();
+    if (!reference || reference.length > 200) {
+      throw new StoreCredentialError('A valid callback Store reference is required', 'STORE_CREDENTIAL_STORE_ID_INVALID', 422);
+    }
+    const result = await pool.query(
+      `SELECT "storeId", environment, "backofficeBaseUrl", "backofficeStoreId", "keyId",
+              "bearerSecretRef", "signingSecretRef", "signingSecretPreviousRef",
+              "callbackSecretRef", "callbackSecretPreviousRef", "callbackSecretEncrypted",
+              status, "validFrom", "expiresAt"
+       FROM backoffice_store_credentials
+       WHERE environment = $1
+         AND status = 'ACTIVE'
+         AND ("validFrom" IS NULL OR "validFrom" <= NOW())
+         AND ("expiresAt" IS NULL OR "expiresAt" > NOW())
+         AND ("backofficeStoreId" = $2 OR "storeId"::text = $2)
+       ORDER BY CASE WHEN "backofficeStoreId" = $2 THEN 0 ELSE 1 END, "updatedAt" DESC
+       LIMIT 1`,
+      [targetEnvironment, reference]
+    );
+    return result.rows[0] || null;
+  }
+
   async function resolve(storeId) {
     const row = await getCredentialRow(storeId);
     if (!row) {
@@ -145,30 +168,45 @@ function createStoreCredentialResolver({ pool, fallbackConfig = {}, environment,
     };
   }
 
-  async function resolveCallbackSecrets(storeId) {
-    const row = await getCredentialRow(storeId);
-    if (!row) {
-      throw new StoreCredentialError(
-        `No active Backoffice credential mapping exists for Store ${storeId} in ${targetEnvironment}`,
-        'STORE_CREDENTIAL_MAPPING_MISSING',
-        503,
-        { storeId, environment: targetEnvironment }
-      );
-    }
+  function callbackSecretsFromRow(row) {
     const callbackSecret = row.callbackSecretRef === 'db:encrypted'
       ? decryptCallbackSecret(row.callbackSecretEncrypted, encryptionKey)
-      : await resolveSecret(normalizeReference(row.callbackSecretRef, 'Callback secret reference'), {
-        storeId,
+      : resolveSecret(normalizeReference(row.callbackSecretRef, 'Callback secret reference'), {
+        storeId: row.storeId,
         keyId: row.keyId,
         environment: targetEnvironment,
         type: 'callback',
       });
-    const callbackSecretPrevious = row.callbackSecretPreviousRef
-      ? (row.callbackSecretPreviousRef === 'db:encrypted'
-        ? decryptCallbackSecret(row.callbackSecretEncrypted, encryptionKey)
-        : await resolveSecret(row.callbackSecretPreviousRef, { storeId, keyId: row.keyId, environment: targetEnvironment, type: 'callback-previous' }))
-      : '';
-    return [callbackSecret, callbackSecretPrevious].filter(Boolean);
+    return Promise.resolve(callbackSecret).then(async (secret) => {
+      const callbackSecretPrevious = row.callbackSecretPreviousRef
+        ? (row.callbackSecretPreviousRef === 'db:encrypted'
+          ? decryptCallbackSecret(row.callbackSecretEncrypted, encryptionKey)
+          : await resolveSecret(row.callbackSecretPreviousRef, { storeId: row.storeId, keyId: row.keyId, environment: targetEnvironment, type: 'callback-previous' }))
+        : '';
+      return [secret, callbackSecretPrevious].filter(Boolean);
+    });
+  }
+
+  async function resolveCallbackContext(storeReference) {
+    const row = await getCallbackCredentialRow(storeReference);
+    if (!row) {
+      throw new StoreCredentialError(
+        `No active Backoffice credential mapping exists for Store ${storeReference} in ${targetEnvironment}`,
+        'STORE_CREDENTIAL_MAPPING_MISSING',
+        503,
+        { storeId: storeReference, environment: targetEnvironment }
+      );
+    }
+    return {
+      storeId: row.storeId,
+      backofficeStoreId: row.backofficeStoreId,
+      secrets: await callbackSecretsFromRow(row),
+    };
+  }
+
+  async function resolveCallbackSecrets(storeId) {
+    const context = await resolveCallbackContext(storeId);
+    return context.secrets;
   }
 
   async function saveCallbackSecret(storeId, callbackSecret) {
@@ -195,7 +233,7 @@ function createStoreCredentialResolver({ pool, fallbackConfig = {}, environment,
     return { storeId, environment: targetEnvironment };
   }
 
-  return { environment: targetEnvironment, resolve, resolveCallbackSecrets, saveCallbackSecret };
+  return { environment: targetEnvironment, resolve, resolveCallbackContext, resolveCallbackSecrets, saveCallbackSecret };
 }
 
 function createSecretReference(value) {
