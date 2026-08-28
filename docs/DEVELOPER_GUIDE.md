@@ -24,7 +24,7 @@ flowchart LR
     Browser[Browser] --> Next[Next.js :3000]
     Next --> Shell[Client App Shell]
     Shell --> Views[Merchant / Customer / Booking / Catalog / QuickPay / Developer]
-    Next -->|rewrite /api/db/* and /api/v1/*| API[server.cjs :3001]
+    Next -->|/api/* catch-all Route Handler| API[api-handler.cjs]
     Views -->|relative fetch| Next
     API --> DB[(PostgreSQL)]
     Views -->|client/workflow state| Local[(localStorage)]
@@ -45,7 +45,7 @@ flowchart LR
 
 ### API server
 
-`server.cjs` เป็น Node HTTP server แยกจาก Next.js ทำหน้าที่:
+`src/lib/server/api-handler.cjs` เป็นโมดูล Node ที่รวมทุก HTTP handler ของ API เข้าไว้ใน Next.js process ทำหน้าที่:
 
 1. รับ request ที่ `/api/db/*` และ `/api/v1/*`
 2. ตรวจ method และ route แบบ explicit
@@ -56,7 +56,7 @@ flowchart LR
 7. ส่ง signed commands/callbacks ระหว่าง ChatPOS กับ PD/Agent Backoffice และบันทึก audit/retry state
 8. ส่ง JSON response กลับไปยัง browser
 
-Next.js ไม่ได้ใช้ Route Handlers หรือ Server Actions สำหรับ API ในตอนนี้ แต่ใช้ rewrites ใน [`next.config.ts`](../next.config.ts) เพื่อส่ง request ไปยัง API process
+Next.js ให้บริการทุก HTTP request ใน process เดียว. ทุก request ที่ path `/api/*` เข้ามาที่ catch-all Route Handler [`src/app/api/[[...path]]/route.ts`](../src/app/api/%5B%5B...path%5D%5D/route.ts) ซึ่ง adapt `NextRequest` เป็น Node-style req/res แล้วเรียก [`src/lib/server/api-handler.cjs`](../src/lib/server/api-handler.cjs) (เดิมคือ `server.cjs`). Background job (`retryPendingSettlementEvents`, `dispatchPendingKycDocuments`) ถูกลงทะเบียนผ่าน Next.js instrumentation ที่ [`src/instrumentation.ts`](../src/instrumentation.ts) เพียงครั้งเดียวเมื่อ Node runtime พร้อม
 
 ### Database
 
@@ -64,7 +64,6 @@ Next.js ไม่ได้ใช้ Route Handlers หรือ Server Actions �
 
 - `DATABASE_URL` หากต้องการใช้ connection string
 - หรือ `PGHOST`, `PGPORT`, `PGUSER`, `PGPASSWORD`, `PGDATABASE`
-- `API_PORT` สำหรับพอร์ตของ custom API server ค่าเริ่มต้นคือ `3001`
 
 อย่าใส่ password, token, PII หรือข้อมูลเอกสารจริงลงใน source control หรือ mock data
 
@@ -84,15 +83,13 @@ npm install
 npm run dev
 ```
 
-คำสั่ง `npm run dev` ใช้ `concurrently` เปิดสอง process พร้อมกัน:
+คำสั่ง `npm run dev` เปิด Next.js dev server เพียง process เดียวที่ `http://localhost:3000`. API endpoint (`/api/db/*`, `/api/v1/*`, webhook receivers) เสิร์ฟจาก process เดียวกันผ่าน catch-all Route Handler โดยไม่ต้องเปิด port แยก
 
-- Next.js ที่ `http://localhost:3000`
-- API server ที่ `http://localhost:3001`
-
-เมื่อต้องการรัน API อย่างเดียว:
+เมื่อต้องการรัน production build:
 
 ```bash
-npm run server
+npm run build
+npm run start
 ```
 
 เมื่อต้องการสร้างหรืออัปเดต schema ของ PostgreSQL:
@@ -111,7 +108,7 @@ npm run build
 npm run start
 ```
 
-Dockerfile จะ build Next.js แล้วรันทั้ง Next.js และ API server ใน container เดียว โดยเปิดพอร์ต `3000` และ `3001` ควร route traffic ภายนอกไปที่พอร์ต `3000`. Next.js rewrites ใน [`next.config.ts`](../next.config.ts) forward `/api/db/*` และ `/api/v1/*` ไปที่ `CHATPOS_API_URL` (default `http://127.0.0.1:3001`) ที่ `server.cjs` เปิดฟังอยู่; browser จึงต้องเรียก same-origin เท่านั้น ห้าม hard-code external domain. `server.cjs` โหลด `.env` ก่อน แล้ว override ด้วย `.env.production` เมื่อ `NODE_ENV=production` เพื่อให้ feature flag เช่น `TRANSACTION_ROUTING_ENABLED`, `MERCHANT_HOME_CONTRACT_ENABLED` ตรงกับ Next.js. หากได้ 404 จาก `/api/v1/*` ให้ตรวจว่า `server.cjs` ยังทำงานอยู่ด้วย `curl https://<host>/api/health/live` และ endpoint นี้เป็น POST-only จึงจะได้ 404 หาก navigate จาก browser bar โดยตรง (GET)
+Dockerfile จะ build Next.js แล้วรัน single Node process ใน container โดยเปิดเฉพาะพอร์ต `3000`. ไม่ต้องใช้ Next.js rewrites หรือ loopback proxy อีกต่อไปเพราะ browser เรียก same-origin `/api/*` ตรงเข้า Next.js runtime. [`src/lib/server/api-handler.cjs`](../src/lib/server/api-handler.cjs) โหลด `.env` ก่อน แล้ว override ด้วย `.env.production` เมื่อ `NODE_ENV=production` เพื่อให้ feature flag เช่น `TRANSACTION_ROUTING_ENABLED`, `MERCHANT_HOME_CONTRACT_ENABLED` ตรงกันทั้ง frontend และ API. หากได้ 404 จาก `/api/v1/*` ให้ตรวจว่า Next.js ยังทำงานอยู่ด้วย `curl https://<host>/api/health/live` และ endpoint นี้เป็น POST-only จึงจะได้ 404 หาก navigate จาก browser bar โดยตรง (GET)
 
 ### ตรวจสอบโค้ด
 
@@ -127,14 +124,12 @@ npm run lint
 
 | Variable | ใช้โดย | ค่าเริ่มต้น/หมายเหตุ |
 |---|---|---|
-| `DATABASE_URL` | `server.cjs` | ใช้แทนชุด `PG*` ได้ |
-| `PGHOST` | `server.cjs` | `127.0.0.1` หากไม่กำหนด |
-| `PGPORT` | `server.cjs` | `5432` หากไม่กำหนด |
-| `PGUSER` | `server.cjs` | `postgres` หากไม่กำหนด |
-| `PGPASSWORD` | `server.cjs` | ว่างหากไม่กำหนด |
-| `PGDATABASE` | `server.cjs` | `chatpos` หากไม่กำหนด |
-| `API_PORT` | `server.cjs` | `3001` |
-| `CHATPOS_API_URL` | `next.config.ts` | `http://127.0.0.1:3001` สำหรับ local API |
+| `DATABASE_URL` | `src/lib/server/api-handler.cjs` | ใช้แทนชุด `PG*` ได้ |
+| `PGHOST` | `src/lib/server/api-handler.cjs` | `127.0.0.1` หากไม่กำหนด |
+| `PGPORT` | `src/lib/server/api-handler.cjs` | `5432` หากไม่กำหนด |
+| `PGUSER` | `src/lib/server/api-handler.cjs` | `postgres` หากไม่กำหนด |
+| `PGPASSWORD` | `src/lib/server/api-handler.cjs` | ว่างหากไม่กำหนด |
+| `PGDATABASE` | `src/lib/server/api-handler.cjs` | `chatpos` หากไม่กำหนด |
 | `NEXT_PUBLIC_APP_URL` | application/deployment config | URL ภายนอกของเว็บ |
 | `SESSION_SECRET` | legacy/config compatibility | ไม่ใช้แทน database session token; ห้ามใช้ค่า default ใน production |
 | `KYC_DOCUMENT_LINK_SECRET` | `server/integration/documentAccess.cjs` | secret สำหรับ HMAC signed document URL; หากไม่กำหนดจะใช้ `SESSION_SECRET` เป็น fallback |
@@ -162,9 +157,9 @@ npm run lint
 | `TRANSACTION_ROUTING_ENABLED` / `TRANSACTION_QUERY_ROUTING_ENABLED` | `server/integration/transactionService.cjs` | forward payment command และ query ไป Backoffice แบบ opt-in; ปิดเป็นค่าเริ่มต้น |
 | `AGENT_PD_TRANSACTION_COMMAND_PATH` / `AGENT_PD_TRANSACTION_QUERY_PATH` | signed Backoffice client | path placeholder ที่ต้องตรงกับ signed contract ก่อนเปิด routing |
 
-`.env.example` ยังมีตัวแปรชื่อ `VITE_API_URL` และ `VITE_APP_ENV` จากยุค Vite เดิม ซึ่งไม่ใช่ตัวแปรที่ Next routing ชุดปัจจุบันอ่านโดยตรง ให้ใช้ `CHATPOS_API_URL` และ `NEXT_PUBLIC_APP_URL` เป็นหลัก
+`.env.example` ยังมีตัวแปรชื่อ `VITE_API_URL` และ `VITE_APP_ENV` จากยุค Vite เดิม ซึ่งไม่ใช่ตัวแปรที่ Next runtime ปัจจุบันอ่านโดยตรง ให้ใช้ `NEXT_PUBLIC_APP_URL` เป็นหลัก
 
-ใน `.env.production` เปิด `AGENT_PD_INTEGRATION_ENABLED`, `KYC_DOCUMENT_INTAKE_ENABLED` และ `KYC_DOCUMENT_LINK_TTL_SECONDS="86400"` แล้ว ส่วน `CHATPOS_API_URL="http://127.0.0.1:3001"` เป็น URL ภายในระหว่าง Next.js กับ custom API server; URL ภายนอกสำหรับลิงก์ที่ผู้ใช้เปิดคือ `NEXT_PUBLIC_APP_URL` ไม่ใช่ loopback address. ห้ามใส่ Base URL, Backoffice Store ID, Key ID หรือค่า credential ต่อ Store ลง `.env`; ให้ provision ลง `backoffice_store_credentials` เท่านั้น
+ใน `.env.production` เปิด `AGENT_PD_INTEGRATION_ENABLED`, `KYC_DOCUMENT_INTAKE_ENABLED` และ `KYC_DOCUMENT_LINK_TTL_SECONDS="86400"` แล้ว. URL ภายนอกสำหรับลิงก์ที่ผู้ใช้เปิดคือ `NEXT_PUBLIC_APP_URL`. ห้ามใส่ Base URL, Backoffice Store ID, Key ID หรือค่า credential ต่อ Store ลง `.env`; ให้ provision ลง `backoffice_store_credentials` เท่านั้น
 
 ## Frontend routes
 

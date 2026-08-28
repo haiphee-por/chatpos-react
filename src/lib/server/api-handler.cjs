@@ -1,19 +1,17 @@
-const http = require('http');
 const path = require('path');
-const fs = require('fs');
 const dotenv = require('dotenv');
 const { Pool } = require('pg');
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const QRCode = require('qrcode');
-const { createBackofficeClient, loadBackofficeConfig } = require('./server/integration/signedMerchantClient.cjs');
-const { createStoreCredentialResolver } = require('./server/integration/storeBackofficeCredentials.cjs');
+const { createBackofficeClient, loadBackofficeConfig } = require('./integration/signedMerchantClient.cjs');
+const { createStoreCredentialResolver } = require('./integration/storeBackofficeCredentials.cjs');
 const {
   AssignmentError,
   createAssignmentRequest,
   processAssignmentCallback,
-} = require('./server/integration/assignmentService.cjs');
-const { processMerchantWorkflowCallback } = require('./server/integration/merchantWorkflowWebhookService.cjs');
+} = require('./integration/assignmentService.cjs');
+const { processMerchantWorkflowCallback } = require('./integration/merchantWorkflowWebhookService.cjs');
 const {
   appendKycMessage,
   dispatchPendingKycDocuments,
@@ -25,7 +23,7 @@ const {
   ProfileKycError,
   submitKycCaseForReview,
   updateStoreProfile,
-} = require('./server/integration/profileKycService.cjs');
+} = require('./integration/profileKycService.cjs');
 const {
   TransactionRoutingError,
   createTransactionCommand,
@@ -36,19 +34,19 @@ const {
   verifyPaymentStatusWebhook,
   verifyLlgwWebhook,
   retryPendingSettlementEvents,
-} = require('./server/integration/transactionService.cjs');
+} = require('./integration/transactionService.cjs');
 const {
   loadOtpConfig,
   requestKycOtp,
   verifyKycOtp,
-} = require('./server/integration/otpService.cjs');
-const { createSmsupProvider } = require('./server/integration/smsupClient.cjs');
+} = require('./integration/otpService.cjs');
+const { createSmsupProvider } = require('./integration/smsupClient.cjs');
 const {
   boundedInteger,
   getStoppayTransition,
   getTransactionFilters,
   stoppayTransitions,
-} = require('./server/integration/merchantHomeContract.cjs');
+} = require('./integration/merchantHomeContract.cjs');
 const {
   SecurityError,
   assertCaseAccess,
@@ -62,15 +60,16 @@ const {
   revokeSession,
   sessionCookie,
   writeAudit,
-} = require('./server/security.cjs');
-const { deletePrivateDocument, readPrivateDocument, writePrivateDocument } = require('./server/integration/privateDocumentStorage.cjs');
+} = require('./security.cjs');
+const { deletePrivateDocument, readPrivateDocument, writePrivateDocument } = require('./integration/privateDocumentStorage.cjs');
 
-dotenv.config();
-if (process.env.NODE_ENV === 'production') {
-  dotenv.config({ path: path.resolve(__dirname, '.env.production'), override: true });
+if (!globalThis.__chatposApiEnvLoaded) {
+  dotenv.config();
+  if (process.env.NODE_ENV === 'production') {
+    dotenv.config({ path: path.resolve(process.cwd(), '.env.production'), override: true });
+  }
+  globalThis.__chatposApiEnvLoaded = true;
 }
-
-const port = process.env.API_PORT || 3001;
 const merchantHomeContractEnabled = process.env.MERCHANT_HOME_CONTRACT_ENABLED === 'true';
 const configuredDatabaseName = (() => {
   if (process.env.PGDATABASE) return process.env.PGDATABASE;
@@ -225,20 +224,6 @@ function generatePromptPayPayload(target, amount) {
   return payload + checksum;
 }
 
-const mimeTypes = {
-  '.html': 'text/html',
-  '.js': 'text/javascript',
-  '.css': 'text/css',
-  '.json': 'application/json',
-  '.png': 'image/png',
-  '.jpg': 'image/jpeg',
-  '.svg': 'image/svg+xml',
-  '.ico': 'image/x-icon',
-  '.woff2': 'font/woff2',
-  '.woff': 'font/woff',
-  '.ttf': 'font/ttf',
-};
-
 function readRawBody(req, maxBytes = 1024 * 1024) {
   return new Promise((resolve, reject) => {
     const chunks = [];
@@ -383,10 +368,8 @@ function requestIdempotencyKey(req, body = {}) {
 }
 
 
-const server = http.createServer(async (req, res) => {
+async function handleApiRequest(req, res) {
   const url = req.url || '';
-
-  // Handle API Database routes
   const requestPath = url.split('?')[0];
 
   if (
@@ -2608,57 +2591,36 @@ const server = http.createServer(async (req, res) => {
     }
   }
 
-  // Serve static dist files
-  let safePath = path.normalize(url.split('?')[0]);
-  if (safePath === '/' || safePath === '') {
-    safePath = '/index.html';
-  }
+  // Reached only when no API route matched.
+  res.statusCode = 404;
+  res.end(JSON.stringify({ success: false, code: 'NOT_FOUND', error: `Endpoint ${url} not found` }));
+}
 
-  let filePath = path.join(__dirname, 'dist', safePath);
+let backgroundJobsStarted = false;
+function startBackgroundJobs() {
+  if (backgroundJobsStarted) return;
+  backgroundJobsStarted = true;
+  const settlementRetryInterval = setInterval(() => {
+    retryPendingSettlementEvents({
+      pool,
+      config: {
+        enabled: backofficeConfig.commissionEventEnabled,
+        sourceUrl: backofficeConfig.commissionEventSourceUrl,
+        webhookSecret: backofficeConfig.commissionWebhookSecret,
+        grossBenefitField: backofficeConfig.commissionGrossBenefitField,
+        maxAttempts: Number(process.env.SETTLEMENT_MAX_ATTEMPTS || 8),
+      },
+    }).catch((error) => console.error('[Settlement Retry Error]:', error.message));
+  }, Number(process.env.SETTLEMENT_RETRY_INTERVAL_MS || 30000));
+  settlementRetryInterval.unref();
 
-  fs.stat(filePath, (err, stats) => {
-    if (err || !stats.isFile()) {
-      filePath = path.join(__dirname, 'dist', 'index.html');
-    }
+  const kycDocumentRetryInterval = setInterval(() => {
+    dispatchPendingKycDocuments({
+      pool,
+      backofficeClient: kycDocumentBackofficeClient,
+    }).catch((error) => console.error('[KYC Document Retry Error]:', error.message));
+  }, Number(process.env.KYC_DOCUMENT_RETRY_INTERVAL_MS || 30000));
+  kycDocumentRetryInterval.unref();
+}
 
-    const ext = path.extname(filePath);
-    const contentType = mimeTypes[ext] || 'application/octet-stream';
-
-    fs.readFile(filePath, (readErr, content) => {
-      if (readErr) {
-        res.writeHead(500, { 'Content-Type': 'text/plain; charset=utf-8' });
-        res.end('Error loading ' + safePath);
-        return;
-      }
-      res.writeHead(200, { 'Content-Type': contentType });
-      res.end(content);
-    });
-  });
-});
-
-server.listen(port, () => {
-  console.log(`🚀 ChatPOS Production Server running at http://localhost:${port}`);
-  console.log(`📍 Database configured: ${configuredDatabaseName}`);
-});
-
-const settlementRetryInterval = setInterval(() => {
-  retryPendingSettlementEvents({
-    pool,
-    config: {
-      enabled: backofficeConfig.commissionEventEnabled,
-      sourceUrl: backofficeConfig.commissionEventSourceUrl,
-      webhookSecret: backofficeConfig.commissionWebhookSecret,
-      grossBenefitField: backofficeConfig.commissionGrossBenefitField,
-      maxAttempts: Number(process.env.SETTLEMENT_MAX_ATTEMPTS || 8),
-    },
-  }).catch((error) => console.error('[Settlement Retry Error]:', error.message));
-}, Number(process.env.SETTLEMENT_RETRY_INTERVAL_MS || 30000));
-settlementRetryInterval.unref();
-
-const kycDocumentRetryInterval = setInterval(() => {
-  dispatchPendingKycDocuments({
-    pool,
-    backofficeClient: kycDocumentBackofficeClient,
-  }).catch((error) => console.error('[KYC Document Retry Error]:', error.message));
-}, Number(process.env.KYC_DOCUMENT_RETRY_INTERVAL_MS || 30000));
-kycDocumentRetryInterval.unref();
+module.exports = { handleApiRequest, startBackgroundJobs };

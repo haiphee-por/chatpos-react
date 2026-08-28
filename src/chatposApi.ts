@@ -1,6 +1,6 @@
 /**
  * ChatPOS API Utility Helper
- * Browser calls same-origin `/api/v1/*`; Next.js rewrites forward to the custom API server via `CHATPOS_API_URL`.
+ * Browser calls same-origin `/api/v1/*`; requests are handled by the Next.js catch-all Route Handler.
  */
 
 export const STORAGE_KEY_API_KEY = 'chatpos_api_key'

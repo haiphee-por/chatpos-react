@@ -11,9 +11,9 @@ npm install
 npm run dev
 ```
 
-The Next.js application runs at `http://localhost:3000`. The PostgreSQL-backed API process runs alongside it at port `3001`; Next rewrites `/api/db/*` and `/api/v1/*` to that process.
+The Next.js application runs at `http://localhost:3000`. All `/api/db/*` and `/api/v1/*` endpoints are served by the same Next.js process via a catch-all Route Handler at `src/app/api/[[...path]]/route.ts` that delegates to `src/lib/server/api-handler.cjs`.
 
-Set `CHATPOS_API_URL` when the API process is hosted elsewhere. Database settings remain in `.env` and are read by `server.cjs`.
+Database settings live in `.env` and are read by `src/lib/server/api-handler.cjs`.
 
 ## Database setup
 
