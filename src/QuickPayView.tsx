@@ -16,7 +16,7 @@ import {
   VolumeX,
 } from 'lucide-react'
 import { getStoredPromptPayId } from './promptpay'
-import { checkTransactionStatus, createTransactionCommand } from './chatposApi'
+import { checkTransactionStatus, createTransactionCommand, transactionQrImageUrl } from './chatposApi'
 
 /* Web Audio API Sound Generator */
 const playAudioEffect = (type: 'beep' | 'pop' | 'success' | 'clear') => {
@@ -172,6 +172,7 @@ export function QuickPayView() {
   const [discountNote, setDiscountNote] = useState('')
   const [qrCountdown, setQrCountdown] = useState(300)
   const [promptPayQrUrl, setPromptPayQrUrl] = useState<string>('')
+  const [checkoutRedirectUrl, setCheckoutRedirectUrl] = useState<string>('')
   const [activePaymentRef, setActivePaymentRef] = useState<string>('')
   const [activeIdempotencyKey, setActiveIdempotencyKey] = useState<string>('')
   const [paymentSuccessData, setPaymentSuccessData] = useState<any>(null)
@@ -205,15 +206,18 @@ export function QuickPayView() {
 
       createTransactionCommand({
         amount: netPayable,
-        channel: selectedMethod,
+        channel: selectedMethod === 'promptpay' ? 'promptpay' : 'checkout',
         customerName: note ? `ลูกค้า (${note})` : 'ลูกค้าหน้าร้าน',
         note: `ชำระเงินผ่าน QuickPay Standalone (ยอดเงิน ฿${netPayable.toFixed(2)})`,
       }, activeIdempotencyKey)
         .then((res) => {
           const transaction = res?.transaction
           if (isMounted && transaction) {
-            setPromptPayQrUrl(transaction.qrCodeUrl || '')
+            const checkoutUrl = transaction.checkoutRedirectUrl || ''
+            setPromptPayQrUrl(transactionQrImageUrl(transaction))
+            setCheckoutRedirectUrl(checkoutUrl)
             setActivePaymentRef(transaction.paymentReference || transaction.clientReference || transaction.reference || '')
+            if (selectedMethod !== 'promptpay' && checkoutUrl) window.location.assign(checkoutUrl)
           }
         })
         .catch((err) => {
@@ -362,6 +366,7 @@ export function QuickPayView() {
   const handleProceedToQr = () => {
     playSound('pop')
     setPromptPayQrUrl('')
+    setCheckoutRedirectUrl('')
     setActivePaymentRef('')
     setActiveIdempotencyKey('')
     setSummaryStep('qr')
@@ -723,7 +728,7 @@ export function QuickPayView() {
                       <QrCode size={20} />
                     </div>
                     <div>
-                      <h3>สแกน QR เพื่อชำระเงิน</h3>
+                      <h3>{selectedMethod === 'promptpay' ? 'สแกน QR เพื่อชำระเงิน' : 'กำลังเปิดหน้าชำระเงิน'}</h3>
                       <p>{getChannelInfo(selectedMethod).name} {note ? `· ${note}` : ''}</p>
                     </div>
                   </>
@@ -851,7 +856,12 @@ export function QuickPayView() {
                   </div>
 
                   <div className="qp-qr-large-frame">
-                    {promptPayQrUrl ? (
+                    {selectedMethod !== 'promptpay' ? (
+                      <div style={{ width: '220px', minHeight: '220px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '12px', color: '#334155', textAlign: 'center' }}>
+                        {checkoutRedirectUrl ? <span>กำลังเปิดหน้าชำระเงิน...</span> : <span>กำลังเตรียมหน้าชำระเงิน...</span>}
+                        {checkoutRedirectUrl && <a href={checkoutRedirectUrl} style={{ color: '#0284c7', fontWeight: 700 }}>เปิดหน้าชำระเงิน</a>}
+                      </div>
+                    ) : promptPayQrUrl ? (
                       <img src={promptPayQrUrl} alt="PromptPay QR Code" className="qp-qr-img-large" />
                     ) : (
                       <div className="qp-qr-generating-box">
@@ -869,10 +879,10 @@ export function QuickPayView() {
                     <strong>฿{netPayable.toLocaleString('th-TH', { minimumFractionDigits: 2 })}</strong>
                   </div>
 
-                  <div className="qp-qr-merchant-info-pill">
+                  {selectedMethod === 'promptpay' && <div className="qp-qr-merchant-info-pill">
                     <span>ผู้รับเงิน: <strong>{storeName}</strong></span>
                     <span>PromptPay: <strong>{merchantPromptPayId}</strong></span>
-                  </div>
+                  </div>}
 
                   {/* Testing Simulate Button & Direct Actions */}
                   <div className="qp-qr-action-buttons-row">

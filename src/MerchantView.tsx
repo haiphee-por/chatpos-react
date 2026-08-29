@@ -6,7 +6,7 @@ import { fetchDbAssignments, fetchDbProducts, fetchDbStoresResult, clearStoredUs
 import { MerchantHome as MerchantHomeDashboard, MerchantBottomNavigation, type StoreLoadState } from './MerchantHomeView'
 import { merchantNavItems } from './merchantNavigation'
 import { generatePromptPayQrDataUrl, generateUrlQrDataUrl, getStoredPromptPayId, setStoredPromptPayId } from './promptpay'
-import { checkTransactionStatus, createTransactionCommand } from './chatposApi'
+import { checkTransactionStatus, createTransactionCommand, transactionQrImageUrl } from './chatposApi'
 import {
   LogOut,
   Bell,
@@ -7686,6 +7686,7 @@ function QuickPayView() {
   const [activePaymentRef, setActivePaymentRef] = useState<string>('')
   const [activeIdempotencyKey, setActiveIdempotencyKey] = useState<string>('')
   const [promptPayQrUrl, setPromptPayQrUrl] = useState<string>('')
+  const [checkoutRedirectUrl, setCheckoutRedirectUrl] = useState<string>('')
   const [merchantPromptPayId, setMerchantPromptPayId] = useState<string>(() => {
     const user = getStoredUser()
     return user?.phone || getStoredPromptPayId('0823456789')
@@ -7714,7 +7715,7 @@ function QuickPayView() {
 
       createTransactionCommand({
         amount: netPayable,
-        channel: selectedMethod,
+        channel: selectedMethod === 'promptpay' ? 'promptpay' : 'checkout',
         customerName: pendingPosOrder?.tableName ? `ลูกค้า ${pendingPosOrder.tableName}` : 'ลูกค้าหน้าร้าน',
         note: `ชำระเงินผ่าน POS / Backoffice Transaction (ยอดเงิน ฿${netPayable.toFixed(2)})`,
         tableName: pendingPosOrder?.tableName || 'คิดเงินหน้าร้าน',
@@ -7722,8 +7723,11 @@ function QuickPayView() {
         .then((res) => {
           const transaction = res?.transaction
           if (isMounted && transaction) {
-            setPromptPayQrUrl(transaction.qrCodeUrl || '')
+            const checkoutUrl = transaction.checkoutRedirectUrl || ''
+            setPromptPayQrUrl(transactionQrImageUrl(transaction))
+            setCheckoutRedirectUrl(checkoutUrl)
             setActivePaymentRef(transaction.paymentReference || transaction.clientReference || transaction.reference || '')
+            if (selectedMethod !== 'promptpay' && checkoutUrl) window.location.assign(checkoutUrl)
           }
         })
         .catch((err) => {
@@ -8178,7 +8182,7 @@ function QuickPayView() {
                       <QrCode size={20} />
                     </div>
                     <div>
-                      <h3>สแกน QR เพื่อชำระเงิน</h3>
+                      <h3>{selectedMethod === 'promptpay' ? 'สแกน QR เพื่อชำระเงิน' : 'กำลังเปิดหน้าชำระเงิน'}</h3>
                       <p>{getChannelInfo(selectedMethod).name} · {pendingPosOrder?.tableName || 'คิดเงินหน้าร้าน'}</p>
                     </div>
                   </>
@@ -8379,6 +8383,7 @@ function QuickPayView() {
                     onClick={() => {
                       playTapSound('success')
                       setPromptPayQrUrl('')
+                      setCheckoutRedirectUrl('')
                       setActivePaymentRef('')
                       setActiveIdempotencyKey('')
                       setSummaryStep('qr')
@@ -8419,7 +8424,12 @@ function QuickPayView() {
                   {/* QR Image Frame */}
                   <div className="qp-qr-display-box">
                     <div className="qp-qr-code-art" style={{ background: '#ffffff', padding: '12px', borderRadius: '16px', border: '1px solid #e2e8f0', boxShadow: '0 4px 16px rgba(0,0,0,0.06)', display: 'inline-block' }}>
-                      {promptPayQrUrl ? (
+                      {selectedMethod !== 'promptpay' ? (
+                        <div style={{ width: '220px', minHeight: '220px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '12px', color: '#334155', textAlign: 'center' }}>
+                          {checkoutRedirectUrl ? <span>กำลังเปิดหน้าชำระเงิน...</span> : <span>กำลังเตรียมหน้าชำระเงิน...</span>}
+                          {checkoutRedirectUrl && <a href={checkoutRedirectUrl} style={{ color: '#0284c7', fontWeight: 700 }}>เปิดหน้าชำระเงิน</a>}
+                        </div>
+                      ) : promptPayQrUrl ? (
                         <img
                           src={promptPayQrUrl}
                           alt="PromptPay QR Code"
@@ -8434,8 +8444,9 @@ function QuickPayView() {
                     
                     {/* PromptPay Target ID & Quick Account Switch */}
                     <div style={{ marginTop: '10px', fontSize: '13px', color: '#334155', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', flexWrap: 'wrap' }}>
-                      <span>พร้อมเพย์รับเงิน: <b style={{ color: '#0f766e', letterSpacing: '0.5px' }}>{merchantPromptPayId}</b></span>
-                      <button
+                      {selectedMethod === 'promptpay' && <>
+                        <span>พร้อมเพย์รับเงิน: <b style={{ color: '#0f766e', letterSpacing: '0.5px' }}>{merchantPromptPayId}</b></span>
+                        <button
                         type="button"
                         onClick={() => {
                           setPromptPayInput(merchantPromptPayId)
@@ -8445,6 +8456,7 @@ function QuickPayView() {
                       >
                         {isEditingPromptPay ? 'ยกเลิก' : '⚙️ เปลี่ยนบัญชีรับเงิน'}
                       </button>
+                    </>}
                     </div>
 
                     {isEditingPromptPay && (
@@ -8473,14 +8485,14 @@ function QuickPayView() {
                       </div>
                     )}
 
-                    <p className="qp-qr-scan-guide" style={{ marginTop: '10px' }}>
+                    {selectedMethod === 'promptpay' && <p className="qp-qr-scan-guide" style={{ marginTop: '10px' }}>
                       📱 ลูกค้าเปิดแอปธนาคารสแกนจ่ายได้ทันที ยอดเงินตรงไม่ต้องกรอกเอง
-                    </p>
+                    </p>}
                   </div>
 
                   {/* Amount Highlight */}
                   <div className="qp-qr-payable-banner">
-                    <span className="qp-pay-label">ยอดเงินที่ต้องสแกนชำระ</span>
+                    <span className="qp-pay-label">{selectedMethod === 'promptpay' ? 'ยอดเงินที่ต้องสแกนชำระ' : 'ยอดเงินที่ต้องชำระ'}</span>
                     <strong className="qp-pay-amount">
                       ฿{netPayable.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </strong>
@@ -8492,14 +8504,14 @@ function QuickPayView() {
                   {/* Countdown Timer */}
                   <div className="qp-qr-countdown-row">
                     <Clock size={15} className="amber-text" />
-                    <span>QR หมดอายุใน <b>{Math.floor(qrCountdown / 60)}:{(qrCountdown % 60).toString().padStart(2, '0')} นาที</b></span>
+                    <span>{selectedMethod === 'promptpay' ? 'QR หมดอายุใน' : 'Session หมดอายุใน'} <b>{Math.floor(qrCountdown / 60)}:{(qrCountdown % 60).toString().padStart(2, '0')} นาที</b></span>
                   </div>
 
                   {/* Interactive Quick Actions */}
                   <div className="qp-qr-actions-row">
-                    <button type="button" className="qp-action-btn-glass" onClick={() => alert('ส่งคำสั่งพิมพ์ใบแจ้งยอด / QR Slip ไปยังเครื่องพิมพ์เรียบร้อย')}>
+                    {selectedMethod === 'promptpay' && <button type="button" className="qp-action-btn-glass" onClick={() => alert('ส่งคำสั่งพิมพ์ใบแจ้งยอด / QR Slip ไปยังเครื่องพิมพ์เรียบร้อย')}>
                       <Printer size={15} /> พิมพ์สลิป QR
-                    </button>
+                    </button>}
                     <button type="button" className="qp-action-btn-glass" onClick={handleCopyPayLink}>
                       <Share2 size={15} /> {copiedPayLink ? 'คัดลอกลิงก์แล้ว! ✨' : 'แชร์ลิงก์จ่ายเงิน'}
                     </button>

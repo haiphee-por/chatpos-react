@@ -130,6 +130,7 @@ export type TransactionPayment = {
   gatewayReference?: string
   qrCodeUrl?: string | null
   qrRawText?: string | null
+  checkoutRedirectUrl?: string | null
   amount?: number
   currency?: string
   channel?: string
@@ -137,6 +138,18 @@ export type TransactionPayment = {
   paidAt?: string | null
   expiresAt?: string | null
   [key: string]: any
+}
+
+export function transactionQrImageUrl(transaction?: TransactionPayment | null): string {
+  const qrCodeUrl = transaction?.qrCodeUrl?.trim()
+  if (qrCodeUrl) return qrCodeUrl
+
+  const qrRawText = transaction?.qrRawText?.trim()
+  if (!qrRawText) return ''
+  if (qrRawText.startsWith('data:image/')) return qrRawText
+  if (/^https?:\/\//i.test(qrRawText)) return qrRawText
+  if (qrRawText.startsWith('iVBORw0KGgo')) return `data:image/png;base64,${qrRawText}`
+  return ''
 }
 
 /**
