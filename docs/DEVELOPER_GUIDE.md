@@ -461,6 +461,19 @@ Merchant Home เป็น authenticated product surface ที่ `/merchant#ho
 - ดู balance ตาม Store scope
 - เรียก payout prototype ที่ถูกจำกัดด้วย session และ role
 
+Payment response fields ที่ browser และ Merchant server ใช้:
+
+| Field | ใช้เมื่อ | หมายเหตุ |
+|---|---|---|
+| `qrCodeUrl` | PromptPay ที่ provider คืน URL รูป | ใช้เป็น `<img src>` ได้ตรง ๆ |
+| `qrRawText` | PromptPay ที่ provider คืน Base64 PNG (`iVBORw0KGgo...`) | Browser ต้องเติม prefix `data:image/png;base64,` ก่อนใช้เป็น `<img src>`; ห้าม parse เป็น EMVCo payload |
+| `checkoutRedirectUrl` | Hosted checkout สำหรับช่องทางที่ไม่ใช่ PromptPay (TrueMoney, Card, LINE Pay, Alipay, WeChat, ShopeePay ฯลฯ) | Browser ควรเรียก `window.location.assign(url)` เมื่อผู้ใช้ยืนยัน channel นั้น |
+| `paymentReference` / `gatewayReference` | ทุก channel | ใช้ query status ด้วย `checkTransactionStatus` |
+
+`src/chatposApi.ts` มี helper `transactionQrImageUrl(transaction)` ที่ resolve ระหว่าง `qrCodeUrl` และ Base64 `qrRawText` เป็น URL/data URL พร้อมใช้; หน้า UI ที่เรียก `createTransactionCommand` ต้องใช้ helper นี้แทนการอ่าน `qrCodeUrl` ตรง ๆ. Client ที่ใช้ pattern นี้: [`MerchantView.tsx`](../src/MerchantView.tsx), [`QuickPayView.tsx`](../src/QuickPayView.tsx), [`DeveloperConsoleView.tsx`](../src/DeveloperConsoleView.tsx), [`ProfileSettingsModal.tsx`](../src/ProfileSettingsModal.tsx). Merchant server map field เหล่านี้ผ่าน [`transactionService.cjs`](../src/lib/server/integration/transactionService.cjs) และบันทึกใน `Transaction.paymentMetadataJson` เพื่อรองรับ idempotent replay
+
+Non-PromptPay channels ต้องส่ง `channel: 'checkout'` ใน request body ให้ Backoffice เลือก hosted method ตาม contract; ห้ามส่งชื่อ channel เป็น `truemoney`, `visa_th`, ฯลฯ ตรง ๆ เพราะ Backoffice ยังไม่รองรับ end-to-end. [`BookingPageView.tsx`](../src/BookingPageView.tsx) และ [`CustomerView.tsx`](../src/CustomerView.tsx) ยังใช้ EMVCo QR แบบ local ผ่าน `generatePromptPayQrDataUrl` และไม่ได้ผูกกับ Backoffice/LLGW; การเปลี่ยนสอง flow นี้ต้องออกแบบ customer session และ contract ก่อน
+
 `DeveloperConsoleView.tsx` เป็นเครื่องมือทดลอง endpoint และดู developer logs สำหรับผู้ใช้ที่ผ่าน server session แล้ว. ตัวอย่างหรือ Bearer API key ที่กรอกใน Playground เป็น compatibility testing สำหรับการจำลอง server-to-server เท่านั้น ไม่ใช่ authentication path ของ Merchant Home; Home ต้องใช้ HttpOnly session กับ `/api/db/*`. Frontend route guard เป็นเพียง UX, authorization จริงเกิดที่ `server.cjs`, browser token minting จาก `/api/v1/auth` ถูกปิดด้วย `410 API_TOKEN_DEPRECATED` และห้าม persist API key ใน `localStorage`, cookie หรือ source code
 
 ## API reference ภายใน
