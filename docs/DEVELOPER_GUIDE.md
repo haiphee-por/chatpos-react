@@ -156,6 +156,8 @@ npm run lint
 | `MERCHANT_HOME_CONTRACT_ENABLED` | `server.cjs` | gate ของ Home read model, capabilities, benefits, notifications และ STOPPAY routes; ค่าเริ่มต้น `false` |
 | `TRANSACTION_ROUTING_ENABLED` / `TRANSACTION_QUERY_ROUTING_ENABLED` | `server/integration/transactionService.cjs` | forward payment command และ query ไป Backoffice แบบ opt-in; ปิดเป็นค่าเริ่มต้น |
 | `AGENT_PD_TRANSACTION_COMMAND_PATH` / `AGENT_PD_TRANSACTION_QUERY_PATH` | signed Backoffice client | path placeholder ที่ต้องตรงกับ signed contract ก่อนเปิด routing |
+| `PUBLIC_PAYMENT_STORE_ID` | `server.cjs` public payment route | local Store UUID ที่อนุญาตให้ Booking/Customer สร้าง payment ผ่าน LLGW; ต้องมี active `backoffice_store_credentials` mapping |
+| `PUBLIC_PAYMENT_MAX_AMOUNT` | `server.cjs` public payment route | ยอดสูงสุดต่อรายการของ public payment; ค่าเริ่มต้น `100000` |
 
 `.env.example` ยังมีตัวแปรชื่อ `VITE_API_URL` และ `VITE_APP_ENV` จากยุค Vite เดิม ซึ่งไม่ใช่ตัวแปรที่ Next runtime ปัจจุบันอ่านโดยตรง ให้ใช้ `NEXT_PUBLIC_APP_URL` เป็นหลัก
 
@@ -472,7 +474,9 @@ Payment response fields ที่ browser และ Merchant server ใช้:
 
 `src/chatposApi.ts` มี helper `transactionQrImageUrl(transaction)` ที่ resolve ระหว่าง `qrCodeUrl` และ Base64 `qrRawText` เป็น URL/data URL พร้อมใช้; หน้า UI ที่เรียก `createTransactionCommand` ต้องใช้ helper นี้แทนการอ่าน `qrCodeUrl` ตรง ๆ. Client ที่ใช้ pattern นี้: [`MerchantView.tsx`](../src/MerchantView.tsx), [`QuickPayView.tsx`](../src/QuickPayView.tsx), [`DeveloperConsoleView.tsx`](../src/DeveloperConsoleView.tsx), [`ProfileSettingsModal.tsx`](../src/ProfileSettingsModal.tsx). Merchant server map field เหล่านี้ผ่าน [`transactionService.cjs`](../src/lib/server/integration/transactionService.cjs) และบันทึกใน `Transaction.paymentMetadataJson` เพื่อรองรับ idempotent replay
 
-Non-PromptPay channels ต้องส่ง `channel: 'checkout'` ใน request body ให้ Backoffice เลือก hosted method ตาม contract; ห้ามส่งชื่อ channel เป็น `truemoney`, `visa_th`, ฯลฯ ตรง ๆ เพราะ Backoffice ยังไม่รองรับ end-to-end. [`BookingPageView.tsx`](../src/BookingPageView.tsx) และ [`CustomerView.tsx`](../src/CustomerView.tsx) ยังใช้ EMVCo QR แบบ local ผ่าน `generatePromptPayQrDataUrl` และไม่ได้ผูกกับ Backoffice/LLGW; การเปลี่ยนสอง flow นี้ต้องออกแบบ customer session และ contract ก่อน
+Non-PromptPay channels ต้องส่ง `channel: 'checkout'` ใน request body ให้ Backoffice เลือก hosted method ตาม contract; ห้ามส่งชื่อ channel เป็น `truemoney`, `visa_th`, ฯลฯ ตรง ๆ. [`BookingPageView.tsx`](../src/BookingPageView.tsx) และ [`CustomerView.tsx`](../src/CustomerView.tsx) ใช้ `createPublicTransactionCommand` ผ่าน `POST /api/v1/public-payments` แล้ว โดย server ผูก Store จาก `PUBLIC_PAYMENT_STORE_ID`, ใช้ Store-scoped Backoffice mapping และส่งต่อแบบ signed ไปยัง PD/LLGW. PromptPay แสดง `qrRawText` ผ่าน `transactionQrImageUrl`; ช่องทางอื่นแสดง `checkoutRedirectUrl`. Public route ไม่รับ `storeId` จาก browser และจำกัด rate/ยอดต่อรายการเพื่อเป็น MVP; production ที่มีหลาย Store ต้องเปลี่ยนเป็น signed public checkout token ต่อ Store
+
+`POST /api/v1/public-payments` เป็น server-side bridge สำหรับ public Booking/Customer pages เท่านั้น. Request ใช้ `Idempotency-Key` และ body ที่จำเป็นคือ `amount`, `channel` (`promptpay` หรือ `checkout`), `customerName`, `customerPhone` และ `note`; browser ไม่ส่ง bearer/signing secret และไม่เลือก Store เอง. Route สร้าง success/failed redirect จาก Merchant `NEXT_PUBLIC_APP_URL` แล้ว forward ให้ Backoffice/LLGW เพื่อไม่ให้ hosted checkout กลับไปที่ domain ของ Backoffice. Response ใช้โครงสร้าง `transaction` เดียวกับ `/api/v1/transactions` และต้องเก็บ `paymentReference`/`gatewayReference` สำหรับตรวจสถานะ
 
 `DeveloperConsoleView.tsx` เป็นเครื่องมือทดลอง endpoint และดู developer logs สำหรับผู้ใช้ที่ผ่าน server session แล้ว. ตัวอย่างหรือ Bearer API key ที่กรอกใน Playground เป็น compatibility testing สำหรับการจำลอง server-to-server เท่านั้น ไม่ใช่ authentication path ของ Merchant Home; Home ต้องใช้ HttpOnly session กับ `/api/db/*`. Frontend route guard เป็นเพียง UX, authorization จริงเกิดที่ `server.cjs`, browser token minting จาก `/api/v1/auth` ถูกปิดด้วย `410 API_TOKEN_DEPRECATED` และห้าม persist API key ใน `localStorage`, cookie หรือ source code
 
@@ -505,6 +509,7 @@ Non-PromptPay channels ต้องส่ง `channel: 'checkout'` ใน reques
 | `GET` | `/pds` | ดึง PD |
 | `GET` | `/transactions` | ดึงธุรกรรม |
 | `POST` | `/transactions/create` | สร้างธุรกรรม |
+| `POST` | `/v1/public-payments` | สร้าง payment สำหรับ public Booking/Customer ผ่าน Backoffice/PD/LLGW โดยใช้ `PUBLIC_PAYMENT_STORE_ID` |
 | `GET` | `/products` | ดึงสินค้า |
 | `GET` | `/commissions` | ดึงค่าคอมมิชชัน |
 
