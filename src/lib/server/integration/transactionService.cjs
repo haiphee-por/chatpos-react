@@ -99,6 +99,8 @@ function normalizeCommand({ storeId, body, idempotencyKey }) {
     customerPhone: body.customerPhone ? String(body.customerPhone).slice(0, 64) : null,
     tableName: String(body.tableName || 'คิดเงินหน้าร้าน').slice(0, 255),
     note: String(body.note || 'ชำระเงินผ่าน Transaction Routing').slice(0, 1000),
+    redirectUrl: typeof body.redirectUrl === 'string' ? body.redirectUrl.slice(0, 2048) : null,
+    failedRedirectUrl: typeof body.failedRedirectUrl === 'string' ? body.failedRedirectUrl.slice(0, 2048) : null,
     metadata: body.metadata && typeof body.metadata === 'object' && !Array.isArray(body.metadata) ? body.metadata : {},
     idempotencyKey: String(idempotencyKey),
   };
@@ -117,6 +119,8 @@ function commandBody(input, clientReference) {
     customerPhone: input.customerPhone,
     tableName: input.tableName,
     note: input.note,
+    ...(input.redirectUrl ? { redirectUrl: input.redirectUrl } : {}),
+    ...(input.failedRedirectUrl ? { failedRedirectUrl: input.failedRedirectUrl } : {}),
     metadata: input.metadata,
   };
 }

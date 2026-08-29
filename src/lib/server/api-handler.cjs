@@ -484,6 +484,8 @@ async function handleApiRequest(req, res) {
               customerName: String(body.customerName || 'Customer').slice(0, 255),
               customerPhone: body.customerPhone ? String(body.customerPhone).slice(0, 64) : null,
               note: String(body.note || 'Public ChatPOS payment').slice(0, 1000),
+              redirectUrl: String(body.redirectUrl || `${process.env.NEXT_PUBLIC_APP_URL || ''}/payment/success`).slice(0, 2048),
+              failedRedirectUrl: String(body.failedRedirectUrl || `${process.env.NEXT_PUBLIC_APP_URL || ''}/payment/failed`).slice(0, 2048),
               metadata: { source: 'public-payment', ...(body.metadata && typeof body.metadata === 'object' && !Array.isArray(body.metadata) ? body.metadata : {}) },
             },
           });
