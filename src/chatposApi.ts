@@ -170,6 +170,19 @@ export async function createTransactionCommand(payload: CreateTransactionPayload
   })
 }
 
+export async function createPublicTransactionCommand(payload: CreateTransactionPayload, idempotencyKey: string) {
+  return fetchChatPosApi<{
+    success?: boolean
+    idempotentReplay?: boolean
+    transaction?: TransactionPayment
+    [key: string]: any
+  }>('/api/v1/public-payments', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+    headers: { 'Idempotency-Key': idempotencyKey },
+  })
+}
+
 /**
  * GET /api/v1/transactions/{reference}
  * Read the payment status owned by the routed transaction.

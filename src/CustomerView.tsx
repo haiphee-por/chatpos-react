@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { generatePromptPayQrDataUrl, generateUrlQrDataUrl, getStoredPromptPayId } from './promptpay'
+import { createPublicTransactionCommand, transactionQrImageUrl } from './chatposApi'
 import {
   Search,
   ShoppingCart,
@@ -340,6 +340,10 @@ export function CustomerView() {
   })
   const [isTrackerOpen, setIsTrackerOpen] = useState(false)
   const [customerQrUrl, setCustomerQrUrl] = useState<string>('')
+  const [customerCheckoutUrl, setCustomerCheckoutUrl] = useState<string>('')
+  const [customerPaymentReference, setCustomerPaymentReference] = useState<string>('')
+  const [customerPaymentError, setCustomerPaymentError] = useState<string>('')
+  const [customerPaymentKey, setCustomerPaymentKey] = useState<string>('')
 
   // Staff Calling Modal & Live Status
   const [isStaffModalOpen, setIsStaffModalOpen] = useState(false)
@@ -357,6 +361,10 @@ export function CustomerView() {
   // Bill Checkout Modal States
   const [isBillModalOpen, setIsBillModalOpen] = useState(false)
   const [billPayChannel, setBillPayChannel] = useState<PaymentMethodType>('promptpay')
+  const [billCheckoutUrl, setBillCheckoutUrl] = useState<string>('')
+  const [billPaymentReference, setBillPaymentReference] = useState<string>('')
+  const [billPaymentError, setBillPaymentError] = useState<string>('')
+  const [billPaymentKey, setBillPaymentKey] = useState<string>('')
   const [billQrDataUrl, setBillQrDataUrl] = useState('')
   const [billSlipUploaded, setBillSlipUploaded] = useState(false)
   const [isVerifyingBillSlip, setIsVerifyingBillSlip] = useState(false)
@@ -506,22 +514,45 @@ export function CustomerView() {
   const vat = (cartSubtotal + deliveryFee) * 0.07
   const cartTotal = cartSubtotal + deliveryFee + vat
 
-  // Generate real dynamic QR for Customer Cart Checkout
+  // Create the customer cart payment through the server-side LLGW route.
   useEffect(() => {
-    if (isQrModalOpen && cartTotal > 0) {
-      if (paymentMethod === 'promptpay') {
-        const promptPayId = getStoredPromptPayId('0823456789')
-        generatePromptPayQrDataUrl(promptPayId, cartTotal, 260)
-          .then(setCustomerQrUrl)
-          .catch((err) => console.error('Failed to generate customer PromptPay QR:', err))
-      } else {
-        const channelUrl = `https://chatpos.link/pay/${paymentMethod}?amt=${cartTotal.toFixed(2)}&table=${encodeURIComponent(currentTableNo)}`
-        generateUrlQrDataUrl(channelUrl, 260)
-          .then(setCustomerQrUrl)
-          .catch((err) => console.error('Failed to generate customer channel QR:', err))
-      }
+    if (!isQrModalOpen || cartTotal <= 0) return
+    if (!customerPaymentKey) {
+      setCustomerPaymentKey(`customer:${Date.now()}:${Math.random().toString(36).slice(2, 10)}`)
+      return
     }
-  }, [isQrModalOpen, paymentMethod, cartTotal, currentTableNo])
+    let isMounted = true
+    setCustomerQrUrl('')
+    setCustomerCheckoutUrl('')
+    setCustomerPaymentReference('')
+    setCustomerPaymentError('')
+    createPublicTransactionCommand({
+      amount: cartTotal,
+      channel: paymentMethod === 'promptpay' ? 'promptpay' : 'checkout',
+      customerName: 'Customer',
+      note: `สั่งอาหารโต๊ะ ${currentTableNo}`,
+      metadata: { tableNo: currentTableNo, orderType: 'customer-cart' },
+    }, customerPaymentKey)
+      .then((response) => {
+        if (!isMounted) return
+        const transaction = response?.transaction
+        setCustomerQrUrl(transactionQrImageUrl(transaction))
+        setCustomerCheckoutUrl(transaction?.checkoutRedirectUrl || '')
+        setCustomerPaymentReference(transaction?.paymentReference || transaction?.gatewayReference || transaction?.reference || '')
+      })
+      .catch((error: any) => {
+        if (isMounted) setCustomerPaymentError(error?.message || 'ไม่สามารถสร้างรายการชำระเงินผ่าน LLGW ได้')
+      })
+    return () => { isMounted = false }
+  }, [isQrModalOpen, paymentMethod, cartTotal, currentTableNo, customerPaymentKey])
+
+  useEffect(() => {
+    setCustomerPaymentKey('')
+    setCustomerQrUrl('')
+    setCustomerCheckoutUrl('')
+    setCustomerPaymentReference('')
+    setCustomerPaymentError('')
+  }, [paymentMethod])
 
   // Submit Order & Sync to Merchant Live Orders!
   const finalizeOrderSubmission = (methodLabel: string) => {
@@ -572,25 +603,48 @@ export function CustomerView() {
   // Total Table Orders Amount (submitted orders + pending items if none)
   const tableOrdersTotal = submittedOrders.reduce((sum, ord) => sum + ord.totalAmount, 0)
 
-  // Generate QR for whole table bill
+  // Create the whole-table bill payment through the server-side LLGW route.
   useEffect(() => {
     if (isBillModalOpen) {
       const effectiveAmount = tableOrdersTotal > 0 ? tableOrdersTotal : cartTotal
-      if (effectiveAmount > 0) {
-        if (billPayChannel === 'promptpay') {
-          const promptPayId = getStoredPromptPayId('0823456789')
-          generatePromptPayQrDataUrl(promptPayId, effectiveAmount, 260)
-            .then(setBillQrDataUrl)
-            .catch((err) => console.error('Failed to generate table bill QR:', err))
-        } else {
-          const channelUrl = `https://chatpos.link/pay/${billPayChannel}?amt=${effectiveAmount.toFixed(2)}&table=${encodeURIComponent(currentTableNo)}`
-          generateUrlQrDataUrl(channelUrl, 260)
-            .then(setBillQrDataUrl)
-            .catch((err) => console.error('Failed to generate table channel QR:', err))
-        }
+      if (effectiveAmount <= 0) return
+      if (!billPaymentKey) {
+        setBillPaymentKey(`bill:${Date.now()}:${Math.random().toString(36).slice(2, 10)}`)
+        return
       }
+      let isMounted = true
+      setBillQrDataUrl('')
+      setBillCheckoutUrl('')
+      setBillPaymentReference('')
+      setBillPaymentError('')
+      createPublicTransactionCommand({
+        amount: effectiveAmount,
+        channel: billPayChannel === 'promptpay' ? 'promptpay' : 'checkout',
+        customerName: 'Customer',
+        note: `ชำระบิลโต๊ะ ${currentTableNo}`,
+        metadata: { tableNo: currentTableNo, orderType: 'table-bill' },
+      }, billPaymentKey)
+        .then((response) => {
+          if (!isMounted) return
+          const transaction = response?.transaction
+          setBillQrDataUrl(transactionQrImageUrl(transaction))
+          setBillCheckoutUrl(transaction?.checkoutRedirectUrl || '')
+          setBillPaymentReference(transaction?.paymentReference || transaction?.gatewayReference || transaction?.reference || '')
+        })
+        .catch((error: any) => {
+          if (isMounted) setBillPaymentError(error?.message || 'ไม่สามารถสร้างรายการชำระเงินผ่าน LLGW ได้')
+        })
+      return () => { isMounted = false }
     }
-  }, [isBillModalOpen, billPayChannel, tableOrdersTotal, cartTotal, currentTableNo])
+  }, [isBillModalOpen, billPayChannel, tableOrdersTotal, cartTotal, currentTableNo, billPaymentKey])
+
+  useEffect(() => {
+    setBillPaymentKey('')
+    setBillQrDataUrl('')
+    setBillCheckoutUrl('')
+    setBillPaymentReference('')
+    setBillPaymentError('')
+  }, [billPayChannel])
 
   // Call Staff Actions
   const handleConfirmCallStaff = () => {
@@ -1310,13 +1364,21 @@ export function CustomerView() {
                   <span>ชำระผ่าน {quickPayChannels.find(c => c.id === paymentMethod)?.label}</span>
                 </div>
 
-                {customerQrUrl ? (
+                {paymentMethod !== 'promptpay' && customerCheckoutUrl ? (
+                  <div className="cust-qr-loading">
+                    <strong>ชำระเงินผ่าน Checkout ของ LLGW</strong>
+                    <a href={customerCheckoutUrl} target="_blank" rel="noreferrer">เปิดหน้าชำระเงิน</a>
+                    {customerPaymentReference && <small>รหัสรายการ: {customerPaymentReference}</small>}
+                  </div>
+                ) : customerQrUrl ? (
                   <img
                     src={customerQrUrl}
                     alt="Payment QR"
                     className="cust-qr-img"
                     style={{ width: '210px', height: '210px', margin: '0 auto', display: 'block', imageRendering: 'pixelated', borderRadius: '12px', background: '#fff', padding: '8px' }}
                   />
+                ) : customerPaymentError ? (
+                  <div className="cust-qr-loading">{customerPaymentError}</div>
                 ) : (
                   <img src={quickPayChannels.find(c => c.id === paymentMethod)?.logo} alt="Payment QR" className="cust-qr-img" />
                 )}
@@ -1325,7 +1387,7 @@ export function CustomerView() {
                 </div>
                 <div className="cust-qr-merchant-name">
                   {paymentMethod === 'promptpay'
-                    ? `ChatPOS Store (พร้อมเพย์: ${getStoredPromptPayId('0823456789')})`
+                    ? 'ChatPOS Store (Dynamic QR จาก LLGW)'
                     : `ร้านค้าทางการ ChatPOS (${quickPayChannels.find(c => c.id === paymentMethod)?.name})`}
                 </div>
               </div>
@@ -1748,18 +1810,26 @@ export function CustomerView() {
                       <span>ชำระผ่าน {quickPayChannels.find(c => c.id === billPayChannel)?.label}</span>
                     </div>
 
-                    {billQrDataUrl ? (
+                    {billPayChannel !== 'promptpay' && billCheckoutUrl ? (
+                      <div className="cust-qr-loading">
+                        <strong>ชำระเงินผ่าน Checkout ของ LLGW</strong>
+                        <a href={billCheckoutUrl} target="_blank" rel="noreferrer">เปิดหน้าชำระเงิน</a>
+                        {billPaymentReference && <small>รหัสรายการ: {billPaymentReference}</small>}
+                      </div>
+                    ) : billQrDataUrl ? (
                       <div className="cust-qr-wrapper">
                         <img src={billQrDataUrl} alt="Payment QR Code" className="cust-qr-image" />
                         <div className="cust-qr-meta">
                           <span>
                             {billPayChannel === 'promptpay'
-                              ? `พร้อมเพย์: ${getStoredPromptPayId('0823456789')}`
+                              ? 'พร้อมเพย์ Dynamic QR จาก LLGW'
                               : `สแกนชำระเงินผ่านแอป ${quickPayChannels.find(c => c.id === billPayChannel)?.name}`}
                           </span>
                           <strong>ยอดเงิน: ฿{(tableOrdersTotal || cartTotal).toFixed(2)}</strong>
                         </div>
                       </div>
+                    ) : billPaymentError ? (
+                      <div className="cust-qr-loading">{billPaymentError}</div>
                     ) : (
                       <div className="cust-qr-loading">กำลังสร้าง QR Code...</div>
                     )}
@@ -1812,6 +1882,7 @@ export function CustomerView() {
                 <button
                   type="button"
                   className="cust-bill-confirm-btn"
+                  disabled={!billPaymentReference}
                   onClick={handleConfirmBillPayment}
                 >
                   <CheckCircle2 size={16} /> ยืนยันการชำระเงิน ({quickPayChannels.find(c => c.id === billPayChannel)?.name})

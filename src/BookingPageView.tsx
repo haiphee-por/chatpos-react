@@ -18,7 +18,8 @@ import {
   ChevronDown,
   MapPin
 } from 'lucide-react'
-import { generateUrlQrDataUrl, generatePromptPayQrDataUrl, getStoredPromptPayId } from './promptpay'
+import { generateUrlQrDataUrl } from './promptpay'
+import { createPublicTransactionCommand, transactionQrImageUrl } from './chatposApi'
 
 export interface BookingServiceItem {
   id: string
@@ -88,6 +89,10 @@ export function BookingPageView() {
 
   // Card & QR States
   const [promptPayQrUrl, setPromptPayQrUrl] = useState('')
+  const [checkoutRedirectUrl, setCheckoutRedirectUrl] = useState('')
+  const [paymentReference, setPaymentReference] = useState('')
+  const [paymentError, setPaymentError] = useState('')
+  const [paymentIdempotencyKey, setPaymentIdempotencyKey] = useState('')
   const [qrCountdown, setQrCountdown] = useState(300)
   const [cardName, setCardName] = useState('')
   const [cardNumber, setCardNumber] = useState('')
@@ -210,15 +215,50 @@ export function BookingPageView() {
     }
   }, [servicesList])
 
-  // PromptPay QR generation
+  const isGatewayPayment = paymentMethod !== 'store'
+
+  // Create the booking payment through the server-side LLGW route.
   useEffect(() => {
-    if (selectedService && paymentMethod === 'promptpay') {
-      const ppId = getStoredPromptPayId('0823456789')
-      generatePromptPayQrDataUrl(ppId, selectedService.price, 240)
-        .then(setPromptPayQrUrl)
-        .catch(console.error)
+    if (!selectedService || !isModalOpen || bookingStep !== 'payment_summary' || !isGatewayPayment) return
+    if (!paymentIdempotencyKey) {
+      setPaymentIdempotencyKey(`booking:${Date.now()}:${Math.random().toString(36).slice(2, 10)}`)
+      return
     }
-  }, [selectedService, paymentMethod])
+
+    let isMounted = true
+    setPromptPayQrUrl('')
+    setCheckoutRedirectUrl('')
+    setPaymentReference('')
+    setPaymentError('')
+    createPublicTransactionCommand({
+      amount: selectedService.price,
+      channel: paymentMethod === 'promptpay' ? 'promptpay' : 'checkout',
+      customerName: customerName.trim(),
+      customerPhone: customerPhone.trim(),
+      note: `จองบริการ ${selectedService.name} วันที่ ${selectedDate} เวลา ${selectedTime}`,
+      metadata: { bookingDate: selectedDate, bookingTime: selectedTime, guestCount },
+    }, paymentIdempotencyKey)
+      .then((response) => {
+        if (!isMounted) return
+        const transaction = response?.transaction
+        setPromptPayQrUrl(transactionQrImageUrl(transaction))
+        setCheckoutRedirectUrl(transaction?.checkoutRedirectUrl || '')
+        setPaymentReference(transaction?.paymentReference || transaction?.gatewayReference || transaction?.reference || '')
+      })
+      .catch((error: any) => {
+        if (isMounted) setPaymentError(error?.message || 'ไม่สามารถสร้างรายการชำระเงินผ่าน LLGW ได้')
+      })
+
+    return () => { isMounted = false }
+  }, [selectedService, isModalOpen, bookingStep, isGatewayPayment, paymentIdempotencyKey, customerName, customerPhone, selectedDate, selectedTime, guestCount, paymentMethod])
+
+  useEffect(() => {
+    setPaymentIdempotencyKey('')
+    setPromptPayQrUrl('')
+    setCheckoutRedirectUrl('')
+    setPaymentReference('')
+    setPaymentError('')
+  }, [paymentMethod])
 
   // Countdown timer for PromptPay QR
   useEffect(() => {
@@ -265,6 +305,7 @@ export function BookingPageView() {
     if (service) setSelectedService(service)
     setBookingStep('details')
     setQrCountdown(300)
+    setPaymentIdempotencyKey('')
     setIsModalOpen(true)
   }
 
@@ -895,7 +936,32 @@ export function BookingPageView() {
 
                       <div className="cat-pp-details-text">
                         <p>สแกน QR Code ด้วยแอปธนาคารใดก็ได้ ยอดเงิน <strong>฿{selectedService.price.toFixed(2)}</strong></p>
-                        <small>PromptPay: 082-345-6789 ({storeInfo.fullName})</small>
+                        <small>QR นี้สร้างโดย LLGW สำหรับ {storeInfo.fullName}</small>
+                      </div>
+                    </div>
+                  )}
+
+                  {isGatewayPayment && paymentMethod !== 'promptpay' && (
+                    <div className="cat-pay-guide-box">
+                      <div className="cat-guide-icon">🔐</div>
+                      <div>
+                        <strong>ชำระเงินผ่านหน้า Checkout ของ LLGW</strong>
+                        {checkoutRedirectUrl ? (
+                          <p><a href={checkoutRedirectUrl} target="_blank" rel="noreferrer">เปิดหน้า Checkout เพื่อชำระเงิน</a></p>
+                        ) : (
+                          <p>กำลังเตรียมหน้า Checkout ที่ปลอดภัย...</p>
+                        )}
+                        {paymentReference && <small>รหัสรายการ: {paymentReference}</small>}
+                      </div>
+                    </div>
+                  )}
+
+                  {paymentError && (
+                    <div className="cat-pay-guide-box" role="alert">
+                      <div className="cat-guide-icon">⚠️</div>
+                      <div>
+                        <strong>สร้างรายการชำระเงินไม่สำเร็จ</strong>
+                        <p>{paymentError}</p>
                       </div>
                     </div>
                   )}
@@ -1012,6 +1078,7 @@ export function BookingPageView() {
                   <button
                     type="button"
                     className="cat-booking-submit-cta"
+                    disabled={isGatewayPayment && !paymentReference}
                     onClick={() => handleFinalConfirmBooking()}
                   >
                     <span>ยืนยันชำระเงิน & รับบัตรคิว</span>

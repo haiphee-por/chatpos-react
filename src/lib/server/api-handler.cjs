@@ -311,6 +311,7 @@ function isPublicApiRequest(requestPath, method) {
   if (requestPath === '/api/db/health' && method === 'GET') return true;
   if (requestPath === '/api/health/live' && method === 'GET') return true;
   if (requestPath === '/api/health/ready' && method === 'GET') return true;
+  if (requestPath === '/api/v1/public-payments' && method === 'POST') return true;
   if (/^\/api\/v1\/kyc\/documents\/[^/]+\/download$/.test(requestPath) && method === 'GET') return true;
   if (requestPath === '/api/webhooks/chatpos' && method === 'POST') return true;
   if (requestPath === '/api/webhooks/assignment-status' && method === 'POST') return true;
@@ -432,6 +433,66 @@ async function handleApiRequest(req, res) {
         } catch (error) {
           res.statusCode = 503;
           res.end(JSON.stringify({ success: false, status: 'not_ready', code: 'DATABASE_UNAVAILABLE' }));
+        }
+        return;
+      }
+
+      if (requestPath === '/api/v1/public-payments' && req.method === 'POST') {
+        const storeId = String(process.env.PUBLIC_PAYMENT_STORE_ID || '').trim();
+        const idempotencyKey = String(req.headers['idempotency-key'] || '').trim();
+        if (!isUuid(storeId)) {
+          res.statusCode = 503;
+          res.end(JSON.stringify({ success: false, error: { code: 'PUBLIC_PAYMENT_NOT_CONFIGURED', message: 'Public payment store is not configured' } }));
+          return;
+        }
+        if (!/^[A-Za-z0-9._:-]{8,128}$/.test(idempotencyKey)) {
+          res.statusCode = 400;
+          res.end(JSON.stringify({ success: false, error: { code: 'IDEMPOTENCY_REQUIRED', message: 'Idempotency-Key is required' } }));
+          return;
+        }
+        try {
+          await consumeRateLimit({
+            pool,
+            bucketKey: `public-payment:${clientIp(req)}:${storeId}`,
+            limit: 12,
+            windowSeconds: 60,
+          });
+          const rawBody = await readRawBody(req, 16 * 1024);
+          const body = JSON.parse(rawBody || '{}');
+          const amount = Number(body.amount);
+          const maxAmount = Number(process.env.PUBLIC_PAYMENT_MAX_AMOUNT || 100000);
+          const channel = String(body.channel || 'promptpay').trim().toLowerCase();
+          if (!Number.isFinite(amount) || amount <= 0 || amount > maxAmount) {
+            res.statusCode = 422;
+            res.end(JSON.stringify({ success: false, error: { code: 'INVALID_AMOUNT', message: 'Payment amount is invalid' } }));
+            return;
+          }
+          if (!['promptpay', 'checkout'].includes(channel)) {
+            res.statusCode = 422;
+            res.end(JSON.stringify({ success: false, error: { code: 'INVALID_CHANNEL', message: 'Public payment channel is invalid' } }));
+            return;
+          }
+          const result = await createTransactionCommand({
+            pool,
+            backofficeClient: transactionBackofficeClient,
+            storeId,
+            idempotencyKey,
+            requestId: req.headers['x-request-id'] || crypto.randomUUID(),
+            body: {
+              amount: Number(amount.toFixed(2)),
+              channel,
+              customerName: String(body.customerName || 'Customer').slice(0, 255),
+              customerPhone: body.customerPhone ? String(body.customerPhone).slice(0, 64) : null,
+              note: String(body.note || 'Public ChatPOS payment').slice(0, 1000),
+              metadata: { source: 'public-payment', ...(body.metadata && typeof body.metadata === 'object' && !Array.isArray(body.metadata) ? body.metadata : {}) },
+            },
+          });
+          res.statusCode = result.idempotentReplay ? 200 : 201;
+          res.end(JSON.stringify({ success: true, idempotentReplay: result.idempotentReplay, transaction: result.transaction }));
+        } catch (error) {
+          const statusCode = error.statusCode || (error.code === 'INTEGRATION_DISABLED' ? 503 : 400);
+          res.statusCode = statusCode;
+          res.end(JSON.stringify({ success: false, error: { code: error.code || 'PUBLIC_PAYMENT_FAILED', message: error.message } }));
         }
         return;
       }
