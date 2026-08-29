@@ -25,7 +25,7 @@ import {
   Lock,
   ArrowLeft
 } from 'lucide-react'
-import { checkTransactionStatus, createTransactionCommand, fetchBalance, fetchChatPosApi } from './chatposApi'
+import { checkTransactionStatus, createTransactionCommand, fetchBalance, fetchChatPosApi, transactionQrImageUrl } from './chatposApi'
 
 export type DevTab = 'dashboard' | 'api-keys' | 'webhooks' | 'gateway' | 'api-docs'
 
@@ -1280,40 +1280,62 @@ export function DeveloperConsoleView({ embedded = false }: { embedded?: boolean 
                       </div>
 
                       {/* Live QR Code Preview if Create QR */}
-                      {(sandboxResponse.qrCodeUrl || sandboxResponse.data?.qrCodeUrl) && (
-                        <div className="dev-checkout-preview-card" style={{ display: 'flex', alignItems: 'center', gap: '16px', background: '#f8fafc', padding: '16px', borderRadius: '12px', border: '1px solid #e2e8f0', marginTop: '12px' }}>
-                          <img
-                            src={sandboxResponse.qrCodeUrl || sandboxResponse.data?.qrCodeUrl}
-                            alt="Live Generated QR Code"
-                            style={{ width: '150px', height: '150px', borderRadius: '10px', background: '#fff', padding: '6px', border: '1px solid #cbd5e1', boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}
-                          />
-                          <div style={{ flex: 1 }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
-                              <span style={{ fontSize: '11px', background: '#ecfdf5', color: '#059669', padding: '2px 8px', borderRadius: '4px', fontWeight: 700 }}>
-                                ⚡ Real EMVCo PromptPay QR
-                              </span>
-                              <span style={{ fontSize: '12px', color: '#64748b', fontFamily: 'monospace' }}>
-                                Ref: {sandboxResponse.reference || sandboxResponse.data?.reference}
-                              </span>
+                      {(() => {
+                        const tx = sandboxResponse.transaction || sandboxResponse.data?.transaction || sandboxResponse.data || sandboxResponse
+                        const qrImg = transactionQrImageUrl(tx)
+                        const checkoutUrl = tx?.checkoutRedirectUrl || sandboxResponse.data?.checkoutUrl || sandboxResponse.checkoutUrl
+                        if (qrImg) return (
+                          <div className="dev-checkout-preview-card" style={{ display: 'flex', alignItems: 'center', gap: '16px', background: '#f8fafc', padding: '16px', borderRadius: '12px', border: '1px solid #e2e8f0', marginTop: '12px' }}>
+                            <img
+                              src={qrImg}
+                              alt="Live Generated QR Code"
+                              style={{ width: '150px', height: '150px', borderRadius: '10px', background: '#fff', padding: '6px', border: '1px solid #cbd5e1', boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}
+                            />
+                            <div style={{ flex: 1 }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
+                                <span style={{ fontSize: '11px', background: '#ecfdf5', color: '#059669', padding: '2px 8px', borderRadius: '4px', fontWeight: 700 }}>
+                                  ⚡ Live Gateway QR
+                                </span>
+                                <span style={{ fontSize: '12px', color: '#64748b', fontFamily: 'monospace' }}>
+                                  Ref: {tx?.paymentReference || tx?.reference || sandboxResponse.reference || sandboxResponse.data?.reference}
+                                </span>
+                              </div>
+                              <strong style={{ fontSize: '18px', color: '#0f172a', display: 'block', marginBottom: '4px' }}>
+                                ฿{Number(tx?.amount || sandboxResponse.amount || sandboxResponse.data?.amount || 0).toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              </strong>
+                              <p style={{ fontSize: '12px', color: '#475569', margin: '0 0 8px 0' }}>
+                                สแกนชำระเงินจริงได้ทันที (Ref: <b>{tx?.paymentReference || tx?.reference}</b>)
+                              </p>
+                              {tx?.qrRawText && (
+                                <button
+                                  type="button"
+                                  className="dev-btn-copy-small"
+                                  onClick={() => copyToClipboard(tx.qrRawText, 'raw-qr')}
+                                >
+                                  {copiedText === 'raw-qr' ? 'คัดลอก Payload แล้ว!' : 'คัดลอก Raw Gateway Payload'}
+                                </button>
+                              )}
                             </div>
-                            <strong style={{ fontSize: '18px', color: '#0f172a', display: 'block', marginBottom: '4px' }}>
-                              ฿{Number(sandboxResponse.amount || sandboxResponse.data?.amount || 0).toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                            </strong>
-                            <p style={{ fontSize: '12px', color: '#475569', margin: '0 0 8px 0' }}>
-                              พร้อมเพย์รับเงิน: <b>{sandboxResponse.merchantPromptPayId || '0823456789'}</b> (สแกนชำระเงินจริงได้ทันที)
-                            </p>
-                            {sandboxResponse.qrRawText && (
-                              <button
-                                type="button"
-                                className="dev-btn-copy-small"
-                                onClick={() => copyToClipboard(sandboxResponse.qrRawText, 'raw-qr')}
-                              >
-                                {copiedText === 'raw-qr' ? 'คัดลอก Payload แล้ว!' : 'คัดลอก Raw EMVCo Payload'}
-                              </button>
-                            )}
                           </div>
-                        </div>
-                      )}
+                        )
+                        if (checkoutUrl) return (
+                          <div className="dev-checkout-preview-card" style={{ display: 'flex', alignItems: 'center', gap: '16px', background: '#f8fafc', padding: '16px', borderRadius: '12px', border: '1px solid #e2e8f0', marginTop: '12px' }}>
+                            <QrCode size={48} color="#0f172a" />
+                            <div>
+                              <strong>Checkout Link พร้อมใช้งาน:</strong>
+                              <a
+                                href={checkoutUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="dev-checkout-link"
+                              >
+                                {checkoutUrl} <ExternalLink size={13} />
+                              </a>
+                            </div>
+                          </div>
+                        )
+                        return null
+                      })()}
 
                       {/* Checkout URL Preview if Create QR */}
                       {sandboxResponse.data?.checkoutUrl && (

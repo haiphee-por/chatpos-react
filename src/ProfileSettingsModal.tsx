@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { Bell, Camera, CheckCircle2, KeyRound, Shield, Store, User, X, Key, RefreshCw, Server, AlertCircle, Code, Copy, Check } from 'lucide-react'
-import { getStoredApiKey, setStoredApiKey, fetchBalance, createTransactionCommand, checkTransactionStatus, authenticateApi, createPayout } from './chatposApi'
+import { getStoredApiKey, setStoredApiKey, fetchBalance, createTransactionCommand, checkTransactionStatus, authenticateApi, createPayout, transactionQrImageUrl } from './chatposApi'
 import { getStoredUser } from './dbApi'
 
 export type ProfileData = {
@@ -666,12 +666,26 @@ export function ProfileSettingsModal({
                     <h3>{Number(apiResult.balance).toLocaleString()} {apiResult.currency || 'THB'}</h3>
                   </div>
                 )}
-                {apiResult.qrCodeUrl && (
-                  <div className="balance-highlight-card">
-                    <small>QR Code URL:</small>
-                    <p style={{ margin: '4px 0 0', fontWeight: 'bold' }}>{apiResult.qrCodeUrl}</p>
-                  </div>
-                )}
+                {(() => {
+                  const tx = apiResult.transaction || apiResult.data?.transaction || apiResult
+                  const qrImg = transactionQrImageUrl(tx)
+                  const checkoutUrl = tx?.checkoutRedirectUrl || apiResult.checkoutRedirectUrl
+                  if (qrImg) return (
+                    <div className="balance-highlight-card">
+                      <small>QR Code:</small>
+                      <img src={qrImg} alt="Gateway QR" style={{ width: 180, height: 180, marginTop: 6, borderRadius: 8, background: '#fff', padding: 4, border: '1px solid #e2e8f0' }} />
+                    </div>
+                  )
+                  if (checkoutUrl) return (
+                    <div className="balance-highlight-card">
+                      <small>Checkout Link:</small>
+                      <p style={{ margin: '4px 0 0', fontWeight: 'bold' }}>
+                        <a href={checkoutUrl} target="_blank" rel="noreferrer">{checkoutUrl}</a>
+                      </p>
+                    </div>
+                  )
+                  return null
+                })()}
                 <div className="json-output-wrap">
                   <small>Raw Response Data:</small>
                   <pre>{JSON.stringify(apiResult, null, 2)}</pre>
