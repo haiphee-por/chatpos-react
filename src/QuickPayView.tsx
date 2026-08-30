@@ -217,7 +217,6 @@ export function QuickPayView() {
             setPromptPayQrUrl(transactionQrImageUrl(transaction))
             setCheckoutRedirectUrl(checkoutUrl)
             setActivePaymentRef(transaction.paymentReference || transaction.clientReference || transaction.reference || '')
-            if (selectedMethod !== 'promptpay' && checkoutUrl) window.location.assign(checkoutUrl)
           }
         })
         .catch((err) => {
@@ -856,13 +855,12 @@ export function QuickPayView() {
                   </div>
 
                   <div className="qp-qr-large-frame">
-                    {selectedMethod !== 'promptpay' ? (
-                      <div style={{ width: '220px', minHeight: '220px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '12px', color: '#334155', textAlign: 'center' }}>
-                        {checkoutRedirectUrl ? <span>กำลังเปิดหน้าชำระเงิน...</span> : <span>กำลังเตรียมหน้าชำระเงิน...</span>}
-                        {checkoutRedirectUrl && <a href={checkoutRedirectUrl} style={{ color: '#0284c7', fontWeight: 700 }}>เปิดหน้าชำระเงิน</a>}
-                      </div>
-                    ) : promptPayQrUrl ? (
-                      <img src={promptPayQrUrl} alt="PromptPay QR Code" className="qp-qr-img-large" />
+                    {promptPayQrUrl ? (
+                      <img
+                        src={promptPayQrUrl}
+                        alt={selectedMethod === 'promptpay' ? 'PromptPay QR Code' : 'Checkout QR Code'}
+                        className="qp-qr-img-large"
+                      />
                     ) : (
                       <div className="qp-qr-generating-box">
                         <Sparkles size={24} className="qp-spin" />
@@ -873,6 +871,29 @@ export function QuickPayView() {
                       <img src={getChannelInfo(selectedMethod).img} alt="Channel Logo" />
                     </div>
                   </div>
+                  {selectedMethod !== 'promptpay' && checkoutRedirectUrl && (
+                    <div style={{ display: 'flex', justifyContent: 'center', marginTop: '12px' }}>
+                      <a
+                        href={checkoutRedirectUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                          padding: '10px 18px',
+                          borderRadius: '10px',
+                          background: '#0284c7',
+                          color: '#ffffff',
+                          fontWeight: 700,
+                          textDecoration: 'none',
+                          boxShadow: '0 2px 8px rgba(2,132,199,0.25)',
+                        }}
+                      >
+                        เปิดหน้าชำระเงิน
+                      </a>
+                    </div>
+                  )}
 
                   <div className="qp-qr-amount-confirm-box">
                     <span>ยอดเงินที่ต้องสแกนจ่าย</span>

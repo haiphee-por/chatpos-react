@@ -7727,7 +7727,6 @@ function QuickPayView() {
             setPromptPayQrUrl(transactionQrImageUrl(transaction))
             setCheckoutRedirectUrl(checkoutUrl)
             setActivePaymentRef(transaction.paymentReference || transaction.clientReference || transaction.reference || '')
-            if (selectedMethod !== 'promptpay' && checkoutUrl) window.location.assign(checkoutUrl)
           }
         })
         .catch((err) => {
@@ -8424,15 +8423,10 @@ function QuickPayView() {
                   {/* QR Image Frame */}
                   <div className="qp-qr-display-box">
                     <div className="qp-qr-code-art" style={{ background: '#ffffff', padding: '12px', borderRadius: '16px', border: '1px solid #e2e8f0', boxShadow: '0 4px 16px rgba(0,0,0,0.06)', display: 'inline-block' }}>
-                      {selectedMethod !== 'promptpay' ? (
-                        <div style={{ width: '220px', minHeight: '220px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '12px', color: '#334155', textAlign: 'center' }}>
-                          {checkoutRedirectUrl ? <span>กำลังเปิดหน้าชำระเงิน...</span> : <span>กำลังเตรียมหน้าชำระเงิน...</span>}
-                          {checkoutRedirectUrl && <a href={checkoutRedirectUrl} style={{ color: '#0284c7', fontWeight: 700 }}>เปิดหน้าชำระเงิน</a>}
-                        </div>
-                      ) : promptPayQrUrl ? (
+                      {promptPayQrUrl ? (
                         <img
                           src={promptPayQrUrl}
-                          alt="PromptPay QR Code"
+                          alt={selectedMethod === 'promptpay' ? 'PromptPay QR Code' : 'Checkout QR Code'}
                           style={{ width: '220px', height: '220px', display: 'block', margin: '0 auto', imageRendering: 'pixelated' }}
                         />
                       ) : (
@@ -8441,6 +8435,29 @@ function QuickPayView() {
                         </div>
                       )}
                     </div>
+                    {selectedMethod !== 'promptpay' && checkoutRedirectUrl && (
+                      <div style={{ display: 'flex', justifyContent: 'center', marginTop: '12px' }}>
+                        <a
+                          href={checkoutRedirectUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '8px',
+                            padding: '10px 18px',
+                            borderRadius: '10px',
+                            background: '#0284c7',
+                            color: '#ffffff',
+                            fontWeight: 700,
+                            textDecoration: 'none',
+                            boxShadow: '0 2px 8px rgba(2,132,199,0.25)',
+                          }}
+                        >
+                          เปิดหน้าชำระเงิน
+                        </a>
+                      </div>
+                    )}
                     
                     {/* PromptPay Target ID & Quick Account Switch */}
                     <div style={{ marginTop: '10px', fontSize: '13px', color: '#334155', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', flexWrap: 'wrap' }}>
