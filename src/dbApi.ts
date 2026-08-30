@@ -302,6 +302,15 @@ export interface DbCommissionRow {
 
 const API_BASE = ''
 
+function getErrorMessage(value: unknown, fallback: string) {
+  if (typeof value === 'string' && value.trim()) return value
+  if (value && typeof value === 'object') {
+    const details = value as { message?: unknown; error?: unknown; code?: unknown }
+    return getErrorMessage(details.message ?? details.error ?? details.code, fallback)
+  }
+  return fallback
+}
+
 // Generic Fetch Wrapper
 async function fetchDbApi<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
   const url = `${API_BASE}/api/db${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`
@@ -320,7 +329,7 @@ async function fetchDbApi<T>(endpoint: string, options: RequestInit = {}): Promi
   } catch {}
 
   if (!res.ok) {
-    const errorMsg = data?.error || `DB API Error ${res.status}: ${res.statusText}`
+    const errorMsg = getErrorMessage(data?.error ?? data?.message, `DB API Error ${res.status}: ${res.statusText}`)
     throw new Error(errorMsg)
   }
 
@@ -662,8 +671,11 @@ export async function fetchDbHomeResult(storeId: string): Promise<DbFetchResult<
     const res = await fetchDbApi<{ success: boolean; data: DbHomeReadModel }>(`/home?storeId=${encodeURIComponent(storeId)}`)
     return { data: res.data || null, error: null, fetchedAt: new Date().toISOString() }
   } catch (err: any) {
-    console.error('Failed to fetch Home read model:', err)
-    return { data: null, error: err?.message || 'โหลดข้อมูล Home ไม่สำเร็จ', fetchedAt: null }
+    const errorMessage = getErrorMessage(err, 'โหลดข้อมูล Home ไม่สำเร็จ')
+    if (errorMessage !== 'Merchant Home contract is disabled') {
+      console.warn('Failed to fetch Home read model:', err)
+    }
+    return { data: null, error: errorMessage === 'Merchant Home contract is disabled' ? null : errorMessage, fetchedAt: null }
   }
 }
 
@@ -675,8 +687,11 @@ export async function fetchDbNotificationsResult(storeId: string, options: { pag
     const res = await fetchDbApi<{ success: boolean; data: DbNotificationRow[] }>(`/notifications?${query.toString()}`)
     return { data: res.data || [], error: null, fetchedAt: new Date().toISOString() }
   } catch (err: any) {
-    console.error('Failed to fetch notifications:', err)
-    return { data: [], error: err?.message || 'โหลดการแจ้งเตือนไม่สำเร็จ', fetchedAt: null }
+    const errorMessage = getErrorMessage(err, 'โหลดการแจ้งเตือนไม่สำเร็จ')
+    if (errorMessage !== 'Merchant Home contract is disabled') {
+      console.warn('Failed to fetch notifications:', err)
+    }
+    return { data: [], error: errorMessage === 'Merchant Home contract is disabled' ? null : errorMessage, fetchedAt: null }
   }
 }
 

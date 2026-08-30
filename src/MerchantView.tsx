@@ -4,7 +4,7 @@ import { MerchantKycView } from './MerchantKycView'
 import { DeveloperConsoleView } from './DeveloperConsoleView'
 import { fetchDbAssignments, fetchDbProducts, fetchDbStoresResult, clearStoredUser, getStoredUser, logoutUser, type AuthUser, type DbAssignmentRow, type DbStoreRow } from './dbApi'
 import { MerchantHome as MerchantHomeDashboard, MerchantBottomNavigation, type StoreLoadState } from './MerchantHomeView'
-import { merchantNavItems } from './merchantNavigation'
+import { getMerchantNavItem, merchantNavItems } from './merchantNavigation'
 import { generatePromptPayQrDataUrl, generateUrlQrDataUrl, getStoredPromptPayId, setStoredPromptPayId } from './promptpay'
 import { checkTransactionStatus, createTransactionCommand, quickPayMethodToChannel, transactionQrImageUrl } from './chatposApi'
 import {
@@ -290,10 +290,11 @@ const initialPaidList: PaidTransaction[] = [
 
 export function MerchantView({ currentUser }: { currentUser: AuthUser | null }) {
   const getInitialTab = () => {
+    const pathname = window.location.pathname.replace(/\/+$/, '') || '/'
+    const routeId = pathname.startsWith('/merchant/') ? pathname.slice('/merchant/'.length).split('/')[0] : ''
     const hash = window.location.hash.replace('#', '').trim()
-    if (hash && navItems.some((item) => item.id === hash)) return hash
-    const saved = localStorage.getItem('merchant_active_tab')
-    if (saved && navItems.some((item) => item.id === saved)) return saved
+    if (routeId && navItems.some((item) => item.id === routeId)) return routeId
+    if (pathname === '/merchant' && hash && navItems.some((item) => item.id === hash)) return hash
     return 'home'
   }
 
@@ -363,27 +364,36 @@ export function MerchantView({ currentUser }: { currentUser: AuthUser | null }) 
 
   useEffect(() => {
     localStorage.setItem('merchant_active_tab', active)
-    if (window.location.hash !== `#${active}`) {
-      window.location.hash = active
+    const target = getMerchantNavItem(active).target
+    if (window.location.pathname !== target || window.location.hash) {
+      window.history.replaceState({}, '', target)
     }
   }, [active])
 
   useEffect(() => {
-    const handleHashChange = () => {
+    const handleLocationChange = () => {
+      const pathname = window.location.pathname.replace(/\/+$/, '') || '/'
+      const routeId = pathname.startsWith('/merchant/') ? pathname.slice('/merchant/'.length).split('/')[0] : ''
       const hash = window.location.hash.replace('#', '').trim()
-      if (hash && navItems.some((item) => item.id === hash)) {
-        setActive(hash)
-      }
+      const nextId = navItems.some((item) => item.id === routeId) ? routeId : navItems.some((item) => item.id === hash) ? hash : 'home'
+      setActive(nextId)
     }
-    window.addEventListener('hashchange', handleHashChange)
-    return () => window.removeEventListener('hashchange', handleHashChange)
+    window.addEventListener('popstate', handleLocationChange)
+    window.addEventListener('hashchange', handleLocationChange)
+    return () => {
+      window.removeEventListener('popstate', handleLocationChange)
+      window.removeEventListener('hashchange', handleLocationChange)
+    }
   }, [])
 
   const current = navItems.find((item) => item.id === active) ?? navItems[0]
   const navigate = (id: string) => {
     setActive(id)
     localStorage.setItem('merchant_active_tab', id)
-    window.location.hash = id
+    const target = getMerchantNavItem(id).target
+    if (window.location.pathname !== target || window.location.hash) {
+      window.history.pushState({}, '', target)
+    }
     setMobileOpen(false)
   }
 
@@ -412,16 +422,16 @@ export function MerchantView({ currentUser }: { currentUser: AuthUser | null }) 
         <button className="merchant-store-settings" onClick={() => setProfileModalOpen(true)} type="button" aria-label="เปิดการตั้งค่าร้านค้า"><ChevronRight size={15} /></button>
       </div>
       <nav>
-        {navItems.map(({ id, label, icon: NavIcon }) => (
-          <button
+        {navItems.map(({ id, label, icon: NavIcon, target }) => (
+          <a
             className={active === id ? 'active' : ''}
+            href={target}
             key={id}
-            onClick={() => navigate(id)}
-            type="button"
+            onClick={() => setMobileOpen(false)}
           >
             <NavIcon size={17} />
             <span>{label}</span>
-          </button>
+          </a>
         ))}
       </nav>
       <div className="merchant-user" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 15px' }}>
@@ -500,6 +510,7 @@ export function MerchantView({ currentUser }: { currentUser: AuthUser | null }) 
               onStoreChange={handleStoreChange}
               onRetryStores={loadStores}
               onOpenProfile={() => setProfileModalOpen(true)}
+              onLogout={handleLogout}
             />
           ) : active === 'pos' ? (
             <PosView onNavigate={navigate} />

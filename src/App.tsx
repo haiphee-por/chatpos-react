@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { MerchantView } from './MerchantView'
 import { MerchantRegistrationView } from './MerchantRegistrationView'
+import { LoginView } from './AuthViews'
 import { CustomerView } from './CustomerView'
 import { QuickPayView } from './QuickPayView'
 import { CatalogPageView } from './CatalogPageView'
@@ -125,14 +126,19 @@ export function App() {
     return <MerchantRegistrationView />
   }
 
-  // 7. Merchant Backoffice Dashboard (/merchant)
+  // 7. Merchant Login must come before the broad /merchant/* dashboard route.
+  if (pathname === '/merchant/login') {
+    return <LoginView role="merchant" />
+  }
+
+  // 8. Merchant Backoffice Dashboard (/merchant)
   if (pathname === '/merchant' || pathname.startsWith('/merchant/')) {
     if (!sessionReady) return null
     if (!currentUser) return <LandingPageView />
     return <MerchantView currentUser={currentUser} />
   }
 
-  // 8. Default Pre-Login Landing & Interactive Sign-In Screen (/, /login, /landing)
+  // 9. Default Pre-Login Landing & Interactive Sign-In Screen (/, /login, /landing)
   return <LandingPageView />
 }
 

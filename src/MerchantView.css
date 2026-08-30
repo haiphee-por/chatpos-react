@@ -105,7 +105,8 @@
   overflow: auto;
 }
 
-.merchant-sidebar nav button {
+.merchant-sidebar nav button,
+.merchant-sidebar nav a {
   display: flex;
   align-items: center;
   gap: 11px;
@@ -119,20 +120,24 @@
   font-weight: 700;
   text-align: left;
   cursor: pointer;
+  text-decoration: none;
 }
 
-.merchant-sidebar nav button:hover {
+.merchant-sidebar nav button:hover,
+.merchant-sidebar nav a:hover {
   background: rgb(255 255 255 / 7%);
   color: #fff;
 }
 
-.merchant-sidebar nav button.active {
+.merchant-sidebar nav button.active,
+.merchant-sidebar nav a.active {
   background: linear-gradient(90deg, rgb(52 211 153 / 25%), rgb(52 211 153 / 7%));
   color: #fff;
   box-shadow: inset 3px 0 #4ade80;
 }
 
-.merchant-sidebar nav button.active svg {
+.merchant-sidebar nav button.active svg,
+.merchant-sidebar nav a.active svg {
   color: #6ee7b7;
 }
 
@@ -12791,5 +12796,1855 @@ button.mh-app-card {
   .reference-page .system-status span + span {
     border-top: 1px solid var(--reference-line);
     border-left: 0;
+  }
+}
+
+/* Compact mobile dashboard treatment for the merchant home reference layout. */
+.merchant-app-home {
+  background: #dff1e6;
+}
+
+.merchant-app-home .merchant-home-content {
+  width: min(100%, 360px);
+  max-width: 360px;
+  background: #edf8f1;
+  box-shadow: 0 20px 70px rgb(1 41 24 / 18%);
+}
+
+.reference-page .app-header {
+  padding: 9px 10px;
+  border-bottom: 0;
+  background: linear-gradient(135deg, #0aa84d, #078d43);
+  box-shadow: 0 5px 15px rgb(0 84 39 / 18%);
+}
+
+.reference-page .app-header-row {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 6px;
+  min-height: 38px;
+}
+
+.reference-page .brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  color: #fff;
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.reference-page .brand b,
+.reference-page .brand strong {
+  color: #fff;
+}
+
+.reference-page .brand-bubble {
+  width: 27px;
+  height: 27px;
+  margin-right: 4px;
+  background: rgb(255 255 255 / 16%);
+  box-shadow: none;
+}
+
+.reference-page .brand-bubble svg {
+  width: 15px;
+  height: 15px;
+}
+
+.reference-page .merchant-switcher {
+  grid-template-columns: 18px minmax(0, 1fr) 13px;
+  justify-self: end;
+  width: min(100%, 142px);
+  height: 34px;
+  gap: 5px;
+  padding: 4px 6px;
+  border: 1px solid rgb(255 255 255 / 26%);
+  border-radius: 10px;
+  background: rgb(0 87 40 / 23%);
+  color: #fff;
+}
+
+.reference-page .merchant-switcher > svg:first-child,
+.reference-page .merchant-switcher > svg:last-child {
+  width: 15px;
+  color: #fff;
+}
+
+.reference-page .merchant-switcher small {
+  color: rgb(255 255 255 / 76%);
+  font-size: 8px;
+}
+
+.reference-page .merchant-switcher b,
+.reference-page .merchant-switcher select {
+  color: #fff;
+  font-size: 10px;
+}
+
+.reference-page .mh-notification-trigger {
+  position: relative;
+  right: auto;
+  bottom: auto;
+  z-index: 1;
+  width: 34px;
+  height: 34px;
+  border: 1px solid rgb(255 255 255 / 25%);
+  border-radius: 10px;
+  background: rgb(0 87 40 / 23%);
+  color: #fff;
+}
+
+.reference-page .mh-notification-trigger b {
+  top: -4px;
+  right: -4px;
+  min-width: 16px;
+  height: 16px;
+  border-width: 1px;
+  font-size: 8px;
+}
+
+.reference-page .icon-button {
+  display: none;
+}
+
+.reference-page .reference-home {
+  padding: 9px 9px 13px;
+  background: #0b9b49;
+}
+
+.reference-page .reference-home::after {
+  top: -80px;
+  right: -85px;
+  width: 170px;
+  height: 170px;
+  box-shadow: 0 0 0 24px rgb(255 255 255 / 5%), 0 0 0 50px rgb(255 255 255 / 3%);
+}
+
+.reference-page .mh-welcome-hero {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 112px;
+  align-items: stretch;
+  min-height: 104px;
+  overflow: hidden;
+  border-radius: 13px;
+  background: linear-gradient(105deg, #f6fff9 0%, #e4f8eb 64%, #c5efd3 100%);
+  box-shadow: 0 8px 18px rgb(0 74 32 / 16%);
+}
+
+.reference-page .mh-welcome-copy {
+  position: relative;
+  z-index: 1;
+  padding: 13px 9px 10px 12px;
+}
+
+.reference-page .mh-welcome-copy > span,
+.reference-page .mh-welcome-copy h1,
+.reference-page .mh-welcome-copy p,
+.reference-page .mh-welcome-copy small {
+  display: block;
+}
+
+.reference-page .mh-welcome-copy > span {
+  color: #577267;
+  font-size: 8px;
+  font-weight: 700;
+}
+
+.reference-page .mh-welcome-copy h1 {
+  margin: 4px 0 5px;
+  color: #183c2f;
+  font-size: 16px;
+  line-height: 1.2;
+}
+
+.reference-page .mh-welcome-copy p {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin: 0;
+  padding: 4px 6px;
+  border: 1px solid #cce8d5;
+  border-radius: 7px;
+  background: #fff;
+  color: #277b4d;
+  font-size: 8px;
+  font-weight: 700;
+}
+
+.reference-page .mh-welcome-copy small {
+  margin-top: 7px;
+  overflow: hidden;
+  color: #789489;
+  font-size: 7px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.reference-page .mh-welcome-hero img {
+  align-self: end;
+  width: 125px;
+  height: 112px;
+  margin: 0 -4px -8px -8px;
+  object-fit: contain;
+  object-position: center bottom;
+}
+
+.reference-page .reference-content {
+  padding: 0 9px 70px;
+  background: #edf8f1;
+}
+
+.reference-page .reference-summary {
+  margin: 0;
+  padding: 8px 2px;
+  border: 1px solid #e2ebe6;
+  border-top: 0;
+  border-radius: 0 0 14px 14px;
+  box-shadow: 0 7px 15px rgb(10 48 30 / 8%);
+}
+
+.reference-page .reference-summary button {
+  grid-template-columns: 28px minmax(0, 1fr);
+  column-gap: 5px;
+  min-height: 57px;
+  padding: 4px 5px;
+}
+
+.reference-page .stat-icon {
+  width: 28px;
+  height: 28px;
+}
+
+.reference-page .stat-icon svg {
+  width: 15px;
+  height: 15px;
+}
+
+.reference-page .reference-summary small {
+  font-size: 8px;
+}
+
+.reference-page .reference-summary strong {
+  font-size: 14px;
+}
+
+.reference-page .reference-summary em {
+  font-size: 7px;
+}
+
+.reference-page .mh-menu-section {
+  margin-top: 15px;
+}
+
+.reference-page .mh-section-heading {
+  min-height: 27px;
+  margin: 0 2px 7px;
+}
+
+.reference-page .mh-section-heading span {
+  font-size: 8px;
+}
+
+.reference-page .mh-section-heading h2 {
+  margin-top: 2px;
+  font-size: 17px;
+}
+
+.reference-page .mh-section-heading > svg {
+  width: 18px;
+  height: 18px;
+}
+
+.reference-page .feature-grid {
+  gap: 7px;
+}
+
+.reference-page .feature-card {
+  grid-template-columns: 39px minmax(0, 1fr) 14px;
+  grid-template-rows: 1fr;
+  align-items: center;
+  column-gap: 8px;
+  min-height: 67px;
+  padding: 9px;
+  border-radius: 13px;
+  box-shadow: 0 7px 13px rgb(5 39 23 / 12%);
+}
+
+.reference-page .feature-card.green { background: linear-gradient(145deg, #20be5c, #07843b); }
+.reference-page .feature-card.orange { background: linear-gradient(145deg, #ffb12e, #ed7907); }
+.reference-page .feature-card.blue { background: linear-gradient(145deg, #438fff, #1762d2); }
+.reference-page .feature-card.teal { background: linear-gradient(145deg, #20b8a8, #078e88); }
+.reference-page .feature-card.purple { background: linear-gradient(145deg, #9a6cf0, #7042ce); }
+.reference-page .feature-card.red { background: linear-gradient(145deg, #ed5366, #c3294a); }
+
+.reference-page .feature-card::after {
+  display: none;
+}
+
+.reference-page .feature-icon {
+  width: 29px;
+  height: 29px;
+  border-radius: 9px;
+}
+
+.reference-page .feature-icon svg {
+  width: 16px;
+  height: 16px;
+}
+
+.reference-page .feature-card > span:nth-child(2) {
+  grid-column: auto;
+  align-self: center;
+  padding: 0;
+  border-top: 0;
+}
+
+.reference-page .feature-card b {
+  font-size: 12px;
+  line-height: 1.15;
+}
+
+.reference-page .feature-card small {
+  margin-top: 3px;
+  font-size: 8px;
+  line-height: 1.25;
+}
+
+.reference-page .feature-card > svg {
+  width: 12px;
+  height: 12px;
+}
+
+.reference-page .channel-panel,
+.reference-page .recent-payments {
+  margin-top: 11px;
+  padding: 10px;
+  border: 1px solid #e2ebe6;
+  border-radius: 13px;
+  background: #fff;
+  box-shadow: 0 6px 14px rgb(13 48 31 / 5%);
+}
+
+.reference-page .section-title.compact h2 {
+  margin: 1px 0 7px;
+  font-size: 14px;
+}
+
+.reference-page .section-title.compact span {
+  color: #4f8c70;
+  font-size: 8px;
+}
+
+.reference-page .channel-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 5px;
+}
+
+.reference-page .channel-grid > span {
+  grid-template-columns: 30px minmax(0, 1fr) auto;
+  grid-template-rows: auto auto;
+  justify-items: start;
+  min-height: 48px;
+  padding: 5px 6px;
+  border-radius: 9px;
+  text-align: left;
+}
+
+.reference-page .channel-logo {
+  grid-row: 1 / span 2;
+  width: 30px;
+  height: 30px;
+  border-radius: 7px;
+  font-size: 10px;
+}
+
+.reference-page .channel-grid b {
+  align-self: end;
+  margin: 0 0 0 5px;
+  font-size: 8px;
+}
+
+.reference-page .channel-grid small {
+  align-self: start;
+  margin: 1px 0 0 5px;
+  font-size: 7px;
+}
+
+.reference-page .channel-grid small svg {
+  width: 9px;
+  height: 9px;
+}
+
+.reference-page .channel-logo.c7 { background: #0b9d48; }
+.reference-page .channel-logo.c8 { background: #ed563b; }
+.reference-page .channel-logo.c9 { background: #1f4ed8; }
+
+.reference-page .channel-logo img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  object-fit: contain;
+  background: #fff;
+}
+
+.reference-page .channel-grid > span {
+  grid-template-columns: 1fr;
+  place-items: center;
+  min-height: 100px;
+  padding: 10px;
+}
+
+.reference-page .channel-grid .channel-logo {
+  grid-row: auto;
+  width: 82px;
+  height: 82px;
+  border-radius: 16px;
+}
+
+.reference-page .recent-payments .section-title.compact {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+}
+
+.reference-page .recent-payments .section-title.compact button {
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #16804d;
+  font-size: 8px;
+  cursor: pointer;
+}
+
+.reference-page .recent-payment-list {
+  display: grid;
+  gap: 4px;
+}
+
+.reference-page .recent-payment-row {
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  min-height: 35px;
+  padding: 4px 3px;
+  border: 0;
+  border-top: 1px solid #edf2ef;
+  background: transparent;
+  color: #173d30;
+  text-align: left;
+  cursor: pointer;
+}
+
+.reference-page .recent-payment-row .channel-logo {
+  width: 24px;
+  height: 24px;
+  font-size: 8px;
+}
+
+.reference-page .recent-payment-row > span {
+  min-width: 0;
+}
+
+.reference-page .recent-payment-row b,
+.reference-page .recent-payment-row small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.reference-page .recent-payment-row b {
+  font-size: 11px;
+}
+
+.reference-page .recent-payment-row small {
+  margin-top: 2px;
+  color: #8a9d94;
+  font-size: 9px;
+}
+
+.reference-page .recent-payment-row strong {
+  color: #163e2d;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.reference-page .recent-payment-row em {
+  padding: 2px 4px;
+  border-radius: 5px;
+  background: #e6f7ed;
+  color: #19814d;
+  font-size: 8px;
+  font-style: normal;
+  white-space: nowrap;
+}
+
+.reference-page .system-status {
+  margin-top: 11px;
+  min-height: 52px;
+  padding: 10px 4px;
+  border-radius: 12px;
+}
+
+.reference-page .system-status span {
+  gap: 5px;
+  font-size: 10px;
+}
+
+.reference-page .system-status span svg {
+  width: 16px;
+  height: 16px;
+}
+
+.merchant-app-home .mh-global-bottom-bar {
+  grid-template-columns: repeat(5, 1fr);
+  width: min(100%, 360px);
+  min-height: 66px;
+  padding: 5px 5px max(5px, env(safe-area-inset-bottom));
+  border-top: 1px solid #dce9e1;
+  background: rgb(255 255 255 / 97%);
+  box-shadow: 0 -8px 20px rgb(0 57 27 / 10%);
+}
+
+.merchant-app-home .mh-bottom-item,
+.merchant-app-home .mh-bottom-center-group button {
+  min-height: 49px;
+  border-radius: 9px;
+  color: #71877d;
+  font-size: 7px;
+  text-shadow: none;
+}
+
+.merchant-app-home .mh-bottom-item.active {
+  background: #eaf8ef;
+  color: #119a4c;
+  box-shadow: none;
+}
+
+.merchant-app-home .mh-bottom-item.active svg {
+  color: #119a4c;
+}
+
+.merchant-app-home .mh-bottom-center-group {
+  width: 76px;
+  height: 54px;
+  margin: -9px 0 0;
+  padding: 3px;
+  gap: 3px;
+  border-radius: 14px;
+  background: #f2f8f4;
+  box-shadow: none;
+}
+
+.merchant-app-home .mh-bottom-center-group button {
+  width: 68px;
+  flex: 0 0 68px;
+  height: 48px;
+  min-height: 48px;
+  border-radius: 10px;
+}
+
+.merchant-app-home .mh-bottom-home-btn {
+  background: #eaf8ef !important;
+  color: #119a4c !important;
+}
+
+.merchant-app-home .mh-bottom-pay-btn {
+  background: #fff2df !important;
+  color: #e67b0a !important;
+}
+
+@media (max-width: 760px) {
+  .merchant-app-home .merchant-home-content,
+  .merchant-app-home .mh-global-bottom-bar {
+    width: 100%;
+    max-width: none;
+  }
+
+  .merchant-app-home .merchant-home-content {
+    box-shadow: none;
+  }
+}
+
+/* Readable type scale and touch feedback for the merchant home screen. */
+.reference-page {
+  font-size: 12px;
+}
+
+.reference-page button {
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.18s ease, box-shadow 0.18s ease, background-color 0.18s ease, border-color 0.18s ease;
+}
+
+.reference-page button:not(:disabled):hover {
+  transform: translateY(-2px);
+}
+
+.reference-page button:not(:disabled):active {
+  transform: translateY(1px) scale(.98);
+}
+
+.reference-page .brand-button:hover {
+  transform: none;
+}
+
+.reference-page .brand {
+  font-size: 19px;
+}
+
+.reference-page .merchant-switcher small {
+  font-size: 9px;
+}
+
+.reference-page .merchant-switcher b,
+.reference-page .merchant-switcher select {
+  font-size: 11px;
+}
+
+.reference-page .mh-welcome-copy > span {
+  font-size: 10px;
+}
+
+.reference-page .mh-welcome-copy h1 {
+  font-size: 18px;
+}
+
+.reference-page .mh-welcome-copy p {
+  font-size: 9px;
+}
+
+.reference-page .mh-welcome-copy small {
+  font-size: 8px;
+}
+
+.reference-page .reference-summary button {
+  min-height: 64px;
+}
+
+.reference-page .reference-summary button:hover {
+  background: #f5fbf7;
+  box-shadow: inset 0 0 0 1px #dceee2;
+}
+
+.reference-page .reference-summary small {
+  font-size: 10px;
+}
+
+.reference-page .reference-summary strong {
+  font-size: 16px;
+}
+
+.reference-page .reference-summary em {
+  font-size: 8px;
+}
+
+.reference-page .mh-section-heading span,
+.reference-page .section-title.compact span {
+  font-size: 10px;
+}
+
+.reference-page .mh-section-heading h2 {
+  font-size: 20px;
+}
+
+.reference-page .feature-card {
+  min-height: 82px;
+  box-shadow: 0 7px 13px rgb(5 39 23 / 12%);
+  animation: merchant-card-reveal 0.42s cubic-bezier(.22, .8, .28, 1);
+  will-change: transform;
+}
+
+.reference-page .feature-card:nth-child(2) { animation-delay: 45ms; }
+.reference-page .feature-card:nth-child(3) { animation-delay: 90ms; }
+.reference-page .feature-card:nth-child(4) { animation-delay: 135ms; }
+.reference-page .feature-card:nth-child(5) { animation-delay: 180ms; }
+.reference-page .feature-card:nth-child(6) { animation-delay: 225ms; }
+
+.reference-page .feature-card:not(:disabled):hover {
+  box-shadow: 0 11px 19px rgb(5 39 23 / 22%);
+}
+
+.reference-page .feature-card.is-pressed,
+.merchant-app-home .mh-bottom-item.is-pressed,
+.merchant-app-home .mh-bottom-center-group button.is-pressed {
+  transform: scale(.94);
+  filter: brightness(.9) saturate(1.08);
+  box-shadow: 0 3px 7px rgb(5 39 23 / 18%);
+}
+
+.reference-page .feature-icon {
+  width: 39px;
+  height: 39px;
+}
+
+.reference-page .feature-icon svg {
+  width: 22px;
+  height: 22px;
+}
+
+.reference-page .feature-card b {
+  font-size: 17px;
+  line-height: 1.2;
+}
+
+.reference-page .section-title.compact h2 {
+  font-size: 16px;
+}
+
+.reference-page .channel-grid > span {
+  min-height: 43px;
+}
+
+.reference-page .channel-grid b {
+  font-size: 10px;
+}
+
+.reference-page .channel-grid small {
+  font-size: 8px;
+}
+
+.reference-page .recent-payment-row {
+  min-height: 41px;
+}
+
+.reference-page .recent-payment-row b {
+  font-size: 11px;
+}
+
+.reference-page .recent-payment-row small {
+  font-size: 9px;
+}
+
+.reference-page .recent-payment-row strong {
+  font-size: 11px;
+}
+
+.reference-page .recent-payment-row em {
+  font-size: 8px;
+}
+
+.reference-page .recent-payment-row .channel-logo {
+  width: 30px;
+  height: 30px;
+  overflow: hidden;
+  border-radius: 8px;
+}
+
+.reference-page .recent-payment-row:hover {
+  background: #f6fbf8;
+}
+
+.reference-page .recent-payment-dialog-overlay {
+  position: fixed;
+  z-index: 120;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+}
+
+.reference-page .recent-payment-dialog-backdrop {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  border: 0;
+  background: rgb(7 42 27 / 48%);
+  cursor: pointer;
+}
+
+.reference-page .recent-payment-dialog-backdrop:hover {
+  transform: none;
+}
+
+.reference-page .recent-payment-dialog {
+  position: relative;
+  z-index: 1;
+  width: min(100%, 320px);
+  padding: 22px 18px 18px;
+  border: 1px solid #d6e9dd;
+  border-radius: 18px;
+  background: #fff;
+  color: #173d30;
+  text-align: center;
+  box-shadow: 0 22px 55px rgb(0 34 19 / 28%);
+  animation: merchant-dialog-in 0.2s ease-out;
+}
+
+.reference-page .recent-payment-dialog-close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 1px solid #dbe9e1;
+  border-radius: 50%;
+  background: #f5faf7;
+  color: #527267;
+  cursor: pointer;
+}
+
+.reference-page .recent-payment-dialog-logo {
+  display: grid;
+  place-items: center;
+  width: 92px;
+  height: 92px;
+  margin: 4px auto 10px;
+  overflow: hidden;
+  border-radius: 18px;
+  background: #f5faf7;
+}
+
+.reference-page .recent-payment-dialog-logo img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.reference-page .recent-payment-dialog-status {
+  display: inline-block;
+  padding: 4px 9px;
+  border-radius: 999px;
+  background: #e7f8ed;
+  color: #16804d;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.reference-page .recent-payment-dialog h3 {
+  margin: 12px 0 4px;
+  color: #173d30;
+  font-size: 19px;
+}
+
+.reference-page .recent-payment-dialog-amount {
+  display: block;
+  color: #087c3e;
+  font-size: 27px;
+  line-height: 1.2;
+}
+
+.reference-page .recent-payment-dialog dl {
+  display: grid;
+  gap: 8px;
+  margin: 17px 0 15px;
+  padding: 12px;
+  border-radius: 11px;
+  background: #f5faf7;
+  text-align: left;
+}
+
+.reference-page .recent-payment-dialog dl div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 12px;
+}
+
+.reference-page .recent-payment-dialog dt {
+  color: #789489;
+}
+
+.reference-page .recent-payment-dialog dd {
+  max-width: 68%;
+  margin: 0;
+  overflow-wrap: anywhere;
+  color: #264d3e;
+  font-weight: 700;
+  text-align: right;
+}
+
+.reference-page .recent-payment-dialog-action {
+  width: 100%;
+  min-height: 44px;
+  border: 0;
+  border-radius: 10px;
+  background: #0b9b49;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+@keyframes merchant-dialog-in {
+  from { opacity: 0; transform: translateY(8px) scale(.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@media (min-width: 761px) {
+  .merchant-app-home .merchant-home-content,
+  .merchant-app-home .mh-global-bottom-bar {
+    width: min(calc(100vw - 32px), 720px);
+    max-width: 720px;
+  }
+
+  .reference-page .app-header {
+    padding: 13px 18px;
+  }
+
+  .reference-page .app-header-row {
+    gap: 12px;
+    min-height: 46px;
+  }
+
+  .reference-page .brand {
+    height: 34px;
+    font-size: 22px;
+  }
+
+  .reference-page .brand-bubble {
+    width: 34px;
+    height: 34px;
+    margin-right: 6px;
+  }
+
+  .reference-page .brand-bubble svg {
+    width: 18px;
+    height: 18px;
+  }
+
+  .reference-page .merchant-switcher {
+    width: min(100%, 210px);
+    height: 42px;
+    padding: 5px 9px;
+    border-radius: 12px;
+  }
+
+  .reference-page .merchant-switcher small {
+    font-size: 10px;
+  }
+
+  .reference-page .merchant-switcher b,
+  .reference-page .merchant-switcher select {
+    font-size: 13px;
+  }
+
+  .reference-page .mh-notification-trigger {
+    width: 42px;
+    height: 42px;
+    border-radius: 12px;
+  }
+
+  .reference-page .reference-home {
+    padding: 16px 18px 20px;
+  }
+
+  .reference-page .mh-welcome-hero {
+    grid-template-columns: minmax(0, 1fr) 175px;
+    min-height: 145px;
+    border-radius: 17px;
+  }
+
+  .reference-page .mh-welcome-copy {
+    padding: 20px 16px;
+  }
+
+  .reference-page .mh-welcome-copy > span {
+    font-size: 11px;
+  }
+
+  .reference-page .mh-welcome-copy h1 {
+    font-size: 24px;
+  }
+
+  .reference-page .mh-welcome-copy p {
+    padding: 6px 8px;
+    font-size: 10px;
+  }
+
+  .reference-page .mh-welcome-copy small {
+    margin-top: 10px;
+    font-size: 9px;
+  }
+
+  .reference-page .mh-welcome-hero img {
+    width: 190px;
+    height: 160px;
+    margin: 0 -4px -10px -8px;
+  }
+
+  .reference-page .reference-content {
+    padding: 0 18px 78px;
+  }
+
+  .reference-page .reference-summary {
+    padding: 11px 4px;
+    border-radius: 0 0 17px 17px;
+  }
+
+  .reference-page .reference-summary button {
+    min-height: 78px;
+    padding: 6px 10px;
+  }
+
+  .reference-page .stat-icon {
+    width: 38px;
+    height: 38px;
+  }
+
+  .reference-page .stat-icon svg {
+    width: 20px;
+    height: 20px;
+  }
+
+  .reference-page .reference-summary small {
+    font-size: 11px;
+  }
+
+  .reference-page .reference-summary strong {
+    font-size: 19px;
+  }
+
+  .reference-page .reference-summary em {
+    font-size: 9px;
+  }
+
+  .reference-page .mh-menu-section {
+    margin-top: 22px;
+  }
+
+  .reference-page .mh-section-heading {
+    margin-bottom: 10px;
+  }
+
+  .reference-page .mh-section-heading span,
+  .reference-page .section-title.compact span {
+    font-size: 11px;
+  }
+
+  .reference-page .mh-section-heading h2 {
+    font-size: 24px;
+  }
+
+  .reference-page .feature-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .reference-page .feature-card {
+    grid-template-columns: 45px minmax(0, 1fr) 14px;
+    min-height: 92px;
+    padding: 13px;
+    border-radius: 16px;
+  }
+
+  .reference-page .feature-icon {
+    width: 45px;
+    height: 45px;
+    border-radius: 12px;
+  }
+
+  .reference-page .feature-icon svg {
+    width: 23px;
+    height: 23px;
+  }
+
+  .reference-page .feature-card b {
+    font-size: 16px;
+  }
+
+  .reference-page .channel-panel,
+  .reference-page .recent-payments {
+    margin-top: 16px;
+    padding: 15px;
+    border-radius: 17px;
+  }
+
+  .reference-page .section-title.compact h2 {
+    font-size: 19px;
+  }
+
+  .reference-page .channel-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .reference-page .channel-grid > span {
+    min-height: 100px;
+    padding: 9px;
+    border-radius: 12px;
+  }
+
+  .reference-page .channel-grid .channel-logo {
+    width: 76px;
+    height: 76px;
+    border-radius: 15px;
+  }
+
+  .reference-page .recent-payment-row {
+    grid-template-columns: 36px minmax(0, 1fr) auto auto;
+    min-height: 48px;
+    gap: 11px;
+  }
+
+  .reference-page .recent-payment-row .channel-logo {
+    width: 36px;
+    height: 36px;
+  }
+
+  .reference-page .recent-payment-row b {
+    font-size: 12px;
+  }
+
+  .reference-page .recent-payment-row small {
+    font-size: 10px;
+  }
+
+  .reference-page .recent-payment-row strong {
+    font-size: 12px;
+  }
+
+  .reference-page .recent-payment-row em {
+    font-size: 9px;
+  }
+
+  .reference-page .system-status {
+    min-height: 58px;
+    padding: 11px 6px;
+  }
+
+  .reference-page .system-status span {
+    gap: 6px;
+    font-size: 10px;
+  }
+
+  .reference-page .system-status span svg {
+    width: 17px;
+    height: 17px;
+  }
+
+  .merchant-app-home .mh-global-bottom-bar {
+    min-height: 76px;
+    padding: 7px 10px max(7px, env(safe-area-inset-bottom));
+  }
+
+  .merchant-app-home .mh-bottom-item,
+  .merchant-app-home .mh-bottom-center-group button {
+    min-height: 58px;
+    font-size: 10px;
+  }
+
+  .merchant-app-home .mh-bottom-center-group {
+    width: 90px;
+    height: 62px;
+    margin-top: -10px;
+  }
+
+  .merchant-app-home .mh-bottom-center-group button {
+    width: 80px;
+    flex-basis: 80px;
+    height: 56px;
+    min-height: 56px;
+  }
+}
+
+@media (min-width: 1100px) {
+  .merchant-app-home .merchant-home-content,
+  .merchant-app-home .mh-global-bottom-bar {
+    width: min(calc(100vw - 80px), 1180px);
+    max-width: 1180px;
+  }
+
+  .reference-page .reference-home {
+    padding-inline: 26px;
+  }
+
+  .reference-page .reference-content {
+    padding-inline: 26px;
+  }
+
+  .reference-page .feature-grid {
+    gap: 14px;
+  }
+
+  .reference-page .feature-card {
+    min-height: 104px;
+    padding: 16px;
+  }
+
+  .reference-page .mh-welcome-hero {
+    grid-template-columns: minmax(0, 1fr) 230px;
+    min-height: 178px;
+  }
+
+  .reference-page .mh-welcome-hero img {
+    width: 245px;
+    height: 195px;
+  }
+
+  .reference-page .feature-card b {
+    font-size: 18px;
+  }
+
+  .reference-page .channel-grid .channel-logo {
+    width: 84px;
+    height: 84px;
+  }
+}
+
+.reference-page .app-header-row {
+  grid-template-columns: auto minmax(0, 1fr);
+  column-gap: 6px;
+}
+
+.reference-page .home-header-actions {
+  display: flex;
+  align-items: center;
+  justify-self: end;
+  width: 100%;
+  gap: 7px;
+  min-width: 0;
+}
+
+.reference-page .home-header-actions .merchant-switcher {
+  flex: 1 1 auto;
+  width: min(172px, calc(100% - 41px));
+  max-width: 172px;
+  margin: 0;
+}
+
+.reference-page .home-header-actions > .mh-notification-trigger {
+  flex: 0 0 34px;
+}
+
+.reference-page .merchant-switcher {
+  grid-template-columns: 18px minmax(0, 1fr) 16px;
+}
+
+.reference-page .merchant-switcher > span {
+  min-width: 0;
+}
+
+.reference-page .merchant-switcher b,
+.reference-page .merchant-switcher select {
+  width: 100%;
+  text-align: left;
+}
+
+.reference-page .merchant-switcher > svg:last-child {
+  justify-self: end;
+  margin-left: auto;
+}
+
+.reference-page .home-profile-trigger {
+  position: relative;
+  z-index: 42;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  padding: 2px;
+  border: 1px solid rgb(255 255 255 / 30%);
+  border-radius: 50%;
+  background: rgb(0 87 40 / 25%);
+  cursor: pointer;
+}
+
+.reference-page .home-avatar,
+.reference-page .home-profile-large-avatar {
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: linear-gradient(145deg, #fff, #c9f1d7);
+  color: #087c3e;
+  font-weight: 900;
+}
+
+.reference-page .merchant-switcher.is-open {
+  border-color: rgb(255 255 255 / 48%);
+  background: rgb(0 87 40 / 38%);
+  box-shadow: 0 5px 12px rgb(0 56 25 / 16%);
+}
+
+.reference-page .merchant-switcher:focus-visible {
+  outline: 3px solid rgb(255 255 255 / 65%);
+  outline-offset: 2px;
+}
+
+.reference-page .home-profile-dismiss {
+  position: fixed;
+  z-index: 80;
+  inset: 0;
+  width: 100%;
+  border: 0;
+  background: rgb(3 31 20 / 12%);
+  backdrop-filter: blur(2px);
+  cursor: default;
+  transform: none !important;
+}
+
+.reference-page .home-profile-menu {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 10px;
+  z-index: 90;
+  width: min(300px, calc(100vw - 24px));
+  padding: 14px;
+  overflow: hidden;
+  border: 1px solid rgb(202 228 213 / 90%);
+  border-radius: 16px;
+  background: rgb(255 255 255 / 98%);
+  color: #173d30;
+  box-shadow: 0 22px 52px rgb(0 38 21 / 30%), 0 2px 8px rgb(0 38 21 / 10%);
+  animation: merchant-profile-menu-in 0.2s cubic-bezier(.22, .8, .28, 1);
+}
+
+.reference-page .home-profile-menu::before {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  height: 4px;
+  background: linear-gradient(90deg, #08a34a, #3acb77);
+  content: '';
+}
+
+.reference-page .home-profile-summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 4px 14px;
+  border-bottom: 1px solid #e5efe9;
+}
+
+.reference-page .home-profile-large-avatar {
+  flex: 0 0 48px;
+  width: 48px;
+  height: 48px;
+  border: 3px solid #e0f4e8;
+  font-size: 14px;
+  box-shadow: 0 5px 12px rgb(7 124 62 / 13%);
+}
+
+.reference-page .home-profile-summary span:last-child {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.reference-page .home-profile-summary strong {
+  overflow: hidden;
+  font-size: 15px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.reference-page .home-profile-summary small {
+  width: fit-content;
+  padding: 3px 7px;
+  border-radius: 999px;
+  background: #e9f8ef;
+  color: #087c3e;
+  font-size: 9px;
+  font-weight: 800;
+}
+
+.reference-page .home-profile-actions {
+  display: grid;
+  gap: 7px;
+  padding-top: 11px;
+}
+
+.reference-page .home-profile-actions button {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr) 15px;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 48px;
+  padding: 9px 10px;
+  border: 1px solid #e1eee7;
+  border-radius: 11px;
+  background: #f7fbf9;
+  color: #315a4d;
+  font-size: 13px;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+}
+
+.reference-page .home-profile-actions button:hover {
+  background: #eaf8ef;
+}
+
+.reference-page .home-profile-actions button.is-danger {
+  color: #b4233e;
+}
+
+.reference-page .home-profile-actions button.is-danger:hover {
+  background: #fff1f2;
+}
+
+.reference-page .home-logout-dialog-overlay {
+  position: fixed;
+  z-index: 150;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+}
+
+.reference-page .home-logout-dialog-backdrop {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  border: 0;
+  background: rgb(7 42 27 / 50%);
+  cursor: pointer;
+  transform: none !important;
+}
+
+.reference-page .home-logout-dialog {
+  position: relative;
+  z-index: 1;
+  width: min(100%, 320px);
+  padding: 22px 18px 18px;
+  border: 1px solid #d8eae0;
+  border-radius: 18px;
+  background: #fff;
+  color: #173d30;
+  text-align: center;
+  box-shadow: 0 22px 55px rgb(0 34 19 / 28%);
+  animation: merchant-dialog-in 0.2s ease-out;
+}
+
+.reference-page .home-logout-icon {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  margin: 0 auto;
+  border-radius: 50%;
+  background: #fff1f2;
+  color: #c52c49;
+}
+
+.reference-page .home-logout-dialog h2 {
+  margin: 12px 0 5px;
+  font-size: 20px;
+}
+
+.reference-page .home-logout-dialog p {
+  margin: 0;
+  color: #789489;
+  font-size: 12px;
+}
+
+.reference-page .home-logout-dialog > div {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 18px;
+}
+
+.reference-page .home-logout-dialog > div button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 44px;
+  border: 1px solid #d8eae0;
+  border-radius: 10px;
+  background: #f5faf7;
+  color: #315a4d;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.reference-page .home-logout-dialog > div button.is-confirm {
+  border-color: #c52c49;
+  background: #c52c49;
+  color: #fff;
+}
+
+@media (min-width: 761px) {
+  .reference-page .home-profile-trigger {
+    width: 42px;
+    height: 42px;
+  }
+
+  .reference-page .home-avatar {
+    width: 34px;
+    height: 34px;
+    font-size: 10px;
+  }
+
+  .reference-page .home-profile-menu {
+    right: 18px;
+  }
+}
+
+@keyframes merchant-profile-menu-in {
+  from { opacity: 0; transform: translateY(-5px) scale(.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@media (min-width: 761px) {
+  .reference-page .reference-summary button {
+    grid-template-columns: 38px minmax(0, 1fr);
+    column-gap: 10px;
+  }
+}
+
+.reference-page .reference-home {
+  padding: 10px 9px 16px;
+  background: linear-gradient(180deg, #0a9d49 0%, #edf8f1 100%);
+}
+
+.reference-page .merchant-wallet-card {
+  position: relative;
+  z-index: 1;
+  min-height: 218px;
+  padding: 16px;
+  overflow: hidden;
+  border: 1px solid rgb(255 255 255 / 24%);
+  border-radius: 20px;
+  background:
+    radial-gradient(circle at 90% 4%, rgb(126 255 176 / 34%), transparent 31%),
+    linear-gradient(145deg, #063d2d 0%, #086a42 58%, #0a9252 100%);
+  color: #fff;
+  box-shadow: 0 18px 34px rgb(0 69 35 / 25%), inset 0 1px rgb(255 255 255 / 20%);
+}
+
+.reference-page .merchant-wallet-card::before,
+.reference-page .merchant-wallet-card::after {
+  position: absolute;
+  border: 1px solid rgb(255 255 255 / 9%);
+  border-radius: 50%;
+  content: '';
+  pointer-events: none;
+}
+
+.reference-page .merchant-wallet-card::before {
+  top: -94px;
+  right: -62px;
+  width: 190px;
+  height: 190px;
+}
+
+.reference-page .merchant-wallet-card::after {
+  top: -62px;
+  right: -30px;
+  width: 122px;
+  height: 122px;
+}
+
+.reference-page .merchant-wallet-topline,
+.reference-page .merchant-wallet-meta {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.reference-page .merchant-wallet-topline > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.reference-page .merchant-wallet-topline > span:last-child {
+  padding: 5px 8px;
+  border: 1px solid rgb(255 255 255 / 18%);
+  border-radius: 999px;
+  background: rgb(255 255 255 / 10%);
+  font-size: 9px;
+}
+
+.reference-page .merchant-wallet-topline i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #6dff9f;
+  box-shadow: 0 0 0 3px rgb(109 255 159 / 13%);
+}
+
+.reference-page .merchant-wallet-topline .is-closed i {
+  background: #ffcc71;
+}
+
+.reference-page .merchant-wallet-balance {
+  position: relative;
+  z-index: 1;
+  margin-top: 17px;
+}
+
+.reference-page .merchant-wallet-balance > span {
+  color: rgb(255 255 255 / 72%);
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.reference-page .merchant-wallet-balance > div {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 42px;
+}
+
+.reference-page .merchant-wallet-balance strong {
+  max-width: calc(100% - 70px);
+  overflow: hidden;
+  font-size: 30px;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.reference-page .merchant-wallet-balance em {
+  align-self: end;
+  margin-bottom: 6px;
+  color: rgb(255 255 255 / 70%);
+  font-size: 10px;
+  font-style: normal;
+  font-weight: 800;
+}
+
+.reference-page .merchant-wallet-balance button {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  margin-left: auto;
+  padding: 0;
+  border: 1px solid rgb(255 255 255 / 16%);
+  border-radius: 10px;
+  background: rgb(255 255 255 / 10%);
+  color: #fff;
+  cursor: pointer;
+}
+
+.reference-page .merchant-wallet-actions {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 13px;
+}
+
+.reference-page .merchant-wallet-actions button {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  grid-template-rows: auto auto;
+  align-items: center;
+  column-gap: 8px;
+  min-height: 55px;
+  padding: 7px 9px;
+  border: 1px solid rgb(255 255 255 / 20%);
+  border-radius: 13px;
+  background: rgb(255 255 255 / 94%);
+  color: #075238;
+  text-align: left;
+  cursor: pointer;
+  box-shadow: 0 8px 18px rgb(0 36 20 / 15%);
+}
+
+.reference-page .merchant-wallet-actions button:hover {
+  background: #fff;
+  box-shadow: 0 11px 22px rgb(0 36 20 / 23%);
+}
+
+.reference-page .merchant-wallet-actions button > span {
+  display: grid;
+  grid-row: 1 / span 2;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: #e3f7eb;
+  color: #078347;
+}
+
+.reference-page .merchant-wallet-actions b {
+  align-self: end;
+  font-size: 12px;
+}
+
+.reference-page .merchant-wallet-actions small {
+  align-self: start;
+  color: #6f8c80;
+  font-size: 8px;
+}
+
+.reference-page .merchant-wallet-meta {
+  margin-top: 12px;
+  padding-top: 9px;
+  border-top: 1px solid rgb(255 255 255 / 13%);
+  color: rgb(255 255 255 / 68%);
+  font-size: 8px;
+}
+
+.reference-page .merchant-wallet-meta span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.reference-page .merchant-wallet-meta time {
+  color: #fff;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+@media (min-width: 761px) {
+  .reference-page .reference-home {
+    padding: 18px 18px 24px;
+  }
+
+  .reference-page .merchant-wallet-card {
+    min-height: 260px;
+    padding: 22px;
+    border-radius: 24px;
+  }
+
+  .reference-page .merchant-wallet-topline > span {
+    font-size: 13px;
+  }
+
+  .reference-page .merchant-wallet-balance > span {
+    font-size: 12px;
+  }
+
+  .reference-page .merchant-wallet-balance strong {
+    font-size: 40px;
+  }
+
+  .reference-page .merchant-wallet-actions {
+    max-width: 460px;
+    gap: 12px;
+    margin-top: 18px;
+  }
+
+  .reference-page .merchant-wallet-actions button {
+    min-height: 66px;
+    padding: 9px 12px;
+  }
+
+  .reference-page .merchant-wallet-actions b {
+    font-size: 14px;
+  }
+
+  .reference-page .merchant-wallet-actions small,
+  .reference-page .merchant-wallet-meta {
+    font-size: 10px;
+  }
+}
+
+.merchant-app-home .mh-bottom-item,
+.merchant-app-home .mh-bottom-center-group button {
+  font-size: 9px;
+}
+
+.merchant-app-home .mh-bottom-item:hover,
+.merchant-app-home .mh-bottom-center-group button:hover {
+  background: #f0f9f3;
+}
+
+.merchant-app-home .mh-bottom-home-btn:hover {
+  background: #def4e6 !important;
+}
+
+.merchant-app-home .mh-bottom-pay-btn:hover {
+  background: #ffebcb !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reference-page button {
+    transition: none;
+  }
+
+  .reference-page .feature-card {
+    animation: none;
+  }
+}
+
+@keyframes merchant-card-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.reference-page .merchant-switcher {
+  grid-template-columns: 18px minmax(0, 1fr) 16px;
+  gap: 5px;
+}
+
+.reference-page .merchant-switcher-alert {
+  display: grid;
+  place-items: center;
+  min-width: 0;
+}
+
+.reference-page .merchant-switcher-alert .mh-notification-trigger {
+  position: relative;
+  right: auto;
+  bottom: auto;
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  box-shadow: none;
+}
+
+.reference-page .merchant-switcher-alert .mh-notification-trigger b {
+  top: -4px;
+  right: -4px;
+}
+
+@media (min-width: 761px) {
+  .reference-page .home-header-actions .merchant-switcher {
+    width: 240px;
+    max-width: 240px;
+  }
+
+  .reference-page .merchant-switcher {
+    grid-template-columns: 24px minmax(0, 1fr) 16px;
+    gap: 7px;
+  }
+
+  .reference-page .merchant-switcher-alert .mh-notification-trigger {
+    width: 38px;
+    height: 38px;
+    border-radius: 10px;
+  }
+}
+
+@media (max-width: 350px) {
+  .reference-page .merchant-switcher {
+    grid-template-columns: minmax(0, 1fr) 16px;
+  }
+
+  .reference-page .merchant-switcher > svg:first-child {
+    display: none;
+  }
+
+  .reference-page .merchant-switcher b,
+  .reference-page .merchant-switcher select {
+    font-size: 9px;
   }
 }
