@@ -6,7 +6,7 @@ import { fetchDbAssignments, fetchDbProducts, fetchDbStoresResult, clearStoredUs
 import { MerchantHome as MerchantHomeDashboard, MerchantBottomNavigation, type StoreLoadState } from './MerchantHomeView'
 import { merchantNavItems } from './merchantNavigation'
 import { generatePromptPayQrDataUrl, generateUrlQrDataUrl, getStoredPromptPayId, setStoredPromptPayId } from './promptpay'
-import { checkTransactionStatus, createTransactionCommand, transactionQrImageUrl } from './chatposApi'
+import { checkTransactionStatus, createTransactionCommand, quickPayMethodToChannel, transactionQrImageUrl } from './chatposApi'
 import {
   LogOut,
   Bell,
@@ -7715,7 +7715,7 @@ function QuickPayView() {
 
       createTransactionCommand({
         amount: netPayable,
-        channel: selectedMethod === 'promptpay' ? 'promptpay' : 'checkout',
+        channel: quickPayMethodToChannel(selectedMethod),
         customerName: pendingPosOrder?.tableName ? `ลูกค้า ${pendingPosOrder.tableName}` : 'ลูกค้าหน้าร้าน',
         note: `ชำระเงินผ่าน POS / Backoffice Transaction (ยอดเงิน ฿${netPayable.toFixed(2)})`,
         tableName: pendingPosOrder?.tableName || 'คิดเงินหน้าร้าน',

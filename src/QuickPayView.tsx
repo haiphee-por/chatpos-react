@@ -16,7 +16,7 @@ import {
   VolumeX,
 } from 'lucide-react'
 import { getStoredPromptPayId } from './promptpay'
-import { checkTransactionStatus, createTransactionCommand, transactionQrImageUrl } from './chatposApi'
+import { checkTransactionStatus, createTransactionCommand, quickPayMethodToChannel, transactionQrImageUrl } from './chatposApi'
 
 /* Web Audio API Sound Generator */
 const playAudioEffect = (type: 'beep' | 'pop' | 'success' | 'clear') => {
@@ -206,7 +206,7 @@ export function QuickPayView() {
 
       createTransactionCommand({
         amount: netPayable,
-        channel: selectedMethod === 'promptpay' ? 'promptpay' : 'checkout',
+        channel: quickPayMethodToChannel(selectedMethod),
         customerName: note ? `ลูกค้า (${note})` : 'ลูกค้าหน้าร้าน',
         note: `ชำระเงินผ่าน QuickPay Standalone (ยอดเงิน ฿${netPayable.toFixed(2)})`,
       }, activeIdempotencyKey)

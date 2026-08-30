@@ -152,6 +152,34 @@ export function transactionQrImageUrl(transaction?: TransactionPayment | null): 
   return ''
 }
 
+// Map merchant UI method IDs to the LLGW paymentMethod value that the Backoffice
+// forwards as-is; keeps hosted checkout locked to the specific channel that the
+// cashier selected instead of falling back to a generic multi-method page.
+export function quickPayMethodToChannel(method?: string | null): string {
+  switch ((method || '').toLowerCase()) {
+    case 'promptpay':
+      return 'promptpay'
+    case 'truemoney':
+      return 'truemoney'
+    case 'visa_th':
+    case 'visa_int':
+    case 'card':
+      return 'card'
+    case 'wechat':
+    case 'wechatpay':
+      return 'wechatpay'
+    case 'linepay':
+      return 'linepay'
+    case 'alipay':
+    case 'alipay_online':
+      return 'alipay_online'
+    case 'shopeepay':
+      return 'shopeepay'
+    default:
+      return 'checkout'
+  }
+}
+
 /**
  * POST /api/v1/transactions
  * Create a payment through Agent/PD Backoffice routing.
