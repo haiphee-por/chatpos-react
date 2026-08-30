@@ -14358,7 +14358,7 @@ button.mh-app-card {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-size: 11px;
+  font-size: 15.8px;
   font-weight: 800;
 }
 
@@ -14367,7 +14367,7 @@ button.mh-app-card {
   border: 1px solid rgb(255 255 255 / 18%);
   border-radius: 999px;
   background: rgb(255 255 255 / 10%);
-  font-size: 9px;
+  font-size: 13px;
 }
 
 .reference-page .merchant-wallet-topline i {
@@ -14390,7 +14390,7 @@ button.mh-app-card {
 
 .reference-page .merchant-wallet-balance > span {
   color: rgb(255 255 255 / 72%);
-  font-size: 10px;
+  font-size: 14.4px;
   font-weight: 600;
 }
 
@@ -14404,7 +14404,7 @@ button.mh-app-card {
 .reference-page .merchant-wallet-balance strong {
   max-width: calc(100% - 70px);
   overflow: hidden;
-  font-size: 30px;
+  font-size: 43.2px;
   line-height: 1.2;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -14414,7 +14414,7 @@ button.mh-app-card {
   align-self: end;
   margin-bottom: 6px;
   color: rgb(255 255 255 / 70%);
-  font-size: 10px;
+  font-size: 14.4px;
   font-style: normal;
   font-weight: 800;
 }
@@ -14431,6 +14431,64 @@ button.mh-app-card {
   background: rgb(255 255 255 / 10%);
   color: #fff;
   cursor: pointer;
+}
+
+.reference-page .merchant-wallet-card .wallet-summary {
+  position: relative;
+  z-index: 1;
+  margin: 14px 0 0;
+  padding: 8px 3px;
+  border: 1px solid rgb(255 255 255 / 16%);
+  border-radius: 14px;
+  background: rgb(255 255 255 / 10%);
+  box-shadow: inset 0 1px rgb(255 255 255 / 12%);
+  backdrop-filter: blur(8px);
+}
+
+.reference-page .merchant-wallet-card .wallet-summary button {
+  grid-template-columns: 28px minmax(0, 1fr);
+  column-gap: 6px;
+  min-height: 57px;
+  padding: 4px 5px;
+  color: #fff;
+}
+
+.reference-page .merchant-wallet-card .wallet-summary button + button {
+  border-left-color: rgb(255 255 255 / 16%);
+}
+
+.reference-page .merchant-wallet-card .wallet-summary button:hover {
+  background: rgb(255 255 255 / 9%);
+  box-shadow: none;
+}
+
+.reference-page .merchant-wallet-card .wallet-summary small,
+.reference-page .merchant-wallet-card .wallet-summary strong,
+.reference-page .merchant-wallet-card .wallet-summary em,
+.reference-page .merchant-wallet-card .wallet-summary button:nth-child(2) strong,
+.reference-page .merchant-wallet-card .wallet-summary button:nth-child(3) strong {
+  color: #fff;
+}
+
+.reference-page .merchant-wallet-card .wallet-summary small {
+  color: rgb(255 255 255 / 72%);
+  font-size: 10.8px;
+}
+
+.reference-page .merchant-wallet-card .wallet-summary strong {
+  font-size: 18px;
+}
+
+.reference-page .merchant-wallet-card .wallet-summary em {
+  color: rgb(255 255 255 / 64%);
+  font-size: 9.6px;
+}
+
+.reference-page .merchant-wallet-card .wallet-summary .stat-icon {
+  width: 28px;
+  height: 28px;
+  background: rgb(255 255 255 / 17%);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 18%);
 }
 
 .reference-page .merchant-wallet-actions {
@@ -14477,13 +14535,13 @@ button.mh-app-card {
 
 .reference-page .merchant-wallet-actions b {
   align-self: end;
-  font-size: 12px;
+  font-size: 14.4px;
 }
 
 .reference-page .merchant-wallet-actions small {
   align-self: start;
   color: #6f8c80;
-  font-size: 8px;
+  font-size: 9.6px;
 }
 
 .reference-page .merchant-wallet-meta {
@@ -14491,7 +14549,7 @@ button.mh-app-card {
   padding-top: 9px;
   border-top: 1px solid rgb(255 255 255 / 13%);
   color: rgb(255 255 255 / 68%);
-  font-size: 8px;
+  font-size: 11.5px;
 }
 
 .reference-page .merchant-wallet-meta span {
@@ -14519,15 +14577,51 @@ button.mh-app-card {
   }
 
   .reference-page .merchant-wallet-topline > span {
-    font-size: 13px;
+    font-size: 18.7px;
   }
 
   .reference-page .merchant-wallet-balance > span {
-    font-size: 12px;
+    font-size: 17.3px;
   }
 
   .reference-page .merchant-wallet-balance strong {
-    font-size: 40px;
+    font-size: 57.6px;
+  }
+
+  .reference-page .merchant-wallet-card .wallet-summary {
+    width: 100%;
+    max-width: none;
+    margin-top: 18px;
+    padding: 12px 8px;
+  }
+
+  .reference-page .merchant-wallet-card .wallet-summary button {
+    grid-template-columns: 46px minmax(0, 1fr);
+    column-gap: 12px;
+    min-height: 86px;
+    padding: 8px 14px;
+  }
+
+  .reference-page .merchant-wallet-card .wallet-summary .stat-icon {
+    width: 46px;
+    height: 46px;
+  }
+
+  .reference-page .merchant-wallet-card .wallet-summary .stat-icon svg {
+    width: 24px;
+    height: 24px;
+  }
+
+  .reference-page .merchant-wallet-card .wallet-summary small {
+    font-size: 15px;
+  }
+
+  .reference-page .merchant-wallet-card .wallet-summary strong {
+    font-size: 27px;
+  }
+
+  .reference-page .merchant-wallet-card .wallet-summary em {
+    font-size: 12px;
   }
 
   .reference-page .merchant-wallet-actions {
@@ -14542,12 +14636,12 @@ button.mh-app-card {
   }
 
   .reference-page .merchant-wallet-actions b {
-    font-size: 14px;
+    font-size: 16.8px;
   }
 
   .reference-page .merchant-wallet-actions small,
   .reference-page .merchant-wallet-meta {
-    font-size: 10px;
+    font-size: 14.4px;
   }
 }
 

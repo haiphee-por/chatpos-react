@@ -227,11 +227,10 @@ export function MerchantHome({
       </header>
       <div className="screen">
         <section className="home-hero reference-home">
-          <WalletHero store={displayStore} merchantId={merchantId} time={timeFormatted} isStoreOpen={displayStore.isActive} summary={home?.summary || null} isLoading={homeState.status === 'loading'} onNavigate={onNavigate} />
+          <WalletHero store={displayStore} merchantId={merchantId} time={timeFormatted} isStoreOpen={displayStore.isActive} summary={home?.summary || null} isLoading={homeState.status === 'loading'} />
         </section>
         <section className="home-content reference-content">
           <MainMenu home={home} onNavigate={onNavigate} />
-          <HomeSummary summary={home?.summary || null} isLoading={homeState.status === 'loading'} />
           <ChannelPanel />
           <RecentPayments />
           <SystemStatus homeState={homeState} notificationState={notificationState} />
@@ -270,7 +269,7 @@ function HomeLoadingState() {
   )
 }
 
-function WalletHero({ store, merchantId, time, isStoreOpen, summary, isLoading, onNavigate }: { store: DbStoreRow; merchantId: string | null; time: string; isStoreOpen: boolean; summary: DbHomeReadModel['summary'] | null; isLoading: boolean; onNavigate: (id: string) => void }) {
+function WalletHero({ store, merchantId, time, isStoreOpen, summary, isLoading }: { store: DbStoreRow; merchantId: string | null; time: string; isStoreOpen: boolean; summary: DbHomeReadModel['summary'] | null; isLoading: boolean }) {
   const [balanceVisible, setBalanceVisible] = useState(true)
   const balance = formatMoney(summary?.availableBalance ?? summary?.availableToWithdraw ?? 0, 'th')
 
@@ -284,10 +283,7 @@ function WalletHero({ store, merchantId, time, isStoreOpen, summary, isLoading, 
         <span>ยอดเงินพร้อมใช้</span>
         <div><strong>{isLoading ? '—' : balanceVisible ? balance : '••••••'}</strong><em>THB</em><button onClick={() => setBalanceVisible((visible) => !visible)} type="button" aria-label={balanceVisible ? 'ซ่อนยอดเงิน' : 'แสดงยอดเงิน'}>{balanceVisible ? <Eye size={18} /> : <EyeOff size={18} />}</button></div>
       </div>
-      <div className="merchant-wallet-actions">
-        <button onClick={() => onNavigate('payment')} onPointerDown={triggerButtonPress} type="button"><span><QrCode size={20} /></span><b>รับเงิน</b><small>สร้าง QR</small></button>
-        <button onClick={() => onNavigate('wallet')} onPointerDown={triggerButtonPress} type="button"><span><Banknote size={20} /></span><b>ถอนเงิน</b><small>เข้าบัญชีธนาคาร</small></button>
-      </div>
+      <HomeSummary summary={summary} isLoading={isLoading} variant="wallet" />
       <div className="merchant-wallet-meta"><span>{store.name || 'ร้านค้าของคุณ'}</span><span>{merchantId || 'Merchant'}</span><time>{time}</time></div>
     </section>
   )
@@ -472,7 +468,7 @@ function MerchantIdentityStrip({ store, merchantId, time }: { store: DbStoreRow;
   )
 }
 
-function HomeSummary({ summary, isLoading }: { summary: DbHomeReadModel['summary'] | null; isLoading: boolean }) {
+function HomeSummary({ summary, isLoading, variant = 'default' }: { summary: DbHomeReadModel['summary'] | null; isLoading: boolean; variant?: 'default' | 'wallet' }) {
   const values = [
     { label: 'ยอดรับวันนี้', value: summary?.receivedToday, unit: 'บาท', className: 'green', icon: Banknote },
     { label: 'เงินพร้อมถอน', value: summary?.availableToWithdraw, unit: 'บาท', className: 'blue', icon: WalletCards },
@@ -480,7 +476,7 @@ function HomeSummary({ summary, isLoading }: { summary: DbHomeReadModel['summary
   ]
 
   return (
-    <div className="summary-grid reference-summary" aria-label="สรุปยอดวันนี้">
+    <div className={`summary-grid reference-summary ${variant === 'wallet' ? 'wallet-summary' : ''}`} aria-label="สรุปยอดวันนี้">
       {values.map(({ label, value, unit, className, icon: Icon }) => (
         <button key={label} type="button">
           <span className={`stat-icon ${className}`}><Icon size={23} /></span>
