@@ -25,6 +25,14 @@ export type MerchantNavItem = {
   permission: 'merchant'
 }
 
+export type MerchantNavCapabilities = {
+  canViewBalance: boolean
+  canViewTransactions: boolean
+  canUseBenefits: boolean
+  canUseStopPay: boolean
+  canViewBilling: boolean
+}
+
 export const merchantNavItems: MerchantNavItem[] = [
   { id: 'home', label: 'หน้าหลัก', icon: LayoutDashboard, target: '/merchant/home', permission: 'merchant' },
   { id: 'pos', label: 'ขายหน้าร้าน (POS)', icon: CreditCard, target: '/merchant/pos', permission: 'merchant' },
@@ -46,6 +54,16 @@ export const merchantNavItems: MerchantNavItem[] = [
 ]
 
 export const merchantBottomNavIds = ['orders', 'tables', 'home', 'pos', 'settings'] as const
+
+export function isMerchantNavAllowed(id: string, capabilities: MerchantNavCapabilities | null) {
+  if (!capabilities) return true
+  if (id === 'wallet') return capabilities.canViewBalance
+  if (id === 'reports' || id === 'transactions') return capabilities.canViewTransactions
+  if (id === 'benefits') return capabilities.canUseBenefits
+  if (id === 'stoppay') return capabilities.canUseStopPay
+  if (id === 'billing') return capabilities.canViewBilling
+  return true
+}
 
 export function isMerchantNavId(id: string): id is MerchantNavItem['id'] {
   return merchantNavItems.some((item) => item.id === id)

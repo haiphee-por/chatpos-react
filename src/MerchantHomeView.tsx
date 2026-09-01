@@ -46,7 +46,7 @@ import {
   type DbStoreRow,
   type DbTransactionRow,
 } from './dbApi'
-import { getMerchantNavItem, isMerchantBottomNavActive, merchantBottomNavIds, merchantNavItems, type MerchantNavItem } from './merchantNavigation'
+import { getMerchantNavItem, isMerchantBottomNavActive, isMerchantNavAllowed, merchantBottomNavIds, merchantNavItems, type MerchantNavCapabilities, type MerchantNavItem } from './merchantNavigation'
 
 type HomeLanguage = 'th' | 'en' | 'zh'
 type LoadStatus = 'loading' | 'ready' | 'empty' | 'error'
@@ -779,8 +779,8 @@ function NotificationDrawer({
   )
 }
 
-export function MerchantBottomNavigation({ active, onNavigate }: { active: string; onNavigate: (id: string) => void }) {
-  const items = merchantBottomNavIds.map((id) => getMerchantNavItem(id))
+export function MerchantBottomNavigation({ active, onNavigate, capabilities = null }: { active: string; onNavigate: (id: string) => void; capabilities?: MerchantNavCapabilities | null }) {
+  const items = merchantBottomNavIds.filter((id) => isMerchantNavAllowed(id, capabilities)).map((id) => getMerchantNavItem(id))
   const labels: Record<string, string> = {
     orders: 'ออเดอร์',
     tables: 'จัดการโต๊ะ',

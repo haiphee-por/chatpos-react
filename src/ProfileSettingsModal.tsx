@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { Bell, Camera, CheckCircle2, KeyRound, Shield, Store, User, X, Key, RefreshCw, Server, AlertCircle, Code, Copy, Check } from 'lucide-react'
-import { getStoredApiKey, setStoredApiKey, fetchBalance, createTransactionCommand, checkTransactionStatus, authenticateApi, createPayout, transactionQrImageUrl } from './chatposApi'
+import { getStoredApiKey, setStoredApiKey, fetchBalance, createTransactionCommand, checkTransactionStatus, authenticateApi, transactionQrImageUrl } from './chatposApi'
 import { getStoredUser } from './dbApi'
 
 export type ProfileData = {
@@ -127,7 +127,7 @@ export function ProfileSettingsModal({
 
   const handleSaveProfile = (e: React.FormEvent) => {
     e.preventDefault()
-    setToastMessage('บันทึกข้อมูลโปรไฟล์เรียบร้อยแล้ว! ✨')
+    setToastMessage('การบันทึกโปรไฟล์ยังไม่พร้อมใช้งาน กรุณาใช้ Merchant profile API ที่ผ่าน server integration')
     setTimeout(() => setToastMessage(null), 2500)
   }
 
@@ -143,10 +143,7 @@ export function ProfileSettingsModal({
     }
 
     setPasswordError(null)
-    setCurrentPassword('')
-    setNewPassword('')
-    setConfirmPassword('')
-    setToastMessage('เปลี่ยนรหัสผ่านใหม่เรียบร้อยแล้ว! 🔒')
+    setToastMessage('การเปลี่ยนรหัสผ่านยังไม่พร้อมใช้งานในหน้านี้')
     setTimeout(() => setToastMessage(null), 2500)
   }
 
@@ -182,10 +179,7 @@ export function ProfileSettingsModal({
       } else if (selectedEndpoint === 'auth') {
         data = await authenticateApi({}, keyToUse)
       } else if (selectedEndpoint === 'create_payout') {
-        data = await createPayout({
-          amount: Number(paramAmount) || 500,
-          remark: 'คำขอถอนเงิน / Payout Test'
-        }, keyToUse)
+        throw new Error('Payout ยังไม่พร้อมใช้งาน: ต้องรอ withdrawal และ provider reconciliation contract')
       }
 
       setApiResult(data)
@@ -550,7 +544,7 @@ export function ProfileSettingsModal({
                     </button>
                   )}
                 </div>
-                <small className="muted-text">คีย์นี้จะถูกเก็บไว้อย่างปลอดภัยในเบราว์เซอร์ของคุณ และใช้ใน Authorization Header (`Bearer ...`)</small>
+                <small className="muted-text">คีย์นี้ใช้เฉพาะคำขอทดสอบใน session นี้ ไม่ถูกบันทึกใน browser; production secret ต้องอยู่ใน server-side secret manager</small>
               </div>
 
               <div className="broadcast-footer" style={{ borderTop: 'none', padding: 0, marginTop: 4 }}>
@@ -583,8 +577,8 @@ export function ProfileSettingsModal({
                   <option value="balance">GET /api/v1/balance (Check account balance)</option>
                   <option value="create_qr">POST /api/v1/transactions (Create routed transaction)</option>
                   <option value="check_payment">GET /api/v1/transactions/&#123;reference&#125; (Check payment status)</option>
-                  <option value="auth">POST /api/v1/auth (Authenticate & get token)</option>
-                  <option value="create_payout">POST /api/v1/payouts (Create withdrawal/payout)</option>
+                  <option value="auth" disabled>POST /api/v1/auth (deprecated)</option>
+                  <option value="create_payout" disabled>POST /api/v1/payouts (ยังไม่พร้อมใช้งาน)</option>
                 </select>
               </div>
 
@@ -753,7 +747,7 @@ export function ProfileSettingsModal({
                 type="button"
                 className="primary-button"
                 onClick={() => {
-                  setToastMessage('ตั้งค่าการแจ้งเตือนเรียบร้อยแล้ว!')
+                  setToastMessage('การตั้งค่าการแจ้งเตือนยังไม่พร้อมบันทึก เพราะยังไม่มี Merchant preference API')
                   setTimeout(() => setToastMessage(null), 2000)
                 }}
               >

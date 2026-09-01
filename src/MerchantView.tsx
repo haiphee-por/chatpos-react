@@ -2,10 +2,10 @@ import { useState, useEffect } from 'react'
 import { ProfileSettingsModal } from './ProfileSettingsModal'
 import { MerchantKycView } from './MerchantKycView'
 import { DeveloperConsoleView } from './DeveloperConsoleView'
-import { createDbProduct, fetchDbAssignments, fetchDbProducts, fetchDbProductsResult, fetchDbStoresResult, fetchDbTransactionsResult, updateDbProduct, clearStoredUser, getStoredUser, logoutUser, type AuthUser, type DbAssignmentRow, type DbProductRow, type DbStoreRow, type DbTransactionRow } from './dbApi'
+import { createDbProduct, fetchDbAssignments, fetchDbHomeResult, fetchDbProducts, fetchDbProductsResult, fetchDbStoresResult, fetchDbTransactionsResult, updateDbProduct, clearStoredUser, getStoredUser, logoutUser, type AuthUser, type DbAssignmentRow, type DbHomeReadModel, type DbProductRow, type DbStoreRow, type DbTransactionRow } from './dbApi'
 import { MerchantHome as MerchantHomeDashboard, MerchantBottomNavigation, type StoreLoadState } from './MerchantHomeView'
 import { QuickPayView as RoutedQuickPayView } from './QuickPayView'
-import { getMerchantNavItem, isMerchantNavId, merchantNavIdFromLocation, merchantNavItems } from './merchantNavigation'
+import { getMerchantNavItem, isMerchantNavAllowed, isMerchantNavId, merchantNavIdFromLocation, merchantNavItems, type MerchantNavCapabilities } from './merchantNavigation'
 import { generatePromptPayQrDataUrl, generateUrlQrDataUrl, getStoredPromptPayId, setStoredPromptPayId } from './promptpay'
 import { checkTransactionStatus, createTransactionCommand, quickPayMethodToChannel, transactionQrImageUrl } from './chatposApi'
 import {
@@ -297,6 +297,7 @@ export function MerchantView({ currentUser }: { currentUser: AuthUser | null }) 
   const [selectedStore, setSelectedStore] = useState<DbStoreRow | null>(null)
   const [availableStores, setAvailableStores] = useState<DbStoreRow[]>([])
   const [storeState, setStoreState] = useState<StoreLoadState>({ status: 'loading', error: null, fetchedAt: null })
+  const [merchantCapabilities, setMerchantCapabilities] = useState<MerchantNavCapabilities | null>(null)
 
   const loadStores = async () => {
     setStoreState((previous) => ({ ...previous, status: 'loading', error: null }))
@@ -320,6 +321,28 @@ export function MerchantView({ currentUser }: { currentUser: AuthUser | null }) 
   useEffect(() => {
     loadStores()
   }, [currentUser])
+
+  useEffect(() => {
+    let active = true
+    if (!selectedStore?.id) {
+      setMerchantCapabilities(null)
+      return () => { active = false }
+    }
+    fetchDbHomeResult(selectedStore.id).then((result) => {
+      if (!active) return
+      const capabilities = result.data?.capabilities
+      setMerchantCapabilities(capabilities ? {
+        canViewBalance: capabilities.canViewBalance,
+        canViewTransactions: capabilities.canViewTransactions,
+        canUseBenefits: capabilities.canUseBenefits,
+        canUseStopPay: capabilities.canUseStopPay,
+        canViewBilling: capabilities.canViewBilling,
+      } : null)
+    }).catch(() => {
+      if (active) setMerchantCapabilities(null)
+    })
+    return () => { active = false }
+  }, [selectedStore?.id])
 
   const handleStoreChange = (storeId: string) => {
     const nextStore = availableStores.find((store) => store.id === storeId)
@@ -373,6 +396,8 @@ export function MerchantView({ currentUser }: { currentUser: AuthUser | null }) 
   }, [])
 
   const current = navItems.find((item) => item.id === active) ?? navItems[0]
+  const visibleNavItems = navItems.filter((item) => isMerchantNavAllowed(item.id, merchantCapabilities))
+  const activeNavAllowed = isMerchantNavAllowed(active, merchantCapabilities)
   const navigate = (id: string) => {
     if (!isMerchantNavId(id)) return
     const target = getMerchantNavItem(id).target
@@ -409,7 +434,7 @@ export function MerchantView({ currentUser }: { currentUser: AuthUser | null }) 
         <button className="merchant-store-settings" onClick={() => setProfileModalOpen(true)} type="button" aria-label="เปิดการตั้งค่าร้านค้า"><ChevronRight size={15} /></button>
       </div>
       <nav>
-        {navItems.map(({ id, label, icon: NavIcon, target }) => (
+        {visibleNavItems.map(({ id, label, icon: NavIcon, target }) => (
           <a
             className={active === id ? 'active' : ''}
             href={target}
@@ -503,6 +528,8 @@ export function MerchantView({ currentUser }: { currentUser: AuthUser | null }) 
               onOpenProfile={() => setProfileModalOpen(true)}
               onLogout={handleLogout}
             />
+          ) : !activeNavAllowed ? (
+            <MerchantUnavailableSection label={current.label} />
           ) : active === 'pos' ? (
             <PosView onNavigate={navigate} />
           ) : active === 'payment' ? (
@@ -520,9 +547,9 @@ export function MerchantView({ currentUser }: { currentUser: AuthUser | null }) 
           ) : active === 'tables' ? (
             <MerchantSection active={active} label={current.label} />
           ) : active === 'reports' ? (
-            <ReportsView />
+            <MerchantFinanceView mode="reports" storeId={selectedStore?.id || currentUser?.store?.id || null} onNavigate={navigate} />
           ) : active === 'wallet' ? (
-            <WalletView />
+            <MerchantFinanceView mode="wallet" storeId={selectedStore?.id || currentUser?.store?.id || null} onNavigate={navigate} />
           ) : active === 'kyc' ? (
             <MerchantKycView storeId={selectedStore?.id || currentUser?.store?.id || null} />
           ) : active === 'developer' ? (
@@ -591,7 +618,7 @@ export function MerchantView({ currentUser }: { currentUser: AuthUser | null }) 
             <span>ตั้งค่า</span>
           </button>
         </nav>}
-        <MerchantBottomNavigation active={active} onNavigate={navigate} />
+        <MerchantBottomNavigation active={active} onNavigate={navigate} capabilities={merchantCapabilities} />
       </div>
 
       {/* Full-Screen Notifications Overlay (Root Portal Level) */}
@@ -3877,6 +3904,18 @@ function MerchantSection({ active, label }: { active: string; label: string }) {
       <div className="merchant-demo-note">
         <Checkmark /> {isUnavailable ? 'ยังไม่พร้อมใช้งาน: ต้องมี Table/Order API และ persistence ของ Store ก่อน' : 'หน้านี้พร้อมต่อเข้ากับ workflow จาก apps/merchant และ API จริง'}
       </div>
+    </section>
+  )
+}
+
+function MerchantUnavailableSection({ label }: { label: string }) {
+  return (
+    <section className="merchant-placeholder" role="status">
+      <div className="merchant-placeholder-icon"><ShieldAlert size={28} /></div>
+      <p className="merchant-eyebrow">MERCHANT CAPABILITY</p>
+      <h2>{label} ยังไม่พร้อมใช้งาน</h2>
+      <p>บัญชีหรือ Store นี้ยังไม่มี capability สำหรับข้อมูลส่วนนี้</p>
+      <div className="merchant-demo-note"><Checkmark /> ตรวจสอบสิทธิ์กับผู้ดูแลระบบหรือกลับไปยังหน้าหลัก</div>
     </section>
   )
 }
@@ -8897,6 +8936,97 @@ function QuickPayView() {
 /* ==========================================================================
    3. REPORTS VIEW (รายงานการเงิน & วิเคราะห์ยอดขาย)
    ========================================================================== */
+function MerchantFinanceView({ mode, storeId, onNavigate }: { mode: 'reports' | 'wallet'; storeId: string | null; onNavigate: (id: string) => void }) {
+  const [home, setHome] = useState<DbHomeReadModel | null>(null)
+  const [transactions, setTransactions] = useState<DbTransactionRow[]>([])
+  const [state, setState] = useState<'loading' | 'ready' | 'empty' | 'error'>(storeId ? 'loading' : 'empty')
+  const [error, setError] = useState('')
+
+  const load = async () => {
+    if (!storeId) {
+      setHome(null)
+      setTransactions([])
+      setState('empty')
+      return
+    }
+    setState('loading')
+    setError('')
+    const [homeResult, transactionResult] = await Promise.all([
+      fetchDbHomeResult(storeId),
+      fetchDbTransactionsResult({ storeId, limit: 20 }),
+    ])
+    if (homeResult.error && transactionResult.error) {
+      setState('error')
+      setError(homeResult.error)
+      return
+    }
+    setHome(homeResult.data)
+    setTransactions(transactionResult.error ? [] : transactionResult.data)
+    setState(homeResult.data || !transactionResult.error ? 'ready' : 'empty')
+    if (homeResult.error || transactionResult.error) setError(homeResult.error || transactionResult.error || '')
+  }
+
+  useEffect(() => {
+    let active = true
+    const run = async () => {
+      if (!storeId) {
+        if (active) {
+          setHome(null)
+          setTransactions([])
+          setState('empty')
+        }
+        return
+      }
+      setState('loading')
+      setError('')
+      const [homeResult, transactionResult] = await Promise.all([
+        fetchDbHomeResult(storeId),
+        fetchDbTransactionsResult({ storeId, limit: 20 }),
+      ])
+      if (!active) return
+      if (homeResult.error && transactionResult.error) {
+        setState('error')
+        setError(homeResult.error)
+        return
+      }
+      setHome(homeResult.data)
+      setTransactions(transactionResult.error ? [] : transactionResult.data)
+      setState(homeResult.data || !transactionResult.error ? 'ready' : 'empty')
+      if (homeResult.error || transactionResult.error) setError(homeResult.error || transactionResult.error || '')
+    }
+    void run()
+    return () => { active = false }
+  }, [storeId])
+
+  const canViewBalance = home?.capabilities.canViewBalance === true
+  const canViewTransactions = home?.capabilities.canViewTransactions === true
+  const summary = home?.summary
+  const amount = (value: string | null | undefined, allowed = true) => {
+    if (!allowed) return 'ไม่มีสิทธิ์'
+    if (value === null || value === undefined) return 'ยังไม่พร้อม'
+    const numeric = Number(value)
+    return Number.isFinite(numeric) ? `฿${numeric.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : 'ยังไม่พร้อม'
+  }
+
+  if (!storeId || state === 'empty') return <section className="merchant-placeholder"><div className="merchant-placeholder-icon"><WalletCards size={28} /></div><p className="merchant-eyebrow">{mode === 'wallet' ? 'WALLET' : 'REPORTS'}</p><h2>ยังไม่มีข้อมูล Store</h2><p>เลือก Store ที่มีสิทธิ์เข้าถึงเพื่อดูข้อมูลการเงิน</p></section>
+  if (state === 'loading') return <section className="merchant-finance-view"><div className="merchant-transaction-state" aria-busy="true"><RefreshCw size={24} className="spin" /><span>กำลังโหลดข้อมูลการเงิน</span></div></section>
+
+  return (
+    <section className="merchant-finance-view" aria-labelledby="merchant-finance-title">
+      <div className="merchant-heading"><div><p className="merchant-eyebrow">{mode === 'wallet' ? 'WALLET' : 'REPORTS'}</p><h2 id="merchant-finance-title">{mode === 'wallet' ? 'กระเป๋าเงินร้านค้า' : 'รายงานการเงิน'}</h2><p>ข้อมูลจาก PostgreSQL ของ Store ที่กำลังใช้งาน</p></div><button className="merchant-secondary" type="button" onClick={() => { void load() }} disabled={state === 'loading'}><RefreshCw size={15} /> รีเฟรช</button></div>
+      {error && <div className="merchant-data-alert" role="status"><ShieldAlert size={18} /><span>{error} ข้อมูลบางส่วนอาจไม่สด</span><button type="button" onClick={() => { void load() }}><RefreshCw size={14} /> ลองใหม่</button></div>}
+      <div className="merchant-finance-metrics">
+        <article><span>ยอดรับวันนี้</span><strong>{amount(summary?.todayNetAmount, canViewBalance)}</strong><small>{summary?.todayTransactionCount ?? '—'} รายการ</small></article>
+        <article><span>ค่าธรรมเนียมวันนี้</span><strong>{amount(summary?.todayFeeAmount, canViewBalance)}</strong><small>จากข้อมูลธุรกรรมที่ยืนยันแล้ว</small></article>
+        <article><span>ยอดค้างดำเนินการ</span><strong>{amount(summary?.pendingNetAmount, canViewBalance)}</strong><small>{summary?.pendingTransactionCount ?? '—'} รายการ</small></article>
+        <article><span>{mode === 'wallet' ? 'ยอดเงินพร้อมใช้' : 'ยอดสุทธิวันนี้'}</span><strong>{mode === 'wallet' ? amount(summary?.availableBalance, canViewBalance && summary?.balanceStatus === 'available') : amount(summary?.todayNetAmount, canViewBalance)}</strong><small>{home?.freshness.asOf ? `ข้อมูล ณ ${new Date(home.freshness.asOf).toLocaleString('th-TH')}` : 'ยังไม่มีเวลาอ้างอิง'}</small></article>
+      </div>
+      {mode === 'wallet' && <section className="merchant-unavailable-panel"><ShieldAlert size={20} /><div><strong>การถอนเงินยังไม่พร้อมใช้งาน</strong><p>Withdrawal/payout ต้องผ่าน KYC, OTP, provider result และ reconciliation ก่อนเปิดใช้งาน</p></div><button type="button" disabled>ยังไม่พร้อม</button></section>}
+      <section className="merchant-finance-transactions"><div className="merchant-panel-heading"><div><h3>รายการธุรกรรมล่าสุด</h3><p>{canViewTransactions ? 'อ่านจาก Transaction API ของ Store นี้' : 'บัญชีนี้ไม่มีสิทธิ์ดูรายการธุรกรรม'}</p></div><button className="merchant-link" type="button" onClick={() => onNavigate('transactions')} disabled={!canViewTransactions}>ดูทั้งหมด</button></div>{canViewTransactions && transactions.length > 0 ? <div className="merchant-finance-list">{transactions.slice(0, 5).map((transaction) => <div className="merchant-finance-row" key={transaction.id}><span><strong>{transaction.reference}</strong><small>{transaction.paymentMethod || transaction.channel || '—'} · {new Date(transaction.occurredAt || transaction.createdAt).toLocaleString('th-TH')}</small></span><b>฿{Number(transaction.amount).toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</b><em>{transactionStatusLabel(transaction.status)}</em></div>)}</div> : <div className="merchant-transaction-state"><ReceiptText size={28} /><strong>{canViewTransactions ? 'ยังไม่มีธุรกรรม' : 'ไม่มีสิทธิ์ดูรายการธุรกรรม'}</strong></div>}</section>
+    </section>
+  )
+}
+
 function ReportsView() {
   return (
     <div className="reports-view">

@@ -125,12 +125,12 @@ Reference bottom navigation ใช้ `orders`, `tables`, `home`, `pos` แล�
 
 #### M6: Account และ supporting surfaces
 
-- [~] ปรับ settings, profile, notification preferences และ integration entry ให้สอดคล้องกับ reference
-- [ ] เชื่อม wallet, revenue, billing และ reports กับ source ที่ Finance/Payment owner ยืนยัน
-- [ ] คง withdraw เป็น unavailable/feature-gated จนกว่า withdrawal, OTP, provider result และ reconciliation พร้อม
-- [ ] แสดงหรือซ่อนเมนูตาม capability จาก server ไม่ใช้การซ่อนปุ่มเป็น authorization
-- [ ] ตรวจไม่ให้ bearer secret, signing secret, webhook secret, token หรือ PII อยู่ใน browser storage/URL/log
-- [ ] ทดสอบ role, capability, feature flag, session expiry และ server error ของ supporting surfaces
+- [~] ปรับ settings, profile, notification preferences และ integration entry ให้สอดคล้องกับ reference; notification ใช้ API จริง, profile/password/preference save ที่ยังไม่มี persistence แสดง unavailable และ integration tester ไม่เปิด auth/payout prototype เป็น action พร้อมใช้
+- [~] เชื่อม wallet, revenue, billing และ reports กับ source ที่ Finance/Payment owner ยืนยัน; `MerchantFinanceView` ใช้ Store-scoped Home/Transaction read model แล้ว แต่ billing และ balance ledger sign-off ยังไม่ครบ
+- [~] คง withdraw เป็น unavailable/feature-gated จนกว่า withdrawal, OTP, provider result และ reconciliation พร้อม; wallet UI และ integration tester กั้น action แล้ว แต่ `/api/v1/payouts` prototype ยังต้อง readiness gate ฝั่ง server
+- [x] แสดงหรือซ่อนเมนูตาม capability จาก server ไม่ใช้การซ่อนปุ่มเป็น authorization; sidebar, bottom navigation และ direct route ใช้ policy จาก Home API
+- [~] ตรวจไม่ให้ bearer secret, signing secret, webhook secret, token หรือ PII อยู่ใน browser storage/URL/log; API key storage ถูก no-op, payout tester ถูกกั้น และ finance surface ไม่ expose secret แต่ยังต้อง security scan/evidence ครบทุก surface
+- [~] ทดสอบ role, capability, feature flag, session expiry และ server error ของ supporting surfaces; source มี state/guard แล้ว แต่ยังต้อง browser/API evidence
 
 **M6 เสร็จเมื่อ:** settings และ supporting surfaces มี owner/permission/data source ชัดเจน และ feature ที่ backend ยังไม่พร้อมไม่แสดงเป็นสำเร็จ
 
