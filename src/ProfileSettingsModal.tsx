@@ -23,10 +23,10 @@ export type ProfileData = {
 const defaultProfiles: Record<string, ProfileData> = {
   admin: {
     role: 'admin',
-    name: 'Admin Demo (ผู้ดูแลระบบ)',
+    name: '',
     title: 'HQ System Administrator',
-    email: 'admin@chatpos.com',
-    phone: '081-234-5678',
+    email: '',
+    phone: '',
     avatarUrl: '/mascot/nabtang_holding_gold.png',
     lineNotify: true,
     emailNotify: true,
@@ -34,10 +34,10 @@ const defaultProfiles: Record<string, ProfileData> = {
   },
   pd: {
     role: 'pd',
-    name: 'คุณวิชัย เจริญกิจ',
-    title: 'Partner Director (PD เชียงใหม่)',
-    email: 'to@chatpos.com',
-    phone: '081-998-8776',
+    name: '',
+    title: 'Partner Director (PD)',
+    email: '',
+    phone: '',
     avatarUrl: '/mascot/nabtang_presenting.png',
     lineNotify: true,
     emailNotify: true,
@@ -45,10 +45,10 @@ const defaultProfiles: Record<string, ProfileData> = {
   },
   agent: {
     role: 'agent',
-    name: 'คุณพงศกร ขยายทรัพย์',
-    title: 'ตัวแทนขยายร้านค้า (Agent AG-204)',
-    email: 'ag@chatpos.com',
-    phone: '089-456-1122',
+    name: '',
+    title: 'ตัวแทนขยายร้านค้า (Agent)',
+    email: '',
+    phone: '',
     avatarUrl: '/mascot/nabtang_analytics.png',
     lineNotify: true,
     emailNotify: false,
@@ -56,15 +56,15 @@ const defaultProfiles: Record<string, ProfileData> = {
   },
   merchant: {
     role: 'merchant',
-    name: 'ไก่ย่าง',
+    name: '',
     title: 'เจ้าของร้าน (Merchant Owner)',
-    email: 'ikkyu307@gmail.com',
-    phone: '082-345-6789',
+    email: '',
+    phone: '',
     avatarUrl: '/mascot/pos_1_front.png',
-    storeName: 'สาขาใหญ่',
-    promptPayId: '082-345-6789',
-    bankName: 'ธนาคารกสิกรไทย (KBANK)',
-    bankAccount: '045-2-99812-4',
+    storeName: '',
+    promptPayId: '',
+    bankName: '',
+    bankAccount: '',
     lineNotify: true,
     emailNotify: true,
     twoFactor: false
@@ -508,6 +508,15 @@ export function ProfileSettingsModal({
         {/* TAB 3: ChatPOS API Key Integration & Tester */}
         {activeTab === 'api' && (
           <div className="profile-form">
+            {process.env.NODE_ENV === 'production' ? (
+              <div className="api-result-box" role="status">
+                <div className="api-result-header">
+                  <AlertCircle size={18} />
+                  <strong>Integration Tester ยังไม่พร้อมใช้งานใน Production</strong>
+                </div>
+                <p>การทดสอบ API ที่ใช้ Bearer credential ต้องทำจาก server-side integration หรือ environment สำหรับ development/test เท่านั้น</p>
+              </div>
+            ) : <>
             <form onSubmit={handleSaveApiKey} className="api-key-config-section">
               <div className="api-header-info">
                 <div className="api-icon-badge">
@@ -701,6 +710,7 @@ export function ProfileSettingsModal({
 {generateCodeSnippet()}
               </pre>
             </div>
+            </>}
           </div>
         )}
 

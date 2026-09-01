@@ -197,6 +197,7 @@ function speakBalance(amount: string) {
 }
 
 const navItems = merchantNavItems
+const allowDemoMerchantSurfaces = process.env.NODE_ENV !== 'production'
 
 export type CatalogItem = {
   id: string
@@ -531,17 +532,17 @@ export function MerchantView({ currentUser }: { currentUser: AuthUser | null }) 
           ) : !activeNavAllowed ? (
             <MerchantUnavailableSection label={current.label} />
           ) : active === 'pos' ? (
-            <PosView onNavigate={navigate} />
+            allowDemoMerchantSurfaces ? <PosView onNavigate={navigate} /> : <MerchantUnavailableSection label="POS" reason="POS production API ยังไม่พร้อมใช้งาน" />
           ) : active === 'payment' ? (
             <RoutedQuickPayView storeName={displayStoreName} />
           ) : active === 'products' ? (
             <ProductsView storeId={selectedStore?.id || currentUser?.store?.id || null} />
           ) : active === 'services' ? (
-            <ServicesView />
+            allowDemoMerchantSurfaces ? <ServicesView /> : <MerchantUnavailableSection label="คิวและบริการ" reason="Service/availability persistence ยังไม่พร้อมใช้งาน" />
           ) : active === 'salespage' ? (
-            <SalesPageView />
+            allowDemoMerchantSurfaces ? <SalesPageView /> : <MerchantUnavailableSection label="เซลเพจ" reason="Sales page persistence ยังไม่พร้อมใช้งาน" />
           ) : active === 'orders' ? (
-            <OrdersView onNavigate={navigate} />
+            allowDemoMerchantSurfaces ? <OrdersView onNavigate={navigate} /> : <MerchantUnavailableSection label="ออเดอร์" reason="Order API/persistence ยังไม่พร้อมใช้งาน" />
           ) : active === 'transactions' ? (
             <TransactionsView storeId={selectedStore?.id || currentUser?.store?.id || null} onNavigate={navigate} />
           ) : active === 'tables' ? (
@@ -3908,14 +3909,14 @@ function MerchantSection({ active, label }: { active: string; label: string }) {
   )
 }
 
-function MerchantUnavailableSection({ label }: { label: string }) {
+function MerchantUnavailableSection({ label, reason = 'บัญชีหรือ Store นี้ยังไม่มี capability สำหรับข้อมูลส่วนนี้' }: { label: string; reason?: string }) {
   return (
     <section className="merchant-placeholder" role="status">
       <div className="merchant-placeholder-icon"><ShieldAlert size={28} /></div>
       <p className="merchant-eyebrow">MERCHANT CAPABILITY</p>
       <h2>{label} ยังไม่พร้อมใช้งาน</h2>
-      <p>บัญชีหรือ Store นี้ยังไม่มี capability สำหรับข้อมูลส่วนนี้</p>
-      <div className="merchant-demo-note"><Checkmark /> ตรวจสอบสิทธิ์กับผู้ดูแลระบบหรือกลับไปยังหน้าหลัก</div>
+      <p>{reason}</p>
+      <div className="merchant-demo-note"><Checkmark /> ตรวจสอบ capability, data owner หรือกลับไปยังหน้าหลัก</div>
     </section>
   )
 }

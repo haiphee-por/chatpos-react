@@ -417,6 +417,8 @@ API ปัจจุบันมี `GET /api/db/kyc` และ `POST /api/db/kyc
 
 ข้อมูล operational prototype หลายรายการยังเก็บใน `localStorage` และ sync ระหว่างหน้าด้วย `storage` event จึงไม่ใช่ authority สำหรับระบบหลายผู้ใช้หรือ production. Session, API authorization และ integration secret ไม่อยู่ใน localStorage
 
+Production path จะไม่ render seeded business data จาก POS, orders, services หรือ sales page ที่ยังไม่มี server persistence; route เหล่านี้แสดง unavailable state พร้อมเหตุผลแทน ส่วน public catalog ที่ไม่มี published sales page จริงจะไม่ fallback ไป `defaultProductsCatalog`. Mock/seeded data ยังคงใช้ได้เฉพาะ development/demo/test ที่ระบุ environment ชัดเจน. Merchant layout ใช้ overflow guard, keyboard focus styles และ `prefers-reduced-motion`; ต้องตรวจ screenshot และ browser evidence เพิ่มก่อน release
+
 ### Account และ supporting surfaces
 
 สถานะปัจจุบันของ surface ที่อ้างอิงจาก UI reference มีดังนี้:

@@ -136,13 +136,13 @@ Reference bottom navigation ใช้ `orders`, `tables`, `home`, `pos` แล�
 
 #### M7: Release parity และ mock removal
 
-- [ ] ลบ seeded/fake business data จาก production path หรือกั้นไว้เฉพาะ demo/test environment
-- [ ] ตรวจ visual parity, text overflow, contrast, keyboard focus, screen reader label และ reduced motion
-- [ ] ตรวจ responsive ที่ 390px, 430px, tablet และ desktop โดยไม่มี horizontal overflow หรือ bottom-nav overlap
+- [~] ลบ seeded/fake business data จาก production path หรือกั้นไว้เฉพาะ demo/test environment; POS/orders/services/salespage ใน Merchant portal และ public catalog ที่ไม่มี published sales page ถูกกั้นใน production แต่ยังมี legacy mock source ใน development code
+- [~] ตรวจ visual parity, text overflow, contrast, keyboard focus, screen reader label และ reduced motion; เพิ่ม overflow guard, focus semantics และ global reduced-motion rule แล้ว แต่ยังรอ visual QA evidence
+- [~] ตรวจ responsive ที่ 390px, 430px, tablet และ desktop โดยไม่มี horizontal overflow หรือ bottom-nav overlap; เพิ่ม layout constraints/safe-area แล้ว แต่ยังรอ browser evidence
 - [ ] เพิ่ม browser E2E สำหรับ menu navigation, Home, payment, transactions, orders, products และ settings
-- [ ] เพิ่ม permission/Store isolation, retry/idempotency และ session expiry evidence
-- [ ] ตรวจ console/log/network/localStorage ไม่รั่ว secret, payment data หรือ restricted PII
-- [ ] จัดทำ rollout, rollback, monitoring, alert owner และ support evidence ก่อนเปิด feature
+- [~] เพิ่ม permission/Store isolation, retry/idempotency และ session expiry evidence; server-side capability/Store guards และ payment/product idempotency มีแล้ว แต่ยังรอ browser/API evidence ครบทุก route
+- [~] ตรวจ console/log/network/localStorage ไม่รั่ว secret, payment data หรือ restricted PII; production API tester, demo profile PII และ payout action ถูกกั้นแล้ว แต่ยังต้อง security scan/evidence ครบทุก surface
+- [~] จัดทำ rollout, rollback, monitoring, alert owner และ support evidence ก่อนเปิด feature; runbook/feature gates มีแล้ว แต่ยังต้อง release owner และ staging evidence
 
 **M7 เสร็จเมื่อ:** production path ไม่มี mock authority, มี automated/browser evidence และ Product, Design, Frontend, Backend, QA กับ Security/Compliance ลงชื่อใน scope ที่เกี่ยวข้อง
 

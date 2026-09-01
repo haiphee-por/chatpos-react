@@ -251,6 +251,19 @@ export function CatalogPageView() {
     return matchCategory && matchSearch
   })
 
+  if (process.env.NODE_ENV === 'production' && !salesPageData) {
+    return (
+      <main className="cat-page-wrapper cat-unavailable-state" aria-labelledby="catalog-unavailable-title">
+        <section className="cat-center-container">
+          <div className="cat-store-profile-card">
+            <h1 id="catalog-unavailable-title">หน้านี้ยังไม่พร้อมใช้งาน</h1>
+            <p>ยังไม่มีหน้าร้านหรือรายการสินค้าที่เผยแพร่สำหรับลิงก์นี้</p>
+          </div>
+        </section>
+      </main>
+    )
+  }
+
   return (
     <div className="cat-page-wrapper">
       {/* 1. Hero Cover Section */}

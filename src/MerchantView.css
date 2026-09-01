@@ -1,5 +1,7 @@
 .merchant-app {
   min-height: 100vh;
+  min-width: 0;
+  overflow-x: clip;
   background: #f3f8f6;
   color: #15322a;
 }
@@ -186,6 +188,7 @@
 
 .merchant-main {
   min-height: 100vh;
+  min-width: 0;
   margin-left: 252px;
 }
 
@@ -290,6 +293,7 @@
 
 .merchant-content {
   max-width: 1420px;
+  min-width: 0;
   margin: auto;
   padding: 32px 31px 48px;
 }
@@ -15050,6 +15054,15 @@ button.mh-app-card {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .merchant-app *,
+  .merchant-app *::before,
+  .merchant-app *::after {
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: .01ms !important;
+  }
+
   .reference-page button {
     transition: none;
   }
