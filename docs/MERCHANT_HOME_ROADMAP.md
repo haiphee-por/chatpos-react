@@ -91,34 +91,34 @@ Reference bottom navigation ใช้ `orders`, `tables`, `home`, `pos` แล�
 
 #### M3: Payment parity
 
-- [~] ปรับ keypad, amount card, payment tiles และ method picker ตาม reference ใน `QuickPayView.tsx`
-- [~] เชื่อม payment command ผ่าน `chatposApi.ts` และ server-side routing ตาม contract
-- [ ] รองรับ PromptPay QR, Hosted Checkout, `qrString`, `qrImageUrl`, `checkoutRedirectUrl` และ expiry ตาม response จริง
-- [ ] แสดง payment loading, timeout, provider error, cancelled, pending และ paid จาก server state เท่านั้น
-- [ ] Retry timeout ด้วย idempotency key/body เดิม และห้ามสร้าง payment ซ้ำจากการ double click
-- [ ] อัปเดต transaction status จาก webhook/query ไม่ใช้ seeded transaction หรือ local success state
+- [~] ปรับ keypad, amount card, payment tiles และ method picker ตาม reference ใน `QuickPayView.tsx`; visual comparison ยังรอ
+- [x] เชื่อม payment command ผ่าน `chatposApi.ts` และ server-side routing ตาม contract พร้อมส่งชื่อ Store จาก Merchant context
+- [x] รองรับ PromptPay QR, Hosted Checkout, `qrString`, `qrImageUrl`, `checkoutRedirectUrl` และ expiry ตาม response จริง
+- [x] แสดง payment loading, timeout, provider error, cancelled, pending และ paid จาก server state เท่านั้น
+- [x] Retry timeout ด้วย idempotency key/body เดิม และกัน payment ซ้ำจากการสร้าง key ใหม่ระหว่าง operation เดิม
+- [x] อัปเดต transaction status จาก query และผล webhook ที่ persist แล้ว ไม่ใช้ seeded transaction หรือ local success state
 - [ ] ทดสอบ payment success, failure, timeout, duplicate request, late webhook และ reconcile
 
 **M3 เสร็จเมื่อ:** Payment flow ทำงานผ่าน API/Backoffice จริง, retry ปลอดภัย, QR/checkout ใช้ได้ และสถานะใน UI ตรงกับ server
 
 #### M4: Operations parity
 
-- [ ] นำ transaction list, filter, status และ empty state จาก reference มาใช้กับ transaction API จริง
-- [ ] แยก transaction history ออกจาก order history ตามความหมายที่ Product/Finance ยืนยัน
+- [x] นำ transaction list, filter, status และ empty state จาก reference มาใช้กับ Store-scoped transaction API จริงใน `TransactionsView`
+- [x] แยก transaction history ออกจาก order history ด้วย route/view `transactions` และ `orders` คนละชุด
 - [ ] นำ order list/status action มาใช้กับ persisted order API และ authorization ของ Store
-- [ ] นำ table grid, table QR และ table order interaction มาใช้โดยมี server owner
+- [~] นำ table grid, table QR และ table order interaction มาใช้โดยมี server owner; มี route/placeholder แล้ว แต่ยังขาด Table/Order API และ persistence
 - [ ] ป้องกัน duplicate click, stale response และ mutation race ใน orders/tables
-- [ ] ทดสอบ loading, empty, error, retry, wrong Store และ permission denied ของทุก operations view
+- [~] ทดสอบ loading, empty, error, retry, wrong Store และ permission denied ของทุก operations view; TransactionsView มี state handling แล้ว แต่ยังไม่มี browser/API evidence และ orders/tables ยังไม่พร้อม
 
 **M4 เสร็จเมื่อ:** transactions, orders และ tables ไม่พึ่ง mock/localStorage เป็น business authority และ mutation/read state แยกกันถูกต้อง
 
 #### M5: Catalog และ services parity
 
-- [~] ปรับ product table, category filter, stock state, image preview และ edit modal ตาม reference
-- [~] ใช้ `Product` API/ฐานข้อมูลเป็น authority ของสินค้า; localStorage เหลือเฉพาะ unsaved draft
+- [~] ปรับ product table, category filter, stock state, image preview และ edit modal ตาม reference; Product table, loading/error/empty state และ edit modal ใช้งานแล้ว แต่ visual comparison ยังรอ
+- [~] ใช้ `Product` API/ฐานข้อมูลเป็น authority ของสินค้า; `ProductsView` ใช้ Store-scoped API จริงแล้ว แต่ POS/CatalogPage และ category/service state บางส่วนยังเป็น transitional localStorage
 - [ ] กำหนดและ implement service/availability persistence สำหรับ services และ booking
-- [ ] ตรวจ ownership, validation, price/status history และ audit ของ product/service mutation
-- [ ] ทำ image upload/preview/error state โดยไม่เก็บไฟล์ธุรกิจเป็น mock base64 ใน production record
+- [~] ตรวจ ownership, validation, price/status history และ audit ของ product/service mutation; Product create/update มี Store scope, validation, audit และ optimistic `updatedAt` conflict แล้ว แต่ price/status history และ service mutation ยังไม่มี
+- [~] ทำ image upload/preview/error state โดยไม่เก็บไฟล์ธุรกิจเป็น mock base64 ใน production record; ตอนนี้รับเฉพาะ URL/path, ปฏิเสธ `data:` และมี preview แต่ยังไม่มี private upload/storage adapter หรือ failed-upload evidence
 - [ ] ทดสอบข้าม device, refresh, concurrent edit, invalid price/stock และ failed upload
 
 **M5 เสร็จเมื่อ:** ข้อมูลสินค้าและบริการที่บันทึกแล้วอยู่ข้าม device, มี validation/ownership และ localStorage ไม่ใช่แหล่งข้อมูลหลัก

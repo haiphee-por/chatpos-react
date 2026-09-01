@@ -2,8 +2,9 @@ import { useState, useEffect } from 'react'
 import { ProfileSettingsModal } from './ProfileSettingsModal'
 import { MerchantKycView } from './MerchantKycView'
 import { DeveloperConsoleView } from './DeveloperConsoleView'
-import { fetchDbAssignments, fetchDbProducts, fetchDbStoresResult, clearStoredUser, getStoredUser, logoutUser, type AuthUser, type DbAssignmentRow, type DbStoreRow } from './dbApi'
+import { createDbProduct, fetchDbAssignments, fetchDbProducts, fetchDbProductsResult, fetchDbStoresResult, fetchDbTransactionsResult, updateDbProduct, clearStoredUser, getStoredUser, logoutUser, type AuthUser, type DbAssignmentRow, type DbProductRow, type DbStoreRow, type DbTransactionRow } from './dbApi'
 import { MerchantHome as MerchantHomeDashboard, MerchantBottomNavigation, type StoreLoadState } from './MerchantHomeView'
+import { QuickPayView as RoutedQuickPayView } from './QuickPayView'
 import { getMerchantNavItem, isMerchantNavId, merchantNavIdFromLocation, merchantNavItems } from './merchantNavigation'
 import { generatePromptPayQrDataUrl, generateUrlQrDataUrl, getStoredPromptPayId, setStoredPromptPayId } from './promptpay'
 import { checkTransactionStatus, createTransactionCommand, quickPayMethodToChannel, transactionQrImageUrl } from './chatposApi'
@@ -82,26 +83,19 @@ import {
    ========================================================================== */
 let audioCtx: AudioContext | null = null
 
-export function playTapSound(type: 'click' | 'pop' | 'success' | 'delete' | 'nav' = 'click') {
+function playTapSound(type: 'click' | 'pop' | 'success' | 'delete' | 'nav' = 'click') {
   try {
     if (!audioCtx) {
       const AudioContextClass =
         window.AudioContext ||
         (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext
-      if (AudioContextClass) {
-        audioCtx = new AudioContextClass()
-      }
+      if (AudioContextClass) audioCtx = new AudioContextClass()
     }
     if (!audioCtx) return
-
-    if (audioCtx.state === 'suspended') {
-      audioCtx.resume()
-    }
-
+    if (audioCtx.state === 'suspended') audioCtx.resume()
     const now = audioCtx.currentTime
     const osc = audioCtx.createOscillator()
     const gain = audioCtx.createGain()
-
     osc.connect(gain)
     gain.connect(audioCtx.destination)
 
@@ -225,6 +219,7 @@ export type CatalogItem = {
   fullDescCn?: string
   // Multiple images gallery
   images?: string[]
+  updatedAt?: string
 }
 
 export type PaidTransaction = {
@@ -511,15 +506,19 @@ export function MerchantView({ currentUser }: { currentUser: AuthUser | null }) 
           ) : active === 'pos' ? (
             <PosView onNavigate={navigate} />
           ) : active === 'payment' ? (
-            <QuickPayView />
+            <RoutedQuickPayView storeName={displayStoreName} />
           ) : active === 'products' ? (
-            <ProductsView />
+            <ProductsView storeId={selectedStore?.id || currentUser?.store?.id || null} />
           ) : active === 'services' ? (
             <ServicesView />
           ) : active === 'salespage' ? (
             <SalesPageView />
           ) : active === 'orders' ? (
             <OrdersView onNavigate={navigate} />
+          ) : active === 'transactions' ? (
+            <TransactionsView storeId={selectedStore?.id || currentUser?.store?.id || null} onNavigate={navigate} />
+          ) : active === 'tables' ? (
+            <MerchantSection active={active} label={current.label} />
           ) : active === 'reports' ? (
             <ReportsView />
           ) : active === 'wallet' ? (
@@ -1072,14 +1071,16 @@ function ItemFormModal({
   type,
   onSave,
   categories = [],
-  onAddCategory
+  onAddCategory,
+  isSaving = false,
 }: {
   isOpen: boolean
   onClose: () => void
   type: 'product' | 'service'
-  onSave: (item: CatalogItem) => void
+  onSave: (item: CatalogItem) => void | Promise<void>
   categories?: string[]
   onAddCategory?: (cat: string) => void
+  isSaving?: boolean
 }) {
   const [activeLang, setActiveLang] = useState<'th' | 'en' | 'cn'>('th')
 
@@ -1109,6 +1110,7 @@ function ItemFormModal({
 
   const [images, setImages] = useState<string[]>([])
   const [imageUrlInput, setImageUrlInput] = useState('')
+  const [formError, setFormError] = useState('')
 
   if (!isOpen) return null
 
@@ -1130,9 +1132,15 @@ function ItemFormModal({
     setImages((prev) => [...prev, url])
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    playTapSound('success')
+    setFormError('')
+    const parsedPrice = Number(price)
+    const parsedStock = Number(stock)
+    if (!Number.isFinite(parsedPrice) || parsedPrice < 0 || (type === 'product' && (!Number.isFinite(parsedStock) || parsedStock < 0))) {
+      setFormError('กรุณาตรวจสอบราคาและสต็อกให้เป็นจำนวนที่ถูกต้อง')
+      return
+    }
     const finalCat = isCustomCategory && customCategoryName.trim()
       ? customCategoryName.trim()
       : (category || (type === 'product' ? 'สินค้าทั่วไป' : 'บริการทั่วไป'))
@@ -1150,8 +1158,8 @@ function ItemFormModal({
       nameCn,
       category: finalCat,
       type,
-      price: parseFloat(price) || 0,
-      stock: type === 'product' ? (parseInt(stock, 10) || 0) : null,
+      price: parsedPrice,
+      stock: type === 'product' ? parsedStock : null,
       shortDescTh,
       shortDescEn,
       shortDescCn,
@@ -1162,7 +1170,13 @@ function ItemFormModal({
       soldCount: 0,
       status: 'active'
     }
-    onSave(newItem)
+    try {
+      await onSave(newItem)
+    } catch (error) {
+      setFormError(error instanceof Error ? error.message : 'บันทึกข้อมูลไม่สำเร็จ')
+      return
+    }
+    playTapSound('success')
 
     // Clear form
     setNameTh('')
@@ -1179,6 +1193,7 @@ function ItemFormModal({
     setPrice('')
     setStock('')
     setImages([])
+    setFormError('')
     onClose()
   }
 
@@ -1202,6 +1217,7 @@ function ItemFormModal({
 
         <form onSubmit={handleSubmit}>
           <div className="qs-modal-body">
+            {formError && <div className="merchant-data-alert" role="alert"><ShieldAlert size={18} /><span>{formError}</span></div>}
             {/* 1. Language Tabs Bar */}
             <div className="qs-lang-tabs-container">
               <div className="qs-lang-tabs-header">
@@ -1547,8 +1563,8 @@ function ItemFormModal({
             <button type="button" className="qs-btn-cancel" onClick={() => { playTapSound('click'); onClose() }}>
               ยกเลิก
             </button>
-            <button type="submit" className="qs-btn-submit">
-              บันทึก{type === 'product' ? 'สินค้า' : 'บริการ'} ({images.length} รูปภาพ)
+            <button type="submit" className="qs-btn-submit" disabled={isSaving}>
+              {isSaving ? 'กำลังบันทึก...' : `บันทึก${type === 'product' ? 'สินค้า' : 'บริการ'} (${images.length} รูปภาพ)`}
             </button>
           </div>
         </form>
@@ -1750,21 +1766,29 @@ function ItemDetailsModal({
 /* ==========================================================================
    PRODUCTS VIEW (หน้าจัดการสินค้าและคลังสต็อก)
    ========================================================================== */
-function ProductsView() {
-  const [catalog, setCatalog] = useState<CatalogItem[]>(
-    initialCatalog.filter((i) => i.type === 'product')
-  )
-  const [productCategories, setProductCategories] = useState<string[]>(() => {
-    const saved = localStorage.getItem('merchant_product_categories')
-    if (saved) {
-      try {
-        return JSON.parse(saved)
-      } catch (e) {
-        console.error(e)
-      }
-    }
-    return ['เครื่องดื่ม', 'เบเกอรี่', 'อาหาร', 'ขนมทานเล่น', 'สินค้าทั่วไป']
-  })
+function catalogItemFromDb(product: DbProductRow): CatalogItem {
+  return {
+    id: product.id,
+    name: product.name,
+    nameTh: product.name,
+    category: product.category || 'สินค้าทั่วไป',
+    type: 'product',
+    price: Number(product.price) || 0,
+    stock: Number(product.stock) || 0,
+    soldCount: 0,
+    status: product.isActive ? ((Number(product.stock) || 0) === 0 ? 'out_of_stock' : 'active') : 'paused',
+    shortDescTh: product.description || '',
+    images: product.image ? [product.image] : [],
+    updatedAt: product.updatedAt,
+  }
+}
+
+function ProductsView({ storeId }: { storeId: string | null }) {
+  const [catalog, setCatalog] = useState<CatalogItem[]>([])
+  const [productCategories, setProductCategories] = useState<string[]>(['เครื่องดื่ม', 'เบเกอรี่', 'อาหาร', 'ขนมทานเล่น', 'สินค้าทั่วไป'])
+  const [productState, setProductState] = useState<'loading' | 'ready' | 'empty' | 'error'>(storeId ? 'loading' : 'empty')
+  const [productError, setProductError] = useState('')
+  const [isSaving, setIsSaving] = useState(false)
 
   const [activeFilter, setActiveFilter] = useState<'all' | 'in_stock' | 'low_stock' | 'out_of_stock'>('all')
   const [activeCategory, setActiveCategory] = useState<string>('all')
@@ -1773,6 +1797,31 @@ function ProductsView() {
   const [searchQuery, setSearchQuery] = useState('')
   const [isAddModalOpen, setIsAddModalOpen] = useState(false)
   const [selectedItem, setSelectedItem] = useState<CatalogItem | null>(null)
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false)
+
+  const loadProducts = async () => {
+    if (!storeId) {
+      setCatalog([])
+      setProductState('empty')
+      return
+    }
+    setProductState('loading')
+    setProductError('')
+    const result = await fetchDbProductsResult(storeId)
+    if (result.error) {
+      setProductState('error')
+      setProductError(result.error)
+      return
+    }
+    const products = result.data.map(catalogItemFromDb)
+    setCatalog(products)
+    setProductCategories((current) => Array.from(new Set([...current, ...products.map((product) => product.category)])))
+    setProductState(products.length ? 'ready' : 'empty')
+  }
+
+  useEffect(() => {
+    void loadProducts()
+  }, [storeId])
 
   const handleAddCategory = (newCat: string) => {
     const trimmed = newCat.trim()
@@ -1780,14 +1829,47 @@ function ProductsView() {
     if (!productCategories.includes(trimmed)) {
       const updated = [...productCategories, trimmed]
       setProductCategories(updated)
-      localStorage.setItem('merchant_product_categories', JSON.stringify(updated))
     }
   }
 
-  const handleSaveProduct = (newItem: CatalogItem) => {
-    setCatalog([newItem, ...catalog])
-    if (newItem.category) {
-      handleAddCategory(newItem.category)
+  const handleSaveProduct = async (newItem: CatalogItem) => {
+    if (!storeId) throw new Error('ยังไม่มี Store ที่เลือก')
+    setIsSaving(true)
+    try {
+      const response = await createDbProduct({
+        storeId,
+        name: newItem.name,
+        description: newItem.fullDescTh || newItem.shortDescTh || null,
+        price: newItem.price,
+        stock: newItem.stock ?? 0,
+        category: newItem.category,
+        image: newItem.images?.[0] || null,
+        isActive: true,
+        trackStock: true,
+      })
+      const savedProduct = catalogItemFromDb(response.product)
+      setCatalog((current) => [savedProduct, ...current])
+      if (savedProduct.category) handleAddCategory(savedProduct.category)
+      setProductState('ready')
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  const handleUpdateProduct = async (updates: { name: string; price: number; stock: number; category: string; image: string | null }) => {
+    if (!selectedItem) return
+    const currentProduct = catalog.find((product) => product.id === selectedItem.id)
+    if (!currentProduct) return
+    setIsSaving(true)
+    try {
+      const response = await updateDbProduct(selectedItem.id, { ...updates, expectedUpdatedAt: (selectedItem as CatalogItem & { updatedAt?: string }).updatedAt })
+      const updatedProduct = catalogItemFromDb(response.product)
+      setCatalog((current) => current.map((product) => product.id === updatedProduct.id ? updatedProduct : product))
+      setSelectedItem(updatedProduct)
+      if (updatedProduct.category) handleAddCategory(updatedProduct.category)
+      setIsEditModalOpen(false)
+    } finally {
+      setIsSaving(false)
     }
   }
 
@@ -1810,6 +1892,8 @@ function ProductsView() {
 
   return (
     <div className="queue-services-page">
+      {productError && <div className="merchant-data-alert" role="alert"><ShieldAlert size={18} /><span>{productError}</span><button type="button" onClick={() => { void loadProducts() }} disabled={productState === 'loading'}><RefreshCw size={14} /> ลองใหม่</button></div>}
+      {productState === 'loading' && <div className="merchant-transaction-state" aria-busy="true"><RefreshCw size={24} className="spin" /><span>กำลังโหลดสินค้าและสต็อก</span></div>}
       {/* Action Hero Cards */}
       <section className="ov-hero-action-cards">
         <div
@@ -2092,6 +2176,7 @@ function ProductsView() {
                         e.stopPropagation()
                         playTapSound('pop')
                         setSelectedItem(item)
+                        setIsEditModalOpen(true)
                       }}
                       type="button"
                     >
@@ -2100,6 +2185,7 @@ function ProductsView() {
                   </td>
                 </tr>
               ))}
+              {productState === 'empty' && <tr><td colSpan={6}><div className="merchant-transaction-state">ยังไม่มีสินค้าใน Store นี้</div></td></tr>}
             </tbody>
           </table>
         </div>
@@ -2113,6 +2199,7 @@ function ProductsView() {
         onSave={handleSaveProduct}
         categories={productCategories}
         onAddCategory={handleAddCategory}
+        isSaving={isSaving}
       />
 
       {/* Item Details Modal */}
@@ -2120,10 +2207,71 @@ function ProductsView() {
         item={selectedItem}
         onClose={() => setSelectedItem(null)}
       />
+      <ProductEditModal
+        item={isEditModalOpen ? selectedItem : null}
+        isSaving={isSaving}
+        onClose={() => setIsEditModalOpen(false)}
+        onSave={handleUpdateProduct}
+      />
     </div>
   )
 }
 
+
+function ProductEditModal({ item, isSaving, onClose, onSave }: { item: CatalogItem | null; isSaving: boolean; onClose: () => void; onSave: (updates: { name: string; price: number; stock: number; category: string; image: string | null }) => Promise<void> }) {
+  const [name, setName] = useState('')
+  const [price, setPrice] = useState('')
+  const [stock, setStock] = useState('')
+  const [category, setCategory] = useState('')
+  const [image, setImage] = useState('')
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    if (!item) return
+    setName(item.name)
+    setPrice(String(item.price))
+    setStock(String(item.stock ?? 0))
+    setCategory(item.category)
+    setImage(item.images?.[0] || '')
+    setError('')
+  }, [item])
+
+  if (!item) return null
+
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault()
+    const parsedPrice = Number(price)
+    const parsedStock = Number(stock)
+    if (!name.trim() || !Number.isFinite(parsedPrice) || parsedPrice < 0 || !Number.isFinite(parsedStock) || parsedStock < 0 || image.startsWith('data:')) {
+      setError('กรุณาตรวจสอบชื่อ ราคา สต็อก และรูปภาพให้ถูกต้อง')
+      return
+    }
+    setError('')
+    try {
+      await onSave({ name: name.trim(), price: parsedPrice, stock: parsedStock, category: category.trim(), image: image.trim() || null })
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : 'บันทึกสินค้าไม่สำเร็จ')
+    }
+  }
+
+  return (
+    <div className="qs-modal-overlay" role="presentation">
+      <div className="qs-modal" role="dialog" aria-modal="true" aria-labelledby="product-edit-title">
+        <div className="qs-modal-header"><div><h3 id="product-edit-title">แก้ไขสินค้า</h3><p>บันทึกข้อมูลกลับไปยัง Product API ของ Store</p></div><button className="qs-modal-close" onClick={onClose} type="button" aria-label="ปิด"><X size={20} /></button></div>
+        <form onSubmit={(event) => { void handleSubmit(event) }}>
+          <div className="qs-modal-body">
+            {error && <div className="merchant-data-alert" role="alert"><ShieldAlert size={18} /><span>{error}</span></div>}
+            <div className="qs-form-group"><label htmlFor="product-edit-name">ชื่อสินค้า</label><input id="product-edit-name" value={name} onChange={(event) => setName(event.target.value)} required /></div>
+            <div className="qs-category-price-grid"><div className="qs-form-group"><label htmlFor="product-edit-price">ราคาขาย</label><input id="product-edit-price" type="number" min="0" step="0.01" value={price} onChange={(event) => setPrice(event.target.value)} required /></div><div className="qs-form-group"><label htmlFor="product-edit-stock">สต็อก</label><input id="product-edit-stock" type="number" min="0" step="1" value={stock} onChange={(event) => setStock(event.target.value)} required /></div></div>
+            <div className="qs-form-group"><label htmlFor="product-edit-category">หมวดหมู่</label><input id="product-edit-category" value={category} onChange={(event) => setCategory(event.target.value)} /></div>
+            <div className="qs-form-group"><label htmlFor="product-edit-image">URL รูปภาพ</label><input id="product-edit-image" type="url" value={image} onChange={(event) => setImage(event.target.value)} placeholder="https://... หรือ /assets/..." /></div>
+          </div>
+          <div className="qs-modal-footer"><button type="button" className="qs-btn-cancel" onClick={onClose}>ยกเลิก</button><button type="submit" className="qs-btn-submit" disabled={isSaving}>{isSaving ? 'กำลังบันทึก...' : 'บันทึกการแก้ไข'}</button></div>
+        </form>
+      </div>
+    </div>
+  )
+}
 /* ==========================================================================
    SERVICES VIEW (หน้าจัดการบริการและคิวลูกค้า)
    ========================================================================== */
@@ -3717,6 +3865,7 @@ function MerchantSection({ active, label }: { active: string; label: string }) {
   }
   const item = content[active] ?? { title: label, description: 'จัดการข้อมูลร้านค้าของคุณ', icon: Store }
   const SectionIcon = item.icon
+  const isUnavailable = active === 'tables'
   return (
     <section className="merchant-placeholder">
       <div className="merchant-placeholder-icon">
@@ -3726,8 +3875,109 @@ function MerchantSection({ active, label }: { active: string; label: string }) {
       <h2>{item.title}</h2>
       <p>{item.description}</p>
       <div className="merchant-demo-note">
-        <Checkmark /> หน้านี้พร้อมต่อเข้ากับ workflow จาก apps/merchant และ API จริง
+        <Checkmark /> {isUnavailable ? 'ยังไม่พร้อมใช้งาน: ต้องมี Table/Order API และ persistence ของ Store ก่อน' : 'หน้านี้พร้อมต่อเข้ากับ workflow จาก apps/merchant และ API จริง'}
       </div>
+    </section>
+  )
+}
+
+type TransactionStatusFilter = 'all' | 'pending' | 'paid' | 'failed'
+
+function transactionStatusLabel(status: string) {
+  const normalizedStatus = status.toLowerCase()
+  if (['paid', 'completed', 'succeeded', 'settled'].includes(normalizedStatus)) return 'สำเร็จ'
+  if (['pending', 'processing'].includes(normalizedStatus)) return 'รอดำเนินการ'
+  if (['failed', 'cancelled', 'canceled'].includes(normalizedStatus)) return 'ไม่สำเร็จ'
+  if (normalizedStatus === 'refunded') return 'คืนเงิน'
+  return status || 'ไม่ทราบสถานะ'
+}
+
+function transactionStatusMatches(status: string, filter: TransactionStatusFilter) {
+  if (filter === 'all') return true
+  const normalizedStatus = status.toLowerCase()
+  if (filter === 'paid') return ['paid', 'completed', 'succeeded', 'settled'].includes(normalizedStatus)
+  if (filter === 'pending') return ['pending', 'processing'].includes(normalizedStatus)
+  return ['failed', 'cancelled', 'canceled'].includes(normalizedStatus)
+}
+
+function TransactionsView({ storeId, onNavigate }: { storeId: string | null; onNavigate: (id: string) => void }) {
+  const [transactions, setTransactions] = useState<DbTransactionRow[]>([])
+  const [statusFilter, setStatusFilter] = useState<TransactionStatusFilter>('all')
+  const [searchQuery, setSearchQuery] = useState('')
+  const [isLoading, setIsLoading] = useState(Boolean(storeId))
+  const [error, setError] = useState<string | null>(null)
+
+  const loadTransactions = async () => {
+    if (!storeId) {
+      setTransactions([])
+      setError(null)
+      setIsLoading(false)
+      return
+    }
+
+    setIsLoading(true)
+    setError(null)
+    const result = await fetchDbTransactionsResult({ storeId, limit: 100 })
+    if (result.error) {
+      setError(result.error)
+    } else {
+      setTransactions(result.data)
+    }
+    setIsLoading(false)
+  }
+
+  useEffect(() => {
+    let active = true
+    const load = async () => {
+      if (!storeId) {
+        if (active) {
+          setTransactions([])
+          setError(null)
+          setIsLoading(false)
+        }
+        return
+      }
+      setIsLoading(true)
+      setError(null)
+      const result = await fetchDbTransactionsResult({ storeId, limit: 100 })
+      if (!active) return
+      if (result.error) setError(result.error)
+      else setTransactions(result.data)
+      setIsLoading(false)
+    }
+    void load()
+    return () => { active = false }
+  }, [storeId])
+
+  const filteredTransactions = transactions.filter((transaction) => {
+    if (!transactionStatusMatches(transaction.status, statusFilter)) return false
+    const query = searchQuery.trim().toLowerCase()
+    if (!query) return true
+    return [transaction.reference, transaction.id, transaction.channel, transaction.paymentMethod, transaction.customerName]
+      .filter(Boolean)
+      .some((value) => String(value).toLowerCase().includes(query))
+  })
+
+  if (!storeId) {
+    return <section className="merchant-placeholder"><div className="merchant-placeholder-icon"><ReceiptText size={28} /></div><p className="merchant-eyebrow">TRANSACTION HISTORY</p><h2>ยังไม่มีร้านค้าที่เลือก</h2><p>เลือก Store ที่มีสิทธิ์เข้าถึงเพื่อดูประวัติธุรกรรม</p><button className="merchant-primary" type="button" onClick={() => onNavigate('home')}><Home size={16} /> กลับหน้าหลัก</button></section>
+  }
+
+  return (
+    <section className="merchant-transactions-view" aria-labelledby="transactions-title">
+      <div className="merchant-heading">
+        <div><p className="merchant-eyebrow">TRANSACTION HISTORY</p><h2 id="transactions-title">ประวัติธุรกรรม</h2><p>ข้อมูลจาก Transaction API ของ Store ที่กำลังใช้งาน</p></div>
+        <button className="merchant-secondary" type="button" onClick={() => { void loadTransactions() }} disabled={isLoading}><RefreshCw size={15} className={isLoading ? 'spin' : ''} /> รีเฟรช</button>
+      </div>
+      <div className="merchant-transaction-toolbar">
+        <label className="merchant-transaction-search"><Search size={16} /><input value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} placeholder="ค้นหา reference หรือชื่อลูกค้า" /></label>
+        <div className="merchant-transaction-filters" role="group" aria-label="กรองสถานะธุรกรรม">
+          {(['all', 'pending', 'paid', 'failed'] as TransactionStatusFilter[]).map((filter) => <button key={filter} className={statusFilter === filter ? 'active' : ''} type="button" onClick={() => setStatusFilter(filter)}>{filter === 'all' ? 'ทั้งหมด' : filter === 'pending' ? 'รอดำเนินการ' : filter === 'paid' ? 'สำเร็จ' : 'ไม่สำเร็จ'}</button>)}
+        </div>
+      </div>
+      {error && <div className="merchant-data-alert" role="alert"><ShieldAlert size={18} /><span>{error}</span><button type="button" onClick={() => { void loadTransactions() }} disabled={isLoading}><RefreshCw size={14} /> ลองใหม่</button></div>}
+      {isLoading && <div className="merchant-transaction-state" aria-busy="true"><RefreshCw size={24} className="spin" /><span>กำลังโหลดประวัติธุรกรรม</span></div>}
+      {!isLoading && !error && filteredTransactions.length === 0 && <div className="merchant-transaction-state"><ReceiptText size={34} /><strong>{transactions.length === 0 ? 'ยังไม่มีธุรกรรม' : 'ไม่พบธุรกรรมตามตัวกรอง'}</strong><span>{transactions.length === 0 ? 'เมื่อมีรายการจาก Store นี้ จะแสดงในหน้านี้' : 'ลองเปลี่ยนสถานะหรือคำค้นหา'}</span></div>}
+      {!isLoading && filteredTransactions.length > 0 && <div className="merchant-transaction-table-wrap"><table className="merchant-transaction-table"><thead><tr><th>Reference</th><th>วันที่</th><th>ช่องทาง</th><th>ลูกค้า</th><th>ยอดเงิน</th><th>สถานะ</th></tr></thead><tbody>{filteredTransactions.map((transaction) => <tr key={transaction.id}><td><strong>{transaction.reference}</strong><small>{transaction.id}</small></td><td>{new Date(transaction.occurredAt || transaction.createdAt).toLocaleString('th-TH')}</td><td>{transaction.paymentMethod || transaction.channel || '—'}</td><td>{transaction.customerName || 'ลูกค้าหน้าร้าน'}</td><td className="merchant-transaction-amount">฿{Number(transaction.amount).toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td><td><span className={`merchant-transaction-status ${transactionStatusMatches(transaction.status, 'paid') ? 'is-paid' : transactionStatusMatches(transaction.status, 'pending') ? 'is-pending' : 'is-failed'}`}>{transactionStatusLabel(transaction.status)}</span></td></tr>)}</tbody></table></div>}
     </section>
   )
 }

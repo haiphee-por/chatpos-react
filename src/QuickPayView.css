@@ -802,6 +802,40 @@
   font-size: 13px;
 }
 
+.qp-qr-generating-box strong {
+  color: #b91c1c;
+  font-size: 15px;
+}
+
+.qp-payment-error {
+  max-width: 360px;
+  margin: 0;
+  color: #b91c1c;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.qp-payment-retry-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 44px;
+  padding: 9px 14px;
+  border: 1px solid #b7e4d0;
+  border-radius: 10px;
+  color: #047857;
+  background: #ecfdf5;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.qp-payment-retry-btn:hover {
+  background: #d1fae5;
+}
+
 .qp-spin {
   animation: qpSpin 1.5s linear infinite;
   color: #10b981;

@@ -175,7 +175,7 @@ function useRecentTransactions(storeId: string | null) {
     }
 
     setState((previous) => ({ ...previous, status: 'loading', error: null }))
-    const result = await fetchDbTransactionsResult(storeId)
+    const result = await fetchDbTransactionsResult({ storeId })
     if (result.error) {
       setState((previous) => ({ ...previous, status: previous.fetchedAt ? 'ready' : 'error', error: result.error }))
       return

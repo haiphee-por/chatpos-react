@@ -294,6 +294,196 @@
   padding: 32px 31px 48px;
 }
 
+.merchant-transactions-view {
+  max-width: 1280px;
+  margin: 0 auto;
+}
+
+.merchant-transaction-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin: 22px 0 16px;
+}
+
+.merchant-transaction-search {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 240px;
+  flex: 1;
+  height: 42px;
+  padding: 0 13px;
+  border: 1px solid #d6e7df;
+  border-radius: 8px;
+  color: #6a8d7f;
+  background: #fff;
+}
+
+.merchant-transaction-search input {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  color: #15382d;
+  background: transparent;
+  font-size: 13px;
+}
+
+.merchant-transaction-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.merchant-transaction-filters button {
+  min-height: 38px;
+  padding: 0 11px;
+  border: 1px solid #d6e7df;
+  border-radius: 7px;
+  color: #4f7566;
+  background: #f7fbf9;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.merchant-transaction-filters button.active {
+  border-color: #15956a;
+  color: #fff;
+  background: #08775a;
+}
+
+.merchant-transaction-table-wrap {
+  overflow-x: auto;
+  border: 1px solid #d9e9e2;
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 8px 24px rgb(0 60 42 / 7%);
+}
+
+.merchant-transaction-table {
+  width: 100%;
+  min-width: 760px;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.merchant-transaction-table th,
+.merchant-transaction-table td {
+  padding: 14px 16px;
+  border-bottom: 1px solid #edf3f0;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.merchant-transaction-table th {
+  color: #6a8d7f;
+  background: #f5faf7;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+
+.merchant-transaction-table tr:last-child td {
+  border-bottom: 0;
+}
+
+.merchant-transaction-table td:first-child {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.merchant-transaction-table td:first-child small {
+  color: #8aa99c;
+  font-size: 10px;
+}
+
+.merchant-transaction-amount {
+  color: #08775a;
+  font-weight: 900;
+  text-align: right !important;
+}
+
+.merchant-transaction-status {
+  display: inline-flex;
+  min-width: 84px;
+  justify-content: center;
+  padding: 5px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.merchant-transaction-status.is-paid {
+  color: #047857;
+  background: #dff7eb;
+}
+
+.merchant-transaction-status.is-pending {
+  color: #a16207;
+  background: #fff4c9;
+}
+
+.merchant-transaction-status.is-failed {
+  color: #b91c1c;
+  background: #fee2e2;
+}
+
+.merchant-transaction-state {
+  min-height: 300px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  border: 1px dashed #c9ded4;
+  border-radius: 10px;
+  color: #75978a;
+  background: #fbfefd;
+  text-align: center;
+}
+
+.merchant-transaction-state strong {
+  color: #315d4d;
+  font-size: 16px;
+}
+
+.merchant-data-alert {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-bottom: 14px;
+  padding: 12px 14px;
+  border: 1px solid #f3d58a;
+  border-radius: 8px;
+  color: #8a5a00;
+  background: #fff9e7;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.merchant-data-alert span {
+  flex: 1;
+}
+
+.merchant-data-alert button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 32px;
+  padding: 0 9px;
+  border: 1px solid #e7c66e;
+  border-radius: 6px;
+  color: #805300;
+  background: #fff;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 800;
+}
+
 .merchant-heading {
   display: flex;
   align-items: flex-end;
@@ -782,6 +972,24 @@
 
   .merchant-actions-grid {
     gap: 10px;
+  }
+
+  .merchant-transaction-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .merchant-transaction-search {
+    min-width: 0;
+  }
+
+  .merchant-transaction-filters {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .merchant-transaction-filters button {
+    width: 100%;
   }
 }
 

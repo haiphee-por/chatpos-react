@@ -67,8 +67,10 @@ export async function fetchChatPosApi<T = any>(
   }
 
   if (!response.ok) {
-    const errorMsg = typeof responseData === 'object' && responseData.message 
-      ? responseData.message 
+    const errorMsg = typeof responseData === 'object' && responseData.error && typeof responseData.error === 'object' && responseData.error.message
+      ? responseData.error.message
+      : typeof responseData === 'object' && responseData.message
+      ? responseData.message
       : typeof responseData === 'string' && responseData 
       ? responseData 
       : `HTTP ${response.status} ${response.statusText}`
@@ -140,6 +142,40 @@ export type TransactionPayment = {
   [key: string]: any
 }
 
+export type TransactionCommandResponse = {
+  success?: boolean
+  idempotentReplay?: boolean
+  transaction?: TransactionPayment
+  [key: string]: any
+}
+
+export function normalizeTransactionPaymentStatus(status?: string | null) {
+  switch ((status || '').toLowerCase()) {
+    case 'success':
+    case 'successful':
+    case 'paid':
+    case 'completed':
+    case 'succeeded':
+    case 'settled':
+      return 'paid' as const
+    case 'failed':
+    case 'declined':
+    case 'cancelled':
+    case 'canceled':
+      return 'failed' as const
+    case 'expired':
+      return 'expired' as const
+    case 'refunded':
+      return 'refunded' as const
+    case 'chargeback':
+      return 'chargeback' as const
+    case 'stoppay':
+      return 'stoppay' as const
+    default:
+      return 'pending' as const
+  }
+}
+
 export function transactionQrImageUrl(transaction?: TransactionPayment | null): string {
   const qrCodeUrl = transaction?.qrCodeUrl?.trim()
   if (qrCodeUrl) return qrCodeUrl
@@ -185,15 +221,11 @@ export function quickPayMethodToChannel(method?: string | null): string {
  * Create a payment through Agent/PD Backoffice routing.
  */
 export async function createTransactionCommand(payload: CreateTransactionPayload, idempotencyKey: string, apiKey?: string) {
-  return fetchChatPosApi<{
-    success?: boolean
-    idempotentReplay?: boolean
-    transaction?: TransactionPayment
-    [key: string]: any
-  }>('/api/v1/transactions', {
+  return fetchChatPosApi<TransactionCommandResponse>('/api/v1/transactions', {
     method: 'POST',
     body: JSON.stringify(payload),
     apiKey,
+    signal: AbortSignal.timeout(15000),
     headers: { 'Idempotency-Key': idempotencyKey },
   })
 }

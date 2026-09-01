@@ -280,6 +280,7 @@ export interface DbProductRow {
   isActive: boolean
   trackStock: boolean
   createdAt: string
+  updatedAt: string
   store_name: string | null
 }
 
@@ -621,10 +622,17 @@ export async function fetchDbTransactions(): Promise<DbTransactionRow[]> {
   }
 }
 
-export async function fetchDbTransactionsResult(storeId?: string): Promise<DbFetchResult<DbTransactionRow[]>> {
+export async function fetchDbTransactionsResult(options: { storeId?: string; status?: string; channel?: string; transactionType?: string; page?: number; limit?: number } = {}): Promise<DbFetchResult<DbTransactionRow[]>> {
   try {
-    const query = storeId ? `?storeId=${encodeURIComponent(storeId)}` : ''
-    const res = await fetchDbApi<{ success: boolean; data: DbTransactionRow[] }>(`/transactions${query}`)
+    const query = new URLSearchParams()
+    if (options.storeId) query.set('storeId', options.storeId)
+    if (options.status) query.set('status', options.status)
+    if (options.channel) query.set('channel', options.channel)
+    if (options.transactionType) query.set('transactionType', options.transactionType)
+    if (options.page) query.set('page', String(options.page))
+    if (options.limit) query.set('limit', String(options.limit))
+    const queryString = query.toString()
+    const res = await fetchDbApi<{ success: boolean; data: DbTransactionRow[] }>(`/transactions${queryString ? `?${queryString}` : ''}`)
     return { data: res.data || [], error: null, fetchedAt: new Date().toISOString() }
   } catch (err: any) {
     console.error('Failed to fetch transactions with status:', err)
@@ -767,6 +775,45 @@ export async function fetchDbProducts(): Promise<DbProductRow[]> {
     console.error('Failed to fetch real products:', err)
     return []
   }
+}
+
+export async function fetchDbProductsResult(storeId?: string): Promise<DbFetchResult<DbProductRow[]>> {
+  try {
+    const query = storeId ? `?storeId=${encodeURIComponent(storeId)}` : ''
+    const res = await fetchDbApi<{ success: boolean; data: DbProductRow[] }>(`/products${query}`)
+    return { data: res.data || [], error: null, fetchedAt: new Date().toISOString() }
+  } catch (err: any) {
+    return { data: [], error: err?.message || 'โหลดสินค้าไม่สำเร็จ', fetchedAt: null }
+  }
+}
+
+export type DbProductMutationPayload = {
+  storeId?: string
+  name: string
+  description?: string | null
+  price: number
+  cost?: number
+  stock?: number
+  category?: string | null
+  image?: string | null
+  sku?: string | null
+  isActive?: boolean
+  trackStock?: boolean
+}
+
+export async function createDbProduct(payload: DbProductMutationPayload) {
+  return fetchDbApi<{ success: boolean; product: DbProductRow }>('/products', {
+    method: 'POST',
+    headers: { 'Idempotency-Key': `product:${Date.now()}:${Math.random().toString(36).slice(2, 10)}` },
+    body: JSON.stringify(payload),
+  })
+}
+
+export async function updateDbProduct(id: string, payload: Partial<DbProductMutationPayload> & { expectedUpdatedAt?: string }) {
+  return fetchDbApi<{ success: boolean; product: DbProductRow }>(`/products/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  })
 }
 
 /**

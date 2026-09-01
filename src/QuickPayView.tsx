@@ -12,11 +12,11 @@ import {
   Check,
   Maximize2,
   Minimize2,
+  RefreshCw,
   Volume2,
   VolumeX,
 } from 'lucide-react'
-import { getStoredPromptPayId } from './promptpay'
-import { checkTransactionStatus, createTransactionCommand, quickPayMethodToChannel, transactionQrImageUrl } from './chatposApi'
+import { checkTransactionStatus, createTransactionCommand, normalizeTransactionPaymentStatus, quickPayMethodToChannel, transactionQrImageUrl, type TransactionPayment } from './chatposApi'
 
 /* Web Audio API Sound Generator */
 const playAudioEffect = (type: 'beep' | 'pop' | 'success' | 'clear') => {
@@ -99,9 +99,9 @@ export type QuickPayMethod =
   | 'alipay'
   | 'shopeepay'
 
-export function QuickPayView() {
-  const [storeName] = useState(() => localStorage.getItem('merchant_store_name') || 'ร้านค้า ChatPOS (สาขาหลัก)')
-  const [merchantPromptPayId] = useState(() => getStoredPromptPayId('0823456789'))
+type PaymentFlowStatus = 'creating' | 'pending' | 'paid' | 'failed' | 'expired' | 'cancelled' | 'error'
+
+export function QuickPayView({ storeName = 'ร้านค้าของคุณ' }: { storeName?: string } = {}) {
 
   // Parse Table or Delivery context from URL or path
   const [orderContext] = useState<
@@ -175,7 +175,11 @@ export function QuickPayView() {
   const [checkoutRedirectUrl, setCheckoutRedirectUrl] = useState<string>('')
   const [activePaymentRef, setActivePaymentRef] = useState<string>('')
   const [activeIdempotencyKey, setActiveIdempotencyKey] = useState<string>('')
-  const [paymentSuccessData, setPaymentSuccessData] = useState<any>(null)
+  const [paymentState, setPaymentState] = useState<PaymentFlowStatus>('creating')
+  const [paymentError, setPaymentError] = useState<string>('')
+  const [paymentTransaction, setPaymentTransaction] = useState<TransactionPayment | null>(null)
+  const [paymentSuccessData, setPaymentSuccessData] = useState<{ txnId: string; time: string; total: number; discount: number; method: string; note: string } | null>(null)
+  const [paymentRetryToken, setPaymentRetryToken] = useState(0)
   const [autoResetSec, setAutoResetSec] = useState(8)
 
   const numAmount = parseFloat(amountStr) || 0
@@ -191,19 +195,54 @@ export function QuickPayView() {
     if (soundEnabled) playAudioEffect(type)
   }
 
-  // QR Code Generation for Modal
+  const paymentStatusLabel = (status: PaymentFlowStatus) => {
+    if (status === 'creating') return 'กำลังสร้างรายการชำระเงิน'
+    if (status === 'pending') return 'รอการยืนยันการชำระเงิน'
+    if (status === 'paid') return 'รับชำระเงินสำเร็จ'
+    if (status === 'expired') return 'QR หมดอายุ'
+    if (status === 'cancelled') return 'รายการถูกยกเลิก'
+    if (status === 'failed') return 'การชำระเงินไม่สำเร็จ'
+    return 'สร้างรายการชำระเงินไม่สำเร็จ'
+  }
+
+  const toPaymentFlowStatus = (status: ReturnType<typeof normalizeTransactionPaymentStatus>): PaymentFlowStatus => {
+    if (status === 'paid') return 'paid'
+    if (status === 'expired') return 'expired'
+    if (status === 'failed') return 'failed'
+    if (status === 'stoppay') return 'cancelled'
+    return 'pending'
+  }
+
+  const finishPayment = (transaction: TransactionPayment) => {
+    const paidAt = transaction.paidAt ? new Date(transaction.paidAt) : new Date()
+    setPaymentTransaction(transaction)
+    setPaymentState('paid')
+    setPaymentSuccessData({
+      txnId: transaction.reference || transaction.clientReference || transaction.paymentReference || 'ไม่พบเลขอ้างอิง',
+      time: paidAt.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+      total: typeof transaction.amount === 'number' ? transaction.amount : netPayable,
+      discount: finalDiscount,
+      method: getChannelInfo(selectedMethod).name,
+      note: note || 'คิดเงินด่วนหน้าร้าน',
+    })
+    playSound('success')
+    setSummaryStep('success')
+  }
+
+  // Create one server-owned payment per stable idempotency key.
   useEffect(() => {
     let isMounted = true
     if (isSummaryModalOpen && summaryStep === 'qr') {
       setQrCountdown(300)
 
       if (!activeIdempotencyKey) {
-        setActiveIdempotencyKey(`quickpay:${Date.now()}:${Math.random().toString(36).slice(2, 10)}`)
         return () => {
           isMounted = false
         }
       }
 
+      setPaymentState('creating')
+      setPaymentError('')
       createTransactionCommand({
         amount: netPayable,
         channel: quickPayMethodToChannel(selectedMethod),
@@ -214,20 +253,41 @@ export function QuickPayView() {
           const transaction = res?.transaction
           if (isMounted && transaction) {
             const checkoutUrl = transaction.checkoutRedirectUrl || ''
+            const qrUrl = transactionQrImageUrl(transaction)
+            const flowStatus = toPaymentFlowStatus(normalizeTransactionPaymentStatus(transaction.status))
             setPromptPayQrUrl(transactionQrImageUrl(transaction))
             setCheckoutRedirectUrl(checkoutUrl)
             setActivePaymentRef(transaction.paymentReference || transaction.clientReference || transaction.reference || '')
+            setPaymentTransaction(transaction)
+            setPaymentState(flowStatus)
+            if (selectedMethod === 'promptpay' && !qrUrl) {
+              setPaymentState('error')
+              setPaymentError('ระบบไม่พบข้อมูล QR จาก payment response')
+            } else if (selectedMethod !== 'promptpay' && !checkoutUrl) {
+              setPaymentState('error')
+              setPaymentError('ระบบไม่พบ checkout URL จาก payment response')
+            }
+            if (transaction.expiresAt) {
+              const seconds = Math.ceil((Date.parse(transaction.expiresAt) - Date.now()) / 1000)
+              setQrCountdown(Math.max(0, Number.isFinite(seconds) ? seconds : 300))
+            }
+            if (flowStatus === 'paid') finishPayment(transaction)
           }
         })
         .catch((err) => {
           console.warn('Backoffice transaction routing unavailable:', err)
-          if (isMounted) setPromptPayQrUrl('')
+          if (isMounted) {
+            setPromptPayQrUrl('')
+            setCheckoutRedirectUrl('')
+            setPaymentState('error')
+            setPaymentError(err?.name === 'TimeoutError' || err?.status === 0 ? 'การเชื่อมต่อหมดเวลา ตรวจสอบสถานะก่อนลองใหม่' : (err?.message || 'สร้างรายการชำระเงินไม่สำเร็จ'))
+          }
         })
     }
     return () => {
       isMounted = false
     }
-  }, [isSummaryModalOpen, summaryStep, netPayable, selectedMethod, note, activeIdempotencyKey])
+  }, [isSummaryModalOpen, summaryStep, netPayable, selectedMethod, note, activeIdempotencyKey, paymentRetryToken])
 
   // Countdown timer for QR
   useEffect(() => {
@@ -238,6 +298,13 @@ export function QuickPayView() {
     return () => clearInterval(timer)
   }, [isSummaryModalOpen, summaryStep, qrCountdown])
 
+  useEffect(() => {
+    if (isSummaryModalOpen && summaryStep === 'qr' && qrCountdown <= 0 && (paymentState === 'pending' || paymentState === 'creating')) {
+      setPaymentState('expired')
+      setPaymentError('QR หมดอายุ กรุณาสร้างรายการใหม่')
+    }
+  }, [isSummaryModalOpen, summaryStep, qrCountdown, paymentState])
+
   // Polling payment status via API
   useEffect(() => {
     let pollTimer: any
@@ -245,17 +312,29 @@ export function QuickPayView() {
       pollTimer = setInterval(async () => {
         try {
           const res = await checkTransactionStatus(activePaymentRef)
-          if (res?.transaction?.status === 'completed') {
+          const transaction = res?.transaction
+          const status = normalizeTransactionPaymentStatus(transaction?.status)
+          if (transaction && status === 'paid') {
             clearInterval(pollTimer)
-            handleConfirmPaymentSuccess()
+            finishPayment(transaction)
+          } else if (status === 'failed' || status === 'expired') {
+            clearInterval(pollTimer)
+            setPaymentTransaction(transaction || null)
+            setPaymentState(status === 'expired' ? 'expired' : 'failed')
           }
-        } catch {}
+        } catch (error: any) {
+          if (error?.status === 404) {
+            clearInterval(pollTimer)
+            setPaymentState('error')
+            setPaymentError('ไม่พบรายการชำระเงินสำหรับตรวจสอบสถานะ')
+          }
+        }
       }, 2500)
     }
     return () => {
       if (pollTimer) clearInterval(pollTimer)
     }
-  }, [isSummaryModalOpen, summaryStep, activePaymentRef])
+  }, [isSummaryModalOpen, summaryStep, activePaymentRef, paymentState])
 
   // Auto-reset timer when payment succeeds
   useEffect(() => {
@@ -367,40 +446,18 @@ export function QuickPayView() {
     setPromptPayQrUrl('')
     setCheckoutRedirectUrl('')
     setActivePaymentRef('')
-    setActiveIdempotencyKey('')
+    setPaymentTransaction(null)
+    setPaymentState('creating')
+    setPaymentError('')
+    setActiveIdempotencyKey(`quickpay:${Date.now()}:${Math.random().toString(36).slice(2, 10)}`)
     setSummaryStep('qr')
   }
 
-  const handleConfirmPaymentSuccess = () => {
-    playSound('success')
-    const txnId = `TXN-${Date.now().toString().slice(-6)}`
-    const nowTime = new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
-    const successData = {
-      txnId,
-      time: nowTime,
-      total: netPayable,
-      discount: finalDiscount,
-      method: getChannelInfo(selectedMethod).name,
-      note: note || 'คิดเงินด่วนหน้าร้าน',
-    }
-    setPaymentSuccessData(successData)
-    setSummaryStep('success')
-
-    // Record locally
-    try {
-      const existing = JSON.parse(localStorage.getItem('merchant_recent_txs') || '[]')
-      localStorage.setItem('merchant_recent_txs', JSON.stringify([
-        {
-          id: txnId,
-          amount: netPayable,
-          channel: selectedMethod.toUpperCase(),
-          timestamp: new Date().toISOString(),
-          note: note || 'คิดเงินด่วน QuickPay Standalone',
-          status: 'SUCCESS',
-        },
-        ...existing,
-      ].slice(0, 50)))
-    } catch (e) {}
+  const handleRetryPayment = () => {
+    if (!activeIdempotencyKey || paymentState === 'paid') return
+    setPaymentState('creating')
+    setPaymentError('')
+    setPaymentRetryToken((token) => token + 1)
   }
 
   const handleCloseModal = () => {
@@ -727,7 +784,7 @@ export function QuickPayView() {
                       <QrCode size={20} />
                     </div>
                     <div>
-                      <h3>{selectedMethod === 'promptpay' ? 'สแกน QR เพื่อชำระเงิน' : 'กำลังเปิดหน้าชำระเงิน'}</h3>
+                      <h3>{paymentState === 'pending' ? (selectedMethod === 'promptpay' ? 'สแกน QR เพื่อชำระเงิน' : 'กำลังเปิดหน้าชำระเงิน') : paymentStatusLabel(paymentState)}</h3>
                       <p>{getChannelInfo(selectedMethod).name} {note ? `· ${note}` : ''}</p>
                     </div>
                   </>
@@ -837,7 +894,7 @@ export function QuickPayView() {
                     onClick={handleProceedToQr}
                   >
                     <QrCode size={18} />
-                    <span>รับเงิน PromptPay QR (฿{netPayable.toLocaleString('th-TH', { minimumFractionDigits: 2 })}) ➔</span>
+                    <span>รับเงิน {getChannelInfo(selectedMethod).name} (฿{netPayable.toLocaleString('th-TH', { minimumFractionDigits: 2 })}) ➔</span>
                   </button>
                 </div>
               </div>
@@ -849,13 +906,19 @@ export function QuickPayView() {
                 <div className="qp-qr-card-display">
                   <div className="qp-qr-badge-status">
                     <div className="qp-timer-badge">
-                      ⏳ QR หมดอายุใน: <strong>{Math.floor(qrCountdown / 60)}:{(qrCountdown % 60).toString().padStart(2, '0')}</strong>
+                      {paymentState === 'pending' || paymentState === 'creating' ? <>QR หมดอายุใน: <strong>{Math.floor(qrCountdown / 60)}:{(qrCountdown % 60).toString().padStart(2, '0')}</strong></> : <strong>{paymentStatusLabel(paymentState)}</strong>}
                     </div>
                     <span className="qp-channel-badge-name">{getChannelInfo(selectedMethod).name}</span>
                   </div>
 
                   <div className="qp-qr-large-frame">
-                    {promptPayQrUrl ? (
+                    {paymentState === 'error' || paymentState === 'failed' || paymentState === 'expired' || paymentState === 'cancelled' ? (
+                      <div className="qp-qr-generating-box" role="alert">
+                        <X size={28} color="#dc2626" />
+                        <strong>{paymentStatusLabel(paymentState)}</strong>
+                        <span>{paymentError || 'กรุณาตรวจสอบสถานะแล้วลองใหม่'}</span>
+                      </div>
+                    ) : promptPayQrUrl ? (
                       <img
                         src={promptPayQrUrl}
                         alt={selectedMethod === 'promptpay' ? 'PromptPay QR Code' : 'Checkout QR Code'}
@@ -902,19 +965,17 @@ export function QuickPayView() {
 
                   {selectedMethod === 'promptpay' && <div className="qp-qr-merchant-info-pill">
                     <span>ผู้รับเงิน: <strong>{storeName}</strong></span>
-                    <span>PromptPay: <strong>{merchantPromptPayId}</strong></span>
+                    <span>ข้อมูลผู้รับจากระบบชำระเงิน</span>
                   </div>}
 
-                  {/* Testing Simulate Button & Direct Actions */}
-                  <div className="qp-qr-action-buttons-row">
-                    <button
-                      type="button"
-                      className="qp-btn-simulate-success"
-                      onClick={handleConfirmPaymentSuccess}
-                    >
-                      <CheckCircle2 size={16} /> จำลองลูกค้าชำระเงินสำเร็จ ⚡
-                    </button>
-                  </div>
+                  {paymentError && paymentState === 'error' && <p className="qp-payment-error" role="alert">{paymentError}</p>}
+                  {(paymentState === 'error' || paymentState === 'failed' || paymentState === 'expired' || paymentState === 'cancelled') && (
+                    <div className="qp-qr-action-buttons-row">
+                      <button type="button" className="qp-payment-retry-btn" onClick={handleRetryPayment}>
+                        <RefreshCw size={16} /> ลองตรวจสอบ/ส่งคำขอเดิมอีกครั้ง
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 <div className="qp-summary-footer-actions">
