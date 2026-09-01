@@ -15,7 +15,7 @@
 3. `MERCHANT_HOME_ROADMAP.md` ระบุเป้าหมาย งานค้าง และ acceptance evidence; ห้ามใช้สถานะเก่าใน roadmap ทับ current status ใน guide นี้
 4. `NEXT_STEPS_CHECKLIST.md` ใช้ติดตามการส่งมอบ ไม่ใช่ authority ของ runtime behavior
 
-> สถานะปัจจุบัน: ChatPOS ใช้ Next.js และให้ custom API handler ทำงานใน Next.js process เดียวกันผ่าน catch-all Route Handler. Session/authentication ใช้ server-side session ผ่าน HttpOnly cookie แล้ว. Merchant Products ใช้ Store-scoped PostgreSQL API แต่ POS, services, orders, sales page, booking/customer operational state บางส่วนยังเป็น demo, mock หรือ `localStorage` จึงไม่ควรตีความว่าทุกหน้ามี production persistence ครบแล้ว
+> สถานะปัจจุบัน: ChatPOS ใช้ Next.js และให้ custom API handler ทำงานใน Next.js process เดียวกันผ่าน catch-all Route Handler. Session/authentication ใช้ server-side session ผ่าน HttpOnly cookie แล้ว. Merchant Products, POS order creation, Orders status workflow และ Tables ใช้ Store-scoped PostgreSQL API. Services, sales page, booking และ legacy Customer routes บางส่วนยังเป็น demo, mock หรือ `localStorage`; public `/order/:token` ใช้ durable Table/Order API แล้ว
 
 ## ภาพรวมความสามารถ
 
@@ -134,7 +134,7 @@ npm run db:migrate
 npm run db:seed
 ```
 
-Migration ที่ใช้งานอยู่ใน [`database/migrations/`](../database/migrations/) ครอบคลุม `001_initial_chatpos_schema.sql` ถึง `012_kyc_document_backoffice_dispatch.sql` รวมถึง Merchant KYC, assignment, profile/document version, server session, rate limit, audit, idempotency, webhook dedupe, settlement retry/dead-letter, document scan quarantine, OTP challenge persistence, Store-scoped Backoffice credential mapping, encrypted callback secret, Merchant Home capability/benefit/STOPPAY state และ pending document dispatch. Directory นี้เป็น migration inventory authority; ปัจจุบันมี migration prefix `009` สองไฟล์ที่เป็นคนละ change และต้องคง deterministic filename order ของ migration runner. หลัง migration ให้ใช้ [`database/seed.cjs`](../database/seed.cjs) ผ่าน `npm run db:seed` เพื่อสร้างข้อมูลทดลองแบบ idempotent; ตั้ง `SEED_PASSWORD` ได้เมื่อต้องการเปลี่ยนรหัสผ่าน demo. ตารางเหล่านี้เป็น durable schema และห้ามแทนด้วย in-memory/localStorage state ใน production
+Migration ที่ใช้งานอยู่ใน [`database/migrations/`](../database/migrations/) ครอบคลุม `001_initial_chatpos_schema.sql` ถึง `013_merchant_orders_tables.sql` รวมถึง Merchant KYC, assignment, profile/document version, session/security/audit, payment settlement, Merchant Home และ durable restaurant tables/orders/items/status events. Directory นี้เป็น migration inventory authority; ปัจจุบันมี migration prefix `009` สองไฟล์ที่เป็นคนละ change และต้องคง deterministic filename order ของ migration runner. หลัง migration ให้ใช้ [`database/seed.cjs`](../database/seed.cjs) ผ่าน `npm run db:seed` เพื่อสร้างข้อมูลทดลองแบบ idempotent รวมถึงโต๊ะ/ออเดอร์; ตั้ง `SEED_PASSWORD` ได้เมื่อต้องการเปลี่ยนรหัสผ่าน demo
 
 ### Production
 
@@ -233,11 +233,11 @@ Merchant UI ใช้ `chatpos-payment-ai-main/app/page.tsx` และ `app/glob
 | `/merchant/wallet` | `MerchantFinanceView` | balance summary และรายการธุรกรรมจาก server | ดูได้; withdrawal/auto payout/bank change ยังไม่ใช่ production mutation |
 | `/merchant/kyc` | `MerchantKycView.tsx` | KYC case/document version/chat/assignment API และ Store/Case authorization | implement แล้วแต่ feature/integration-gated; ต้องมี storage/scanner/Backoffice evidence |
 | `/merchant/settings` | `SettingsView` + `ProfileSettingsModal` | session/profile display, browser speech test และ client preference UI บางส่วน | ใช้ได้บางส่วน; control ที่ไม่มี API/persistence ถูก disable แล้ว, audio preference ยังไม่ persist และ profile mutation ยังไม่ production-ready |
-| `/merchant/pos` | `PosView` | Product read บางส่วน; cart/order/receipt/hold bill เป็น client/localStorage | development demo; production แสดง unavailable |
-| `/merchant/orders` | `OrdersView` | hardcoded/localStorage order/QR state | development demo; production แสดง unavailable |
+| `/merchant/pos` | `MerchantPosView` | Product/Table API, in-memory cart และ idempotent Order create | ใช้ production path แล้ว; cart เป็น transient UI stateและ orderถูก persistก่อนแสดง success |
+| `/merchant/orders` | `MerchantOrdersView` | Store-scoped Order API, polling, optimistic version, server transition state machine และเสียงออเดอร์ใหม่ | ใช้ production pathแล้ว; DONE ตัด stockครั้งเดียวใน DB transaction |
 | `/merchant/services` | `ServicesView` | hardcoded/localStorage service/booking state | development demo; production แสดง unavailable |
 | `/merchant/salespage` | `SalesPageView` | hardcoded/localStorage builder state | development demo; production แสดง unavailable |
-| `/merchant/tables` | `MerchantSection` | ไม่มี Table/Order persistence | unavailable |
+| `/merchant/tables` | `MerchantTablesView` | Table CRUD, optimistic version, open-order aggregate และ token QR | ใช้ production pathแล้ว; ปิดโต๊ะที่มี order เปิดอยู่ไม่ได้ |
 | `/merchant/benefits` | `BenefitsView` | Store-scoped benefits read API พร้อม loading/empty/error/retry | read-only UI พร้อมเมื่อ `canUseBenefits`; ยังไม่มี claim/redemption mutation |
 | `/merchant/stoppay` | `StoppayView` | Store-scoped state, merchant transition allowlist, reason, confirmation, idempotency และ audit | request UI พร้อมเมื่อ `canUseStopPay`; approval เป็นหน้าที่ Admin/Compliance |
 | `/merchant/billing` | `MerchantSection` | ยังไม่มี invoice/fee authority และ reconciliation view | unavailable |
@@ -247,7 +247,7 @@ Merchant UI ใช้ `chatpos-payment-ai-main/app/page.tsx` และ `app/glob
 
 1. เปลี่ยน markup/CSS ได้โดยไม่เปลี่ยน API ownership หรือ state transition เดิม
 2. Route ที่มี server read อย่างเดียวต้องไม่เพิ่มปุ่ม mutation จาก prototype
-3. Route ที่ยังเป็น demo ต้องถูกกั้นด้วย `allowDemoMerchantSurfaces`; production ต้องแสดง unavailable พร้อมเหตุผล
+3. Services และ SalesPage ที่ยังเป็น demo ต้องถูกกั้นด้วย `allowDemoMerchantSurfaces`; production ต้องแสดง unavailable พร้อมเหตุผล
 4. ปุ่มที่ backend ยังไม่มีต้อง disabled/unavailable ห้ามใช้ `alert()` หรือ local state แสดงผลสำเร็จปลอม
 5. Payment ต้องใช้ `createTransactionCommand`, `transactionQrImageUrl`, idempotency key และ server status เดิม แม้ UI จะยกมาจาก Payment AI
 6. Products ต้องใช้ Product API เป็น authority; import/export, category และ image upload ห้ามแสดงว่าสำเร็จก่อนมี endpoint จริง
@@ -275,7 +275,7 @@ Reference ล่าสุดมี `/order/[token]`, `/handoff/[id]`, `/admin`, 
 
 ทุก surface มี toggle, test และสถานะ `idle`, `ready`, `speaking`, `unsupported`, `error`. Browser ต้องได้รับ user gesture ก่อนเล่นเสียง; ห้ามพยายาม bypass autoplay policy. LINE mode ตรวจจาก user agent/query compatibility และใช้ไฟล์ `/audio/th/*.mp3`. Component cleanup ต้อง cancel speech และหยุด audio เมื่อ unmount
 
-ยังไม่มีเสียงแจ้งออเดอร์เข้าจริงใน Merchant Orders เพราะ Order API/persistence ยังไม่พร้อม. ห้ามประกาศ order arrival จาก mock/localStorage เป็น production behavior; ให้เพิ่มเมื่อมี server event/polling owner และ dedupe contract แล้ว
+Merchant Orders poll Store-scoped Order API ทุก 5 วินาทีเมื่อ tab visible และพูดเฉพาะ order ID ใหม่หลัง initial load โดย dedupe ใน session. Production ระยะถัดไปควรเปลี่ยนเป็น server event/SSE หรือ webhook projection เมื่อมี owner เพื่อประหยัด polling
 
 ## ความสามารถตาม workflow
 
@@ -483,16 +483,16 @@ API ปัจจุบันมี `GET /api/db/kyc` และ `POST /api/db/kyc
 `MerchantView.tsx` รวมความสามารถหลายกลุ่มไว้ใน dashboard เดียว เช่น:
 
 - ดูสถานะร้านค้าและ KYC
-- จัดการสินค้า หมวดหมู่ สต็อก และราคา โดย `ProductsView` ใช้ Store-scoped Product API; ส่วน POS และ public catalog ยังมี transitional state บางส่วน
+- จัดการสินค้า หมวดหมู่ สต็อก และราคา โดย `ProductsView` ใช้ Store-scoped Product API; Merchant POS ใช้ Product/Table API และ persist order แล้ว ส่วน public catalog legacy ยังมี transitional stateบางส่วน
 - จัดการบริการและตารางจอง
 - สร้าง/แก้ sales page และ catalog
 - สร้างลิงก์หรือ QR สำหรับช่องทางขาย
 - ดูคำสั่งซื้อและรายการชำระเงิน; wallet, revenue, billing และ payout ยังต้องแยกตามสถานะ prototype/feature gate ด้านล่าง
 - เปิดหน้าตั้งค่าโปรไฟล์, notification และ integration entry ที่อนุญาตให้ Merchant ใช้
 
-ข้อมูล operational prototype หลายรายการยังเก็บใน `localStorage` และ sync ระหว่างหน้าด้วย `storage` event จึงไม่ใช่ authority สำหรับระบบหลายผู้ใช้หรือ production. Session, API authorization และ integration secret ไม่อยู่ใน localStorage
+Services, SalesPage, legacy Customer route และ demo components บางส่วนยังเก็บ state ใน `localStorage` จึงไม่ใช่ authority สำหรับระบบหลายผู้ใช้. Merchant POS/Orders/Tables และ public `/order/:token` ไม่ใช้ localStorage เป็น order authorityแล้ว
 
-Production path จะไม่ render seeded business data จาก POS, orders, services หรือ sales page ที่ยังไม่มี server persistence; route เหล่านี้แสดง unavailable state พร้อมเหตุผลแทน ส่วน public catalog ที่ไม่มี published sales page จริงจะไม่ fallback ไป `defaultProductsCatalog`. Mock/seeded data ยังคงใช้ได้เฉพาะ development/demo/test ที่ระบุ environment ชัดเจน. Merchant layout ใช้ overflow guard, keyboard focus styles และ `prefers-reduced-motion`; ต้องตรวจ screenshot และ browser evidence เพิ่มก่อน release
+Production path render PostgreSQL-backed POS, Orders และ Tables; Services/SalesPage ที่ยังไม่มี server persistence แสดง unavailable. Public `/order/:token` resolve Store/Table/Product จาก tokenฝั่ง serverและคำนวณราคาจาก Product rows. Public catalog ที่ไม่มี published sales pageจริงไม่ fallback ไป default catalogใน production
 
 ### Account และ supporting surfaces
 
@@ -616,6 +616,12 @@ Non-PromptPay channels ต้องส่ง `channel` เป็นชื่อ 
 | `POST` | `/notifications/read-all?storeId=` | mark notifications read ทั้งหมด |
 | `GET` | `/stoppay?storeId=` | อ่าน STOPPAY state และ transitions |
 | `POST` | `/stoppay` | ทำ STOPPAY transition พร้อม idempotency |
+| `GET` | `/tables?storeId=` | อ่านโต๊ะพร้อมยอด/จำนวน order เปิดอยู่ |
+| `POST` | `/tables` | เพิ่มโต๊ะแบบ idempotent |
+| `PATCH` | `/tables/:id` | แก้ไขหรือปิดโต๊ะด้วย optimistic version |
+| `GET` | `/orders?storeId=&status=&limit=` | อ่าน order aggregate พร้อม line items |
+| `POST` | `/orders` | สร้าง order โดย serverอ่าน Product/ราคาและคำนวณยอด |
+| `PATCH` | `/orders/:id/status` | เปลี่ยน status ตาม state machine; DONE commit stockครั้งเดียว |
 | `GET` | `/kyc` | ดึง KYC cases |
 | `POST` | `/kyc/update-status` | เปลี่ยนสถานะ KYC |
 | `GET` | `/stores` | ดึงร้านค้า |
@@ -623,9 +629,16 @@ Non-PromptPay channels ต้องส่ง `channel` เป็นชื่อ 
 | `GET` | `/pds` | ดึง PD |
 | `GET` | `/transactions` | ดึงธุรกรรม |
 | `POST` | `/transactions/create` | สร้างธุรกรรม |
-| `POST` | `/v1/public-payments` | สร้าง payment สำหรับ public Booking/Customer ผ่าน Backoffice/PD/LLGW โดยใช้ `PUBLIC_PAYMENT_STORE_ID` |
 | `GET` | `/products` | ดึงสินค้า |
 | `GET` | `/commissions` | ดึงค่าคอมมิชชัน |
+
+### Public order/payment API
+
+| Method | Endpoint | หน้าที่ |
+|---|---|---|
+| `GET` | `/api/public/table-order?token=` | resolve active Table/Store และสินค้าเปิดขายจาก opaque table token |
+| `POST` | `/api/public/table-orders` | สร้าง Table order แบบ rate-limited/idempotent; browserเลือก Store/Table/ราคาเองไม่ได้ |
+| `POST` | `/api/v1/public-payments` | สร้าง payment สำหรับ public Booking/Customer ผ่าน Backoffice/PD/LLGW โดยใช้ `PUBLIC_PAYMENT_STORE_ID` |
 
 ### Developer API: `/api/v1`
 

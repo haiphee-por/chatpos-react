@@ -8,6 +8,7 @@ import { CatalogPageView } from './CatalogPageView'
 import { BookingPageView } from './BookingPageView'
 import { DeveloperConsoleView } from './DeveloperConsoleView'
 import { LandingPageView } from './LandingPageView'
+import { TableOrderView } from './TableOrderView'
 import { fetchDbHealth, fetchDbStats, getServerSession, setStoredUser, type AuthUser, type DbHealth, type DbStats } from './dbApi'
 
 export function App() {
@@ -85,7 +86,13 @@ export function App() {
     return <CatalogPageView />
   }
 
-  // 3. Customer In-Store / Table Dining & Order Route (/customer, /order, /table/:id)
+  // 3. Token-bound table ordering must be resolved before broad customer routes.
+  const tableOrderTokenMatch = pathname.match(/^\/order\/([^/]+)\/?$/)
+  if (tableOrderTokenMatch) {
+    return <TableOrderView token={tableOrderTokenMatch[1]} />
+  }
+
+  // 4. Customer In-Store / Table Dining & Order Route (/customer, /order, /table/:id)
   if (
     pathname === '/customer' ||
     pathname === '/order' ||
@@ -98,7 +105,7 @@ export function App() {
     return <CustomerView />
   }
 
-  // 4. QuickPay & Cashier Direct Link (/quickpay, /pay, /shop)
+  // 5. QuickPay & Cashier Direct Link (/quickpay, /pay, /shop)
   if (
     pathname === '/shop' ||
     pathname === '/quickpay' ||

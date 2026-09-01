@@ -4,6 +4,7 @@ import { MerchantKycView } from './MerchantKycView'
 import { DeveloperConsoleView } from './DeveloperConsoleView'
 import { createDbProduct, fetchDbAssignments, fetchDbBenefitsResult, fetchDbHomeResult, fetchDbProducts, fetchDbProductsResult, fetchDbStoppay, fetchDbStoresResult, fetchDbTransactionsResult, transitionDbStoppay, updateDbProduct, clearStoredUser, getStoredUser, logoutUser, type AuthUser, type DbAssignmentRow, type DbBenefitRow, type DbHomeReadModel, type DbProductRow, type DbStoppayState, type DbStoreRow, type DbTransactionRow } from './dbApi'
 import { MerchantHome as MerchantHomeDashboard, MerchantBottomNavigation, type StoreLoadState } from './MerchantHomeView'
+import { MerchantOrdersView, MerchantPosView, MerchantTablesView } from './MerchantOperationsView'
 import { QuickPayView as RoutedQuickPayView } from './QuickPayView'
 import { getMerchantNavItem, isMerchantNavAllowed, isMerchantNavId, merchantNavIdFromLocation, merchantNavItems, type MerchantNavCapabilities } from './merchantNavigation'
 import { generatePromptPayQrDataUrl, generateUrlQrDataUrl, getStoredPromptPayId, setStoredPromptPayId } from './promptpay'
@@ -521,7 +522,7 @@ export function MerchantView({ currentUser }: { currentUser: AuthUser | null }) 
           ) : !activeNavAllowed ? (
             <MerchantUnavailableSection label={current.label} />
           ) : active === 'pos' ? (
-            allowDemoMerchantSurfaces ? <PosView onNavigate={navigate} /> : <MerchantUnavailableSection label="POS" reason="POS production API ยังไม่พร้อมใช้งาน" />
+            <MerchantPosView storeId={selectedStore?.id || currentUser?.store?.id || null} onNavigate={navigate} />
           ) : active === 'payment' ? (
             <RoutedQuickPayView storeName={displayStoreName} />
           ) : active === 'products' ? (
@@ -531,7 +532,7 @@ export function MerchantView({ currentUser }: { currentUser: AuthUser | null }) 
           ) : active === 'salespage' ? (
             allowDemoMerchantSurfaces ? <SalesPageView /> : <MerchantUnavailableSection label="เซลเพจ" reason="Sales page persistence ยังไม่พร้อมใช้งาน" />
           ) : active === 'orders' ? (
-            allowDemoMerchantSurfaces ? <OrdersView onNavigate={navigate} /> : <MerchantUnavailableSection label="ออเดอร์" reason="Order API/persistence ยังไม่พร้อมใช้งาน" />
+            <MerchantOrdersView storeId={selectedStore?.id || currentUser?.store?.id || null} />
           ) : active === 'transactions' ? (
             <TransactionsView storeId={selectedStore?.id || currentUser?.store?.id || null} onNavigate={navigate} />
           ) : active === 'benefits' ? (
@@ -539,7 +540,7 @@ export function MerchantView({ currentUser }: { currentUser: AuthUser | null }) 
           ) : active === 'stoppay' ? (
             <StoppayView storeId={selectedStore?.id || currentUser?.store?.id || null} />
           ) : active === 'tables' ? (
-            <MerchantSection active={active} label={current.label} />
+            <MerchantTablesView storeId={selectedStore?.id || currentUser?.store?.id || null} />
           ) : active === 'reports' ? (
             <MerchantFinanceView mode="reports" storeId={selectedStore?.id || currentUser?.store?.id || null} onNavigate={navigate} />
           ) : active === 'wallet' ? (

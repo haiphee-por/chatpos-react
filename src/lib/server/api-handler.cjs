@@ -42,6 +42,14 @@ const {
 } = require('./integration/otpService.cjs');
 const { createSmsupProvider } = require('./integration/smsupClient.cjs');
 const {
+  createOrder,
+  createTable,
+  listOrders,
+  listTables,
+  transitionOrder,
+  updateTable,
+} = require('./integration/orderService.cjs');
+const {
   boundedInteger,
   getStoppayTransition,
   getTransactionFilters,
@@ -312,6 +320,8 @@ function isPublicApiRequest(requestPath, method) {
   if (requestPath === '/api/health/live' && method === 'GET') return true;
   if (requestPath === '/api/health/ready' && method === 'GET') return true;
   if (requestPath === '/api/v1/public-payments' && method === 'POST') return true;
+  if (requestPath === '/api/public/table-order' && method === 'GET') return true;
+  if (requestPath === '/api/public/table-orders' && method === 'POST') return true;
   if (/^\/api\/v1\/kyc\/documents\/[^/]+\/download$/.test(requestPath) && method === 'GET') return true;
   if (requestPath === '/api/webhooks/chatpos' && method === 'POST') return true;
   if (requestPath === '/api/webhooks/assignment-status' && method === 'POST') return true;
@@ -376,6 +386,7 @@ async function handleApiRequest(req, res) {
   if (
     url.startsWith('/api/db') ||
     url.startsWith('/api/v1') ||
+    url.startsWith('/api/public') ||
     url.startsWith('/api/health') ||
     requestPath === '/api/webhooks/chatpos' ||
     requestPath === '/api/webhooks/assignment-status' ||
@@ -434,6 +445,60 @@ async function handleApiRequest(req, res) {
           res.statusCode = 503;
           res.end(JSON.stringify({ success: false, status: 'not_ready', code: 'DATABASE_UNAVAILABLE' }));
         }
+        return;
+      }
+
+      if (requestPath === '/api/public/table-order' && req.method === 'GET') {
+        const query = requestQuery(url);
+        const token = String(query.get('token') || '').trim();
+        if (!/^[A-Za-z0-9_-]{12,128}$/.test(token)) throw new SecurityError('Table token is invalid', 'TABLE_TOKEN_INVALID', 404);
+        await consumeRateLimit({ pool, bucketKey: `public-table-read:${clientIp(req)}:${token}`, limit: 120, windowSeconds: 60 });
+        const tableResult = await pool.query(`
+          SELECT t.id, t.name, t.zone, t.token, t."storeId", s.name AS "storeName", s.description AS "storeDescription"
+          FROM restaurant_tables t
+          JOIN "Store" s ON s.id = t."storeId" AND s."isActive" = true
+          WHERE t.token = $1 AND t.status = 'ACTIVE'
+          LIMIT 1`, [token]);
+        if (!tableResult.rowCount) throw new SecurityError('Table order link was not found', 'TABLE_TOKEN_NOT_FOUND', 404);
+        const table = tableResult.rows[0];
+        const products = await pool.query(`
+          SELECT id, name, description, price, stock, category, image, "trackStock"
+          FROM "Product"
+          WHERE "storeId" = $1 AND "isActive" = true AND ("trackStock" = false OR stock > 0)
+          ORDER BY category NULLS LAST, name
+          LIMIT 200`, [table.storeId]);
+        res.statusCode = 200;
+        res.end(JSON.stringify({ success: true, data: { table, products: products.rows } }));
+        return;
+      }
+
+      if (requestPath === '/api/public/table-orders' && req.method === 'POST') {
+        const body = await parseJsonBody(req, 64 * 1024);
+        const token = String(body.token || '').trim();
+        const idempotencyKey = String(req.headers['idempotency-key'] || body.idempotencyKey || '').trim();
+        if (!/^[A-Za-z0-9_-]{12,128}$/.test(token)) throw new SecurityError('Table token is invalid', 'TABLE_TOKEN_INVALID', 404);
+        if (!/^[A-Za-z0-9._:-]{8,200}$/.test(idempotencyKey)) throw new SecurityError('Idempotency-Key is required', 'IDEMPOTENCY_KEY_REQUIRED', 400);
+        await consumeRateLimit({ pool, bucketKey: `public-table-order:${clientIp(req)}:${token}`, limit: 20, windowSeconds: 60 });
+        const tableResult = await pool.query(`
+          SELECT t.id, t."storeId"
+          FROM restaurant_tables t
+          JOIN "Store" s ON s.id = t."storeId" AND s."isActive" = true
+          WHERE t.token = $1 AND t.status = 'ACTIVE'
+          LIMIT 1`, [token]);
+        if (!tableResult.rowCount) throw new SecurityError('Table order link was not found', 'TABLE_TOKEN_NOT_FOUND', 404);
+        const table = tableResult.rows[0];
+        const result = await createOrder({
+          pool,
+          storeId: table.storeId,
+          actorId: null,
+          actorRole: 'customer',
+          body: { ...body, tableId: table.id, source: 'TABLE' },
+          idempotencyKey,
+          requestId: req.headers['x-request-id'] || null,
+        });
+        if (!result.idempotentReplay) await writeAudit({ poolOrClient: pool, actorRole: 'customer', action: 'PUBLIC_TABLE_ORDER_CREATED', targetType: 'merchant_order', targetId: result.order.id, after: { storeId: table.storeId, tableId: table.id, orderNumber: result.order.orderNumber, total: result.order.total }, requestId: req.headers['x-request-id'] || null });
+        res.statusCode = result.idempotentReplay ? 200 : 201;
+        res.end(JSON.stringify({ success: true, ...result }));
         return;
       }
 
@@ -1293,7 +1358,7 @@ async function handleApiRequest(req, res) {
       if (requestPath === '/api/db/home' && req.method === 'GET') {
         const query = requestQuery(url);
         const storeId = await resolveAuthorizedStore({ principal, requestedStoreId: query.get('storeId') });
-        const [storeResult, summaryResult, notificationResult] = await Promise.all([
+        const [storeResult, summaryResult, notificationResult, operationCountResult] = await Promise.all([
           pool.query(`
             SELECT s.id, s.name, s."storeType", s."isActive", s.timezone, s.currency,
               mi."merchantId",
@@ -1318,6 +1383,10 @@ async function handleApiRequest(req, res) {
             SELECT COUNT(*)::integer AS count
             FROM notifications
             WHERE "storeId" = $1 AND "recipientId" = $2 AND "readAt" IS NULL`, [storeId, principal.id]),
+          pool.query(`
+            SELECT
+              (SELECT COUNT(*)::integer FROM merchant_orders WHERE "storeId" = $1 AND status NOT IN ('DONE', 'CANCELLED')) AS "openOrders",
+              (SELECT COUNT(*)::integer FROM "Product" WHERE "storeId" = $1 AND "isActive" = true AND "trackStock" = true AND stock <= 10) AS "lowStockItems"`, [storeId]),
         ]);
         if (storeResult.rowCount === 0) {
           throw new SecurityError('Store was not found', 'STORE_NOT_FOUND', 404);
@@ -1357,9 +1426,9 @@ async function handleApiRequest(req, res) {
             },
             counts: {
               unreadNotifications: notificationResult.rows[0]?.count || 0,
-              openOrders: null,
+              openOrders: operationCountResult.rows[0]?.openOrders || 0,
               queueWaiting: null,
-              lowStockItems: null,
+              lowStockItems: operationCountResult.rows[0]?.lowStockItems || 0,
             },
             unreadNotificationCount: notificationResult.rows[0]?.count || 0,
             quickActions: [
@@ -2131,6 +2200,83 @@ async function handleApiRequest(req, res) {
         await writeAudit({ poolOrClient: pool, principal, action: 'PRODUCT_UPDATED', targetType: 'product', targetId: product.id, before: { price: current.price, stock: current.stock, isActive: current.isActive }, after: { price: product.price, stock: product.stock, isActive: product.isActive }, requestId: req.headers['x-request-id'] || null });
         res.statusCode = 200;
         res.end(JSON.stringify({ success: true, product }));
+        return;
+      }
+
+      // ── 12.5 Merchant tables and orders ───────────────────────────
+      if (req.method === 'GET' && requestPath === '/api/db/tables') {
+        const query = requestQuery(url);
+        const storeId = await resolveAuthorizedStore({ principal, requestedStoreId: query.get('storeId') });
+        const tables = await listTables({ pool, storeId, includeInactive: query.get('includeInactive') === 'true' });
+        res.statusCode = 200;
+        res.end(JSON.stringify({ success: true, data: tables }));
+        return;
+      }
+
+      if (req.method === 'POST' && requestPath === '/api/db/tables') {
+        assertRole(principal, ['merchant']);
+        await enforcePrincipalRateLimit({ principal, requestPath, limit: 20, windowSeconds: 60 });
+        const body = await parseJsonBody(req);
+        const storeId = await resolveAuthorizedStore({ principal, requestedStoreId: body.storeId });
+        const result = await createTable({ pool, storeId, actorId: principal.id, body, idempotencyKey: String(req.headers['idempotency-key'] || body.idempotencyKey || '').trim() });
+        if (!result.idempotentReplay) await writeAudit({ poolOrClient: pool, principal, action: 'TABLE_CREATED', targetType: 'restaurant_table', targetId: result.table.id, after: { storeId, name: result.table.name, zone: result.table.zone }, requestId: req.headers['x-request-id'] || null });
+        res.statusCode = result.idempotentReplay ? 200 : 201;
+        res.end(JSON.stringify({ success: true, ...result }));
+        return;
+      }
+
+      const tableMutationRoute = requestPath.match(/^\/api\/db\/tables\/([^/]+)$/);
+      if (req.method === 'PATCH' && tableMutationRoute) {
+        assertRole(principal, ['merchant']);
+        await enforcePrincipalRateLimit({ principal, requestPath, limit: 30, windowSeconds: 60 });
+        const body = await parseJsonBody(req);
+        const storeId = await resolveAuthorizedStore({ principal, requestedStoreId: body.storeId });
+        const table = await updateTable({ pool, storeId, tableId: decodeURIComponent(tableMutationRoute[1]), body });
+        await writeAudit({ poolOrClient: pool, principal, action: 'TABLE_UPDATED', targetType: 'restaurant_table', targetId: table.id, after: { storeId, name: table.name, zone: table.zone, status: table.status, version: table.version }, requestId: req.headers['x-request-id'] || null });
+        res.statusCode = 200;
+        res.end(JSON.stringify({ success: true, table }));
+        return;
+      }
+
+      if (req.method === 'GET' && requestPath === '/api/db/orders') {
+        const query = requestQuery(url);
+        const storeId = await resolveAuthorizedStore({ principal, requestedStoreId: query.get('storeId') });
+        const orders = await listOrders({ pool, storeId, status: query.get('status'), limit: query.get('limit') });
+        res.statusCode = 200;
+        res.end(JSON.stringify({ success: true, data: orders }));
+        return;
+      }
+
+      if (req.method === 'POST' && requestPath === '/api/db/orders') {
+        assertRole(principal, ['merchant']);
+        await enforcePrincipalRateLimit({ principal, requestPath, limit: 30, windowSeconds: 60 });
+        const body = await parseJsonBody(req);
+        const storeId = await resolveAuthorizedStore({ principal, requestedStoreId: body.storeId });
+        const result = await createOrder({
+          pool,
+          storeId,
+          actorId: principal.id,
+          actorRole: principal.role,
+          body,
+          idempotencyKey: String(req.headers['idempotency-key'] || body.idempotencyKey || '').trim(),
+          requestId: req.headers['x-request-id'] || null,
+        });
+        if (!result.idempotentReplay) await writeAudit({ poolOrClient: pool, principal, action: 'ORDER_CREATED', targetType: 'merchant_order', targetId: result.order.id, after: { storeId, orderNumber: result.order.orderNumber, total: result.order.total, status: result.order.status }, requestId: req.headers['x-request-id'] || null });
+        res.statusCode = result.idempotentReplay ? 200 : 201;
+        res.end(JSON.stringify({ success: true, ...result }));
+        return;
+      }
+
+      const orderStatusRoute = requestPath.match(/^\/api\/db\/orders\/([^/]+)\/status$/);
+      if (req.method === 'PATCH' && orderStatusRoute) {
+        assertRole(principal, ['merchant']);
+        await enforcePrincipalRateLimit({ principal, requestPath, limit: 60, windowSeconds: 60 });
+        const body = await parseJsonBody(req);
+        const storeId = await resolveAuthorizedStore({ principal, requestedStoreId: body.storeId });
+        const order = await transitionOrder({ pool, storeId, orderId: decodeURIComponent(orderStatusRoute[1]), actorId: principal.id, actorRole: principal.role, body, requestId: req.headers['x-request-id'] || null });
+        await writeAudit({ poolOrClient: pool, principal, action: 'ORDER_STATUS_CHANGED', targetType: 'merchant_order', targetId: order.id, reason: body.reason || null, after: { storeId, status: order.status, version: order.version }, requestId: req.headers['x-request-id'] || null });
+        res.statusCode = 200;
+        res.end(JSON.stringify({ success: true, order }));
         return;
       }
 

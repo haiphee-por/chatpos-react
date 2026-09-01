@@ -46,6 +46,10 @@ const ids = {
   productCoffee: 'a0000000-0000-4000-8000-000000000001',
   productCake: 'a0000000-0000-4000-8000-000000000002',
   productService: 'a0000000-0000-4000-8000-000000000003',
+  tableCounter: 'aa000000-0000-4000-8000-000000000001',
+  tableWindow: 'aa000000-0000-4000-8000-000000000002',
+  orderNew: 'ab000000-0000-4000-8000-000000000001',
+  orderAccepted: 'ab000000-0000-4000-8000-000000000002',
   commissionAgent: 'b0000000-0000-4000-8000-000000000001',
   commissionPd: 'b0000000-0000-4000-8000-000000000002',
   webhookEvent: 'c0000000-0000-4000-8000-000000000001',
@@ -255,6 +259,42 @@ async function seed() {
          ($3, $5, 'ชุดตรวจสอบธุรกิจ Demo', 'สินค้าในร้านที่อยู่ระหว่าง review', 450, 200, 8, 'บริการ', 'DEMO-REVIEW-001', true, true, NOW(), NOW())
        ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, price = EXCLUDED.price, stock = EXCLUDED.stock, "updatedAt" = NOW()`,
       [ids.productCoffee, ids.productCake, ids.productService, ids.store, ids.storeTwo]
+    );
+
+    await query(
+      `INSERT INTO restaurant_tables (id, "storeId", name, zone, token, status, version, "idempotencyKey", "createdBy", "createdAt", "updatedAt")
+       VALUES
+         ($1, $3, 'โต๊ะ 01', 'โซนหน้าร้าน', 'demo-table-counter-001', 'ACTIVE', 1, 'seed:table:counter', $4, NOW() - INTERVAL '10 days', NOW()),
+         ($2, $3, 'โต๊ะ 02', 'โซนริมหน้าต่าง', 'demo-table-window-002', 'ACTIVE', 1, 'seed:table:window', $4, NOW() - INTERVAL '10 days', NOW())
+       ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, zone = EXCLUDED.zone, status = 'ACTIVE', "updatedAt" = NOW()`,
+      [ids.tableCounter, ids.tableWindow, ids.store, ids.merchantUser]
+    );
+
+    await query(
+      `INSERT INTO merchant_orders (id, "storeId", "tableId", "orderNumber", status, source, "customerName", note, total, currency, version, "idempotencyKey", "createdBy", "createdAt", "updatedAt")
+       VALUES
+         ($1, $3, $4, 'ORD-DEMO-NEW-001', 'NEW', 'TABLE', 'ลูกค้าโต๊ะ 01', 'หวานน้อย', 170, 'THB', 1, 'seed:order:new', $6, NOW() - INTERVAL '8 minutes', NOW() - INTERVAL '8 minutes'),
+         ($2, $3, $5, 'ORD-DEMO-ACCEPTED-002', 'ACCEPTED', 'POS', 'ลูกค้าหน้าร้าน', null, 120, 'THB', 1, 'seed:order:accepted', $6, NOW() - INTERVAL '18 minutes', NOW() - INTERVAL '12 minutes')
+      ON CONFLICT (id) DO UPDATE SET status = EXCLUDED.status, total = EXCLUDED.total, version = EXCLUDED.version, "inventoryCommitted" = false, "updatedAt" = EXCLUDED."updatedAt"`,
+      [ids.orderNew, ids.orderAccepted, ids.store, ids.tableCounter, ids.tableWindow, ids.merchantUser]
+    );
+
+    await query(
+      `INSERT INTO merchant_order_items (id, "orderId", "productId", "nameSnapshot", "priceSnapshot", quantity, "lineTotal", note, position)
+       VALUES
+         ('ac000000-0000-4000-8000-000000000001', $1, $3, 'ลาเต้เย็น Demo', 85, 2, 170, 'หวานน้อย', 0),
+         ('ac000000-0000-4000-8000-000000000002', $2, $4, 'เค้กช็อกโกแลต Demo', 120, 1, 120, null, 0)
+       ON CONFLICT (id) DO UPDATE SET quantity = EXCLUDED.quantity, "lineTotal" = EXCLUDED."lineTotal", note = EXCLUDED.note`,
+      [ids.orderNew, ids.orderAccepted, ids.productCoffee, ids.productCake]
+    );
+
+    await query(
+      `INSERT INTO merchant_order_status_events (id, "orderId", "fromStatus", "toStatus", reason, "actorId", "actorRole", "requestId", "createdAt")
+       VALUES
+         ('ad000000-0000-4000-8000-000000000001', $1, null, 'NEW', 'Seed table order', $3, 'merchant', 'seed-order-new', NOW() - INTERVAL '8 minutes'),
+         ('ad000000-0000-4000-8000-000000000002', $2, 'NEW', 'ACCEPTED', 'Seed accepted order', $3, 'merchant', 'seed-order-accepted', NOW() - INTERVAL '12 minutes')
+       ON CONFLICT (id) DO NOTHING`,
+      [ids.orderNew, ids.orderAccepted, ids.merchantUser]
     );
 
     await query(

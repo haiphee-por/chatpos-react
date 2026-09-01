@@ -284,6 +284,50 @@ export interface DbProductRow {
   store_name: string | null
 }
 
+export interface DbRestaurantTableRow {
+  id: string
+  storeId: string
+  name: string
+  zone: string | null
+  token: string
+  status: 'ACTIVE' | 'INACTIVE'
+  version: number
+  openOrderCount: number
+  openOrderTotal: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface DbMerchantOrderItem {
+  id: string
+  productId: string | null
+  name: string
+  price: string
+  quantity: number
+  lineTotal: string
+  note: string | null
+  position: number
+}
+
+export interface DbMerchantOrderRow {
+  id: string
+  storeId: string
+  tableId: string | null
+  tableName: string | null
+  orderNumber: string
+  status: 'NEW' | 'ACCEPTED' | 'KITCHEN_RECEIVED' | 'DONE' | 'CANCELLED'
+  source: 'POS' | 'TABLE' | 'DELIVERY' | 'TAKEAWAY'
+  customerName: string | null
+  note: string | null
+  total: string
+  currency: string
+  version: number
+  inventoryCommitted: boolean
+  createdAt: string
+  updatedAt: string
+  items: DbMerchantOrderItem[]
+}
+
 export interface DbCommissionRow {
   id: string
   sourceType: string
@@ -811,6 +855,58 @@ export async function createDbProduct(payload: DbProductMutationPayload) {
 
 export async function updateDbProduct(id: string, payload: Partial<DbProductMutationPayload> & { expectedUpdatedAt?: string }) {
   return fetchDbApi<{ success: boolean; product: DbProductRow }>(`/products/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  })
+}
+
+export async function fetchDbTablesResult(storeId: string, includeInactive = false): Promise<DbFetchResult<DbRestaurantTableRow[]>> {
+  try {
+    const query = new URLSearchParams({ storeId })
+    if (includeInactive) query.set('includeInactive', 'true')
+    const res = await fetchDbApi<{ success: boolean; data: DbRestaurantTableRow[] }>(`/tables?${query.toString()}`)
+    return { data: res.data || [], error: null, fetchedAt: new Date().toISOString() }
+  } catch (err: any) {
+    return { data: [], error: err?.message || 'โหลดรายการโต๊ะไม่สำเร็จ', fetchedAt: null }
+  }
+}
+
+export async function createDbTable(payload: { storeId: string; name: string; zone?: string | null }, idempotencyKey: string) {
+  return fetchDbApi<{ success: boolean; idempotentReplay: boolean; table: DbRestaurantTableRow }>('/tables', {
+    method: 'POST',
+    headers: { 'Idempotency-Key': idempotencyKey },
+    body: JSON.stringify(payload),
+  })
+}
+
+export async function updateDbTable(id: string, payload: { storeId: string; expectedVersion: number; name?: string; zone?: string | null; status?: 'ACTIVE' | 'INACTIVE' }) {
+  return fetchDbApi<{ success: boolean; table: DbRestaurantTableRow }>(`/tables/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  })
+}
+
+export async function fetchDbOrdersResult(storeId: string, options: { status?: DbMerchantOrderRow['status']; limit?: number } = {}): Promise<DbFetchResult<DbMerchantOrderRow[]>> {
+  try {
+    const query = new URLSearchParams({ storeId, limit: String(options.limit || 100) })
+    if (options.status) query.set('status', options.status)
+    const res = await fetchDbApi<{ success: boolean; data: DbMerchantOrderRow[] }>(`/orders?${query.toString()}`)
+    return { data: res.data || [], error: null, fetchedAt: new Date().toISOString() }
+  } catch (err: any) {
+    return { data: [], error: err?.message || 'โหลดออเดอร์ไม่สำเร็จ', fetchedAt: null }
+  }
+}
+
+export async function createDbOrder(payload: { storeId: string; tableId?: string | null; source: DbMerchantOrderRow['source']; customerName?: string; note?: string; items: Array<{ productId: string; quantity: number; note?: string }> }, idempotencyKey: string) {
+  return fetchDbApi<{ success: boolean; idempotentReplay: boolean; order: DbMerchantOrderRow }>('/orders', {
+    method: 'POST',
+    headers: { 'Idempotency-Key': idempotencyKey },
+    body: JSON.stringify(payload),
+  })
+}
+
+export async function transitionDbOrderStatus(id: string, payload: { storeId: string; status: DbMerchantOrderRow['status']; expectedVersion: number; reason?: string }) {
+  return fetchDbApi<{ success: boolean; order: DbMerchantOrderRow }>(`/orders/${encodeURIComponent(id)}/status`, {
     method: 'PATCH',
     body: JSON.stringify(payload),
   })

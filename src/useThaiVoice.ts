@@ -104,11 +104,15 @@ export function useThaiVoice(initialEnabled = true) {
   const [enabled, setEnabled] = useState(initialEnabled)
   const [status, setStatus] = useState<ThaiVoiceStatus>('idle')
   const [lineMode, setLineMode] = useState(false)
+  const enabledRef = useRef(initialEnabled)
+  const lineModeRef = useRef(false)
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const runRef = useRef(0)
 
   useEffect(() => {
-    setLineMode(isLineEnvironment())
+    const detectedLineMode = isLineEnvironment()
+    lineModeRef.current = detectedLineMode
+    setLineMode(detectedLineMode)
     return () => {
       runRef.current += 1
       if ('speechSynthesis' in window) window.speechSynthesis.cancel()
@@ -158,11 +162,11 @@ export function useThaiVoice(initialEnabled = true) {
   }
 
   const speak = (text: string, clips: string[] = ['test'], onEnd?: () => void, force = false) => {
-    if (!enabled && !force) {
+    if (!enabledRef.current && !force) {
       onEnd?.()
       return
     }
-    if (lineMode) {
+    if (lineModeRef.current) {
       playClips(clips, onEnd)
       return
     }
@@ -195,12 +199,14 @@ export function useThaiVoice(initialEnabled = true) {
   }
 
   const toggle = () => {
-    if (enabled) {
+    if (enabledRef.current) {
       cancel()
+      enabledRef.current = false
       setEnabled(false)
       setStatus('idle')
       return
     }
+    enabledRef.current = true
     setEnabled(true)
     window.setTimeout(() => speak('เปิดเสียงภาษาไทยแล้ว', ['voice_on'], undefined, true), 0)
   }

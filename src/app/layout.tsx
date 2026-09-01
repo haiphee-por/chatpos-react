@@ -9,7 +9,9 @@ import '../../src/DeveloperConsoleView.css'
 import '../../src/LandingPageView.css'
 import '../../src/MerchantRegistrationView.css'
 import '../../src/MerchantView.css'
+import '../../src/MerchantOperationsView.css'
 import '../../src/QuickPayView.css'
+import '../../src/TableOrderView.css'
 
 export const metadata: Metadata = {
   title: 'ChatPOS',
