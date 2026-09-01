@@ -16,6 +16,7 @@ import {
   ChevronRight,
   ChevronDown,
   ArrowDown,
+  ArrowLeft,
   ArrowUp,
   ClipboardList,
   Clock,
@@ -487,32 +488,19 @@ export function MerchantView({ currentUser }: { currentUser: AuthUser | null }) 
 
   return (
     <div className={`merchant-app merchant-app-ai ${active === 'home' ? 'merchant-app-home' : ''}`}>
-      {active !== 'home' && sidebar}
-      {active !== 'home' && mobileOpen && (
-        <div className="merchant-mobile">
-          <button className="merchant-backdrop" aria-label="ปิดเมนู" onClick={() => setMobileOpen(false)} type="button" />
-          <div>
-            {sidebar}
-            <button className="merchant-close" aria-label="ปิดเมนู" onClick={() => setMobileOpen(false)} type="button">
-              <X size={20} />
-            </button>
-          </div>
-        </div>
-      )}
       <div className="merchant-main">
         {active !== 'home' && <header className="merchant-topbar">
-          <button className="merchant-menu-button" aria-label="เปิดเมนู" onClick={() => setMobileOpen(true)} type="button">
-            <Menu size={20} />
+          <button className="merchant-route-back" aria-label="ย้อนกลับหน้าหลัก" onClick={() => navigate('home')} type="button">
+            <ArrowLeft size={22} />
           </button>
-          <div>
-            <p>Merchant Portal</p>
+          <div className="merchant-route-title">
             <h1>{current.label}</h1>
+            <p>Merchant: {displayStoreName}</p>
           </div>
           <div className="merchant-actions">
             <button aria-label="การแจ้งเตือนจะแสดงในหน้า Home" className="merchant-icon-button" onClick={() => navigate('home')} type="button">
-              <Bell size={18} />
+              <Bell size={24} />
             </button>
-            <div className="merchant-top-avatar">PB</div>
           </div>
         </header>}
         <main className={`merchant-content ${active === 'home' ? 'merchant-home-content' : ''}`}>
@@ -554,7 +542,10 @@ export function MerchantView({ currentUser }: { currentUser: AuthUser | null }) 
           ) : active === 'kyc' ? (
             <MerchantKycView storeId={selectedStore?.id || currentUser?.store?.id || null} />
           ) : active === 'developer' ? (
-            <DeveloperConsoleView embedded={true} />
+            <div className="ai-developer-view">
+              <div className="ai-demo-banner" role="status"><Code size={16} /><span><strong>TESTING SURFACE</strong> API stats, key และ webhook บางส่วนเป็น compatibility example ไม่ใช่ production authority</span></div>
+              <DeveloperConsoleView embedded={true} />
+            </div>
           ) : active === 'settings' ? (
             <SettingsView onOpenProfile={() => setProfileModalOpen(true)} onNavigate={navigate} />
           ) : (
@@ -1919,7 +1910,7 @@ function ProductsView({ storeId }: { storeId: string | null }) {
   })
 
   return (
-    <div className="queue-services-page">
+    <div className="queue-services-page ai-products-view">
       {productError && <div className="merchant-data-alert" role="alert"><ShieldAlert size={18} /><span>{productError}</span><button type="button" onClick={() => { void loadProducts() }} disabled={productState === 'loading'}><RefreshCw size={14} /> ลองใหม่</button></div>}
       {productState === 'loading' && <div className="merchant-transaction-state" aria-busy="true"><RefreshCw size={24} className="spin" /><span>กำลังโหลดสินค้าและสต็อก</span></div>}
       {/* Action Hero Cards */}
@@ -2483,7 +2474,8 @@ function ServicesView() {
   const activeBookingsCount = bookings.filter(b => b.status === 'pending' || b.status === 'confirmed').length
 
   return (
-    <div className="queue-services-page">
+    <div className="queue-services-page ai-services-view ai-demo-view">
+      <div className="ai-demo-banner" role="status"><Sparkles size={16} /><span><strong>DEMO ONLY</strong> ข้อมูลบริการและคิวยังใช้ localStorage ไม่ใช่ production persistence</span></div>
       {/* Hero Cards */}
       <section className="qs-hero-cards">
         <div
@@ -4012,7 +4004,22 @@ function TransactionsView({ storeId, onNavigate }: { storeId: string | null; onN
       {error && <div className="merchant-data-alert" role="alert"><ShieldAlert size={18} /><span>{error}</span><button type="button" onClick={() => { void loadTransactions() }} disabled={isLoading}><RefreshCw size={14} /> ลองใหม่</button></div>}
       {isLoading && <div className="merchant-transaction-state" aria-busy="true"><RefreshCw size={24} className="spin" /><span>กำลังโหลดประวัติธุรกรรม</span></div>}
       {!isLoading && !error && filteredTransactions.length === 0 && <div className="merchant-transaction-state"><ReceiptText size={34} /><strong>{transactions.length === 0 ? 'ยังไม่มีธุรกรรม' : 'ไม่พบธุรกรรมตามตัวกรอง'}</strong><span>{transactions.length === 0 ? 'เมื่อมีรายการจาก Store นี้ จะแสดงในหน้านี้' : 'ลองเปลี่ยนสถานะหรือคำค้นหา'}</span></div>}
-      {!isLoading && filteredTransactions.length > 0 && <div className="merchant-transaction-table-wrap"><table className="merchant-transaction-table"><thead><tr><th>Reference</th><th>วันที่</th><th>ช่องทาง</th><th>ลูกค้า</th><th>ยอดเงิน</th><th>สถานะ</th></tr></thead><tbody>{filteredTransactions.map((transaction) => <tr key={transaction.id}><td><strong>{transaction.reference}</strong><small>{transaction.id}</small></td><td>{new Date(transaction.occurredAt || transaction.createdAt).toLocaleString('th-TH')}</td><td>{transaction.paymentMethod || transaction.channel || '—'}</td><td>{transaction.customerName || 'ลูกค้าหน้าร้าน'}</td><td className="merchant-transaction-amount">฿{Number(transaction.amount).toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td><td><span className={`merchant-transaction-status ${transactionStatusMatches(transaction.status, 'paid') ? 'is-paid' : transactionStatusMatches(transaction.status, 'pending') ? 'is-pending' : 'is-failed'}`}>{transactionStatusLabel(transaction.status)}</span></td></tr>)}</tbody></table></div>}
+      {!isLoading && filteredTransactions.length > 0 && <div className="ai-transaction-list">{filteredTransactions.map((transaction) => {
+        const isPaid = transactionStatusMatches(transaction.status, 'paid')
+        const isPending = transactionStatusMatches(transaction.status, 'pending')
+        return <article key={transaction.id}>
+          <span className={`ai-transaction-icon ${isPaid ? 'is-paid' : isPending ? 'is-pending' : 'is-failed'}`}><ReceiptText /></span>
+          <div className="ai-transaction-copy">
+            <strong>{transaction.paymentMethod || transaction.channel || 'การชำระเงิน'}</strong>
+            <small>{transaction.reference} · {new Date(transaction.occurredAt || transaction.createdAt).toLocaleString('th-TH')}</small>
+            <em>{transaction.customerName || 'ลูกค้าหน้าร้าน'}</em>
+          </div>
+          <div className="ai-transaction-value">
+            <strong>฿{Number(transaction.amount).toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
+            <span className={`merchant-transaction-status ${isPaid ? 'is-paid' : isPending ? 'is-pending' : 'is-failed'}`}>{transactionStatusLabel(transaction.status)}</span>
+          </div>
+        </article>
+      })}</div>}
     </section>
   )
 }
@@ -4857,7 +4864,8 @@ function SalesPageView() {
   }
 
   return (
-    <div className="salespage-container">
+    <div className="salespage-container ai-salespage-view ai-demo-view">
+      <div className="ai-demo-banner" role="status"><Sparkles size={16} /><span><strong>DEMO ONLY</strong> เซลเพจยังเก็บใน localStorage และยังไม่มี published-page API</span></div>
       {/* 1. Title & Subtitle */}
       <div className="sp-page-title-wrap">
         <div>
@@ -5588,7 +5596,8 @@ function OrdersView({ onNavigate }: { onNavigate?: (id: string) => void }) {
   }
 
   return (
-    <div className="orders-view">
+    <div className="orders-view ai-orders-view ai-demo-view">
+      <div className="ai-demo-banner" role="status"><Sparkles size={16} /><span><strong>DEMO ONLY</strong> ออเดอร์หน้านี้ยังเป็นข้อมูลตัวอย่างและไม่มี Order API persistence</span></div>
       {/* Top 4 Status Metric Cards */}
       <section className="ov-status-grid">
         <div
@@ -6936,7 +6945,8 @@ function PosView({ onNavigate }: { onNavigate?: (tab: string) => void }) {
   )
 
   return (
-    <div className="pos-view-container">
+    <div className="pos-view-container ai-pos-view ai-demo-view">
+      <div className="ai-demo-banner" role="status"><Sparkles size={16} /><span><strong>DEMO ONLY</strong> ตะกร้า โต๊ะ พักบิล และใบเสร็จยังเป็น client state ไม่ใช่ POS production flow</span></div>
       {/* 2. Metric Status Cards (Style หน้าบริการ) */}
       <section className="ov-status-grid" style={{ marginBottom: '18px' }}>
         <div className="ov-metric-card ov-card-all">
@@ -9008,7 +9018,7 @@ function MerchantFinanceView({ mode, storeId, onNavigate }: { mode: 'reports' | 
   if (state === 'loading') return <section className="merchant-finance-view"><div className="merchant-transaction-state" aria-busy="true"><RefreshCw size={24} className="spin" /><span>กำลังโหลดข้อมูลการเงิน</span></div></section>
 
   return (
-    <section className="merchant-finance-view" aria-labelledby="merchant-finance-title">
+    <section className={`merchant-finance-view ai-finance-view ai-finance-${mode}`} aria-labelledby="merchant-finance-title">
       <div className="merchant-heading"><div><p className="merchant-eyebrow">{mode === 'wallet' ? 'WALLET' : 'REPORTS'}</p><h2 id="merchant-finance-title">{mode === 'wallet' ? 'กระเป๋าเงินร้านค้า' : 'รายงานการเงิน'}</h2><p>ข้อมูลจาก PostgreSQL ของ Store ที่กำลังใช้งาน</p></div><button className="merchant-secondary" type="button" onClick={() => { void load() }}><RefreshCw size={15} /> รีเฟรช</button></div>
       {error && <div className="merchant-data-alert" role="status"><ShieldAlert size={18} /><span>{error} ข้อมูลบางส่วนอาจไม่สด</span><button type="button" onClick={() => { void load() }}><RefreshCw size={14} /> ลองใหม่</button></div>}
       <div className="merchant-finance-metrics">
@@ -9510,13 +9520,19 @@ function SettingsView({ onOpenProfile, onNavigate }: { onOpenProfile?: () => voi
   const speedPresets = ['0.5x', '1.0x', '1.5x', '2.0x', '2.5x', '3.0x']
 
   const playTestVoice = () => {
-    alert(
-      `🔊 เล่นเสียงทดสอบ (${voiceGender === 'female' ? 'ผู้หญิง' : 'ผู้ชาย'}, ความเร็ว ${speechSpeed}, ความดังระดับ ${volumeLevel}): "พร้อมเพย์ 100 บาท"`
-    )
+    if (!('speechSynthesis' in window)) return
+    window.speechSynthesis.cancel()
+    const utterance = new SpeechSynthesisUtterance('พร้อมเพย์ หนึ่งร้อยบาท')
+    utterance.lang = 'th-TH'
+    utterance.rate = Number.parseFloat(speechSpeed)
+    utterance.volume = volumeLevel / 10
+    const voices = window.speechSynthesis.getVoices().filter((voice) => voice.lang.toLowerCase().startsWith('th'))
+    utterance.voice = voices.find((voice) => voiceGender === 'female' ? /female|หญิง/i.test(voice.name) : /male|ชาย/i.test(voice.name)) || voices[0] || null
+    window.speechSynthesis.speak(utterance)
   }
 
   return (
-    <div className="settings-container">
+    <div className="settings-container ai-settings-view">
       {/* Card 1: บัญชีและความปลอดภัย */}
       <div className="st-card">
         <div className="st-card-header-row" onClick={onOpenProfile} role="button" tabIndex={0}>
@@ -9535,17 +9551,17 @@ function SettingsView({ onOpenProfile, onNavigate }: { onOpenProfile?: () => voi
             <div className="st-qa-icon"><User size={18} /></div>
             <span>ข้อมูลบัญชี</span>
           </button>
-          <button className="st-qa-item" onClick={onOpenProfile} type="button">
+          <button className="st-qa-item" disabled title="ยังไม่มี security settings mutation" type="button">
             <div className="st-qa-icon"><ShieldCheck size={18} /></div>
-            <span>ความปลอดภัย</span>
+            <span>ความปลอดภัย · ยังไม่พร้อม</span>
           </button>
-          <button className="st-qa-item" onClick={onOpenProfile} type="button">
+          <button className="st-qa-item" disabled title="ยังไม่มี password mutation contract" type="button">
             <div className="st-qa-icon"><Key size={18} /></div>
-            <span>รหัสผ่าน</span>
+            <span>รหัสผ่าน · ยังไม่พร้อม</span>
           </button>
-          <button className="st-qa-item" onClick={onOpenProfile} type="button">
+          <button className="st-qa-item" disabled title="ยังไม่มี biometric enrollment flow" type="button">
             <div className="st-qa-icon"><Fingerprint size={18} /></div>
-            <span>สแกนลายนิ้วมือ</span>
+            <span>สแกนลายนิ้วมือ · ยังไม่พร้อม</span>
           </button>
         </div>
       </div>
@@ -9553,30 +9569,29 @@ function SettingsView({ onOpenProfile, onNavigate }: { onOpenProfile?: () => voi
       {/* Card 2: รายการตั้งค่าทั่วไป */}
       <div className="st-card st-menu-list-card">
         {/* 1. ภาษา */}
-        <div className="st-menu-row" onClick={() => alert('เลือกภาษา')} role="button" tabIndex={0}>
+        <button className="st-menu-row is-unavailable" disabled title="ยังไม่มี locale preference API" type="button">
           <div className="st-menu-icon green"><Globe size={18} /></div>
           <div className="st-menu-label">
             <strong>ภาษา</strong>
           </div>
           <div className="st-menu-value">
-            <span>ไทย</span>
-            <ChevronRight size={16} color="#94a3b8" />
+            <span>ไทย · ยังไม่พร้อม</span>
           </div>
-        </div>
+        </button>
 
         <div className="st-row-divider" />
 
         {/* 2. การแจ้งเตือน */}
-        <div className="st-menu-row" onClick={() => alert('จัดการการแจ้งเตือน')} role="button" tabIndex={0}>
+        <button className="st-menu-row is-unavailable" disabled title="ยังไม่มี notification preference API" type="button">
           <div className="st-menu-icon green"><Bell size={18} /></div>
           <div className="st-menu-label">
             <strong>การแจ้งเตือน</strong>
             <small>จัดการการแจ้งเตือนและการเตือนต่างๆ</small>
           </div>
           <div className="st-menu-value">
-            <ChevronRight size={16} color="#94a3b8" />
+            <span>ยังไม่พร้อม</span>
           </div>
-        </div>
+        </button>
 
         <div className="st-row-divider" />
 
@@ -9680,36 +9695,35 @@ function SettingsView({ onOpenProfile, onNavigate }: { onOpenProfile?: () => voi
         <div className="st-row-divider" />
 
         {/* 4. ธีมและสี */}
-        <div className="st-menu-row" onClick={() => alert('เลือกธีม')} role="button" tabIndex={0}>
+        <button className="st-menu-row is-unavailable" disabled title="ยังไม่มี theme preference persistence" type="button">
           <div className="st-menu-icon green"><Palette size={18} /></div>
           <div className="st-menu-label">
             <strong>ธีมและสี</strong>
             <small>ปรับแต่งธีมและสีของแอป</small>
           </div>
           <div className="st-menu-value">
-            <span className="st-theme-pill">เขียว 🟢</span>
-            <ChevronRight size={16} color="#94a3b8" />
+            <span className="st-theme-pill">ยังไม่พร้อม</span>
           </div>
-        </div>
+        </button>
 
         <div className="st-row-divider" />
 
         {/* 5. เครื่องพิมพ์ */}
-        <div className="st-menu-row" onClick={() => alert('ตั้งค่าเครื่องพิมพ์')} role="button" tabIndex={0}>
+        <button className="st-menu-row is-unavailable" disabled title="ยังไม่มี printer integration" type="button">
           <div className="st-menu-icon green"><Printer size={18} /></div>
           <div className="st-menu-label">
             <strong>เครื่องพิมพ์</strong>
             <small>ตั้งค่าเครื่องพิมพ์ใบเสร็จ</small>
           </div>
           <div className="st-menu-value">
-            <ChevronRight size={16} color="#94a3b8" />
+            <span>ยังไม่พร้อม</span>
           </div>
-        </div>
+        </button>
 
         <div className="st-row-divider" />
 
         {/* 6. การรับชำระเงิน */}
-        <div className="st-menu-row" onClick={() => alert('จัดการการรับชำระเงิน')} role="button" tabIndex={0}>
+        <button className="st-menu-row" onClick={() => onNavigate?.('payment')} type="button">
           <div className="st-menu-icon green"><CreditCard size={18} /></div>
           <div className="st-menu-label">
             <strong>การรับชำระเงิน</strong>
@@ -9718,21 +9732,21 @@ function SettingsView({ onOpenProfile, onNavigate }: { onOpenProfile?: () => voi
           <div className="st-menu-value">
             <ChevronRight size={16} color="#94a3b8" />
           </div>
-        </div>
+        </button>
 
         <div className="st-row-divider" />
 
         {/* 7. สำรองข้อมูล */}
-        <div className="st-menu-row" onClick={() => alert('สำรองข้อมูล')} role="button" tabIndex={0}>
+        <button className="st-menu-row is-unavailable" disabled title="ยังไม่มี backup/restore API" type="button">
           <div className="st-menu-icon green"><Database size={18} /></div>
           <div className="st-menu-label">
             <strong>สำรองข้อมูล</strong>
             <small>สำรองและฟื้นฟูข้อมูล</small>
           </div>
           <div className="st-menu-value">
-            <ChevronRight size={16} color="#94a3b8" />
+            <span>ยังไม่พร้อม</span>
           </div>
-        </div>
+        </button>
 
         <div className="st-row-divider" />
 
@@ -9763,14 +9777,14 @@ function SettingsView({ onOpenProfile, onNavigate }: { onOpenProfile?: () => voi
         <div className="st-row-divider" />
 
         {/* 9. เกี่ยวกับแอป */}
-        <div className="st-menu-row" onClick={() => alert('เกี่ยวกับ ChatPOS v2.3.1')} role="button" tabIndex={0}>
+        <div className="st-menu-row no-hover">
           <div className="st-menu-icon green"><HelpCircle size={18} /></div>
           <div className="st-menu-label">
             <strong>เกี่ยวกับแอป</strong>
             <small>เวอร์ชัน 2.3.1</small>
           </div>
           <div className="st-menu-value">
-            <ChevronRight size={16} color="#94a3b8" />
+            <span>v2.3.1</span>
           </div>
         </div>
       </div>
@@ -9787,11 +9801,11 @@ function SettingsView({ onOpenProfile, onNavigate }: { onOpenProfile?: () => voi
 
         <div className="st-qr-options">
           {/* Option 1: จ่ายเงินทันที */}
-          <div
+          <button
             className={`st-radio-card ${qrPayMode === 'pay_first' ? 'active' : ''}`}
-            onClick={() => setQrPayMode('pay_first')}
-            role="button"
-            tabIndex={0}
+            disabled
+            title="รอ Order/Table policy API"
+            type="button"
           >
             <div className="st-radio-icon">
               <div className={`st-radio-dot ${qrPayMode === 'pay_first' ? 'checked' : ''}`} />
@@ -9800,14 +9814,14 @@ function SettingsView({ onOpenProfile, onNavigate }: { onOpenProfile?: () => voi
               <strong>จ่ายเงินทันที (Always Pay First)</strong>
               <p>ลูกค้าต้องชำระเงินทันทีก่อนส่งออเดอร์เข้าครัว เหมาะสำหรับร้านด่วนบุฟเฟต์ฟาสต์ฟู้ด</p>
             </div>
-          </div>
+          </button>
 
           {/* Option 2: กินก่อนจ่ายทีหลัง */}
-          <div
+          <button
             className={`st-radio-card ${qrPayMode === 'pay_later' ? 'active' : ''}`}
-            onClick={() => setQrPayMode('pay_later')}
-            role="button"
-            tabIndex={0}
+            disabled
+            title="รอ Order/Table policy API"
+            type="button"
           >
             <div className="st-radio-icon">
               <div className={`st-radio-dot ${qrPayMode === 'pay_later' ? 'checked' : ''}`} />
@@ -9816,14 +9830,14 @@ function SettingsView({ onOpenProfile, onNavigate }: { onOpenProfile?: () => voi
               <strong>กินก่อนจ่ายทีหลัง (Always Pay Later)</strong>
               <p>สั่งอาหารเข้าครัวได้เรื่อยๆ แล้วสรุปยอดคิดเงินชำระบิลเดียวตอนเช็คบิล เหมาะสำหรับร้านอาหารทั่วไป</p>
             </div>
-          </div>
+          </button>
 
           {/* Option 3: ควบคุมทีละโต๊ะ */}
-          <div
+          <button
             className={`st-radio-card ${qrPayMode === 'table_controlled' ? 'active' : ''}`}
-            onClick={() => setQrPayMode('table_controlled')}
-            role="button"
-            tabIndex={0}
+            disabled
+            title="รอ Order/Table policy API"
+            type="button"
           >
             <div className="st-radio-icon">
               <div className={`st-radio-dot ${qrPayMode === 'table_controlled' ? 'checked' : ''}`} />
@@ -9832,7 +9846,7 @@ function SettingsView({ onOpenProfile, onNavigate }: { onOpenProfile?: () => voi
               <strong>ควบคุมทีละโต๊ะ (Adjustable per Table)</strong>
               <p>ร้านเปิดเซสชันให้โต๊ะไหน โต๊ะนั้นจึงจะกินก่อนจ่ายทีหลังได้ หากไม่เปิดจะบังคับจ่ายทันที</p>
             </div>
-          </div>
+          </button>
         </div>
       </div>
     </div>

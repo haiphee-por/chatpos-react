@@ -195,7 +195,7 @@ export function MerchantKycView({ storeId }: MerchantKycViewProps) {
   if (!storeId) return <section className="merchant-empty-state"><FileCheck2 size={28} /><h2>ยังไม่มี Store context</h2><p>เข้าสู่ระบบร้านค้าเพื่อดู KYC workspace</p></section>
 
   return (
-    <div style={{ display: 'grid', gap: 16 }}>
+    <div className="ai-kyc-view" style={{ display: 'grid', gap: 16 }}>
       <section style={{ padding: 20, borderRadius: 14, background: 'linear-gradient(135deg, #effaf4, #ffffff)', border: '1px solid #d6e9df' }}>
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 14, flexWrap: 'wrap' }}>
           <div>

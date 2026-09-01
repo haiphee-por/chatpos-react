@@ -217,7 +217,7 @@ Merchant UI ใช้ `chatpos-payment-ai-main/app/page.tsx` และ `app/glob
 | `/merchant/reports` | `MerchantFinanceView` | Home summary และ transaction read model | ใช้ได้บางส่วนแบบ read-only; ไม่มี real chart/date range/export |
 | `/merchant/wallet` | `MerchantFinanceView` | balance summary และรายการธุรกรรมจาก server | ดูได้; withdrawal/auto payout/bank change ยังไม่ใช่ production mutation |
 | `/merchant/kyc` | `MerchantKycView.tsx` | KYC case/document version/chat/assignment API และ Store/Case authorization | implement แล้วแต่ feature/integration-gated; ต้องมี storage/scanner/Backoffice evidence |
-| `/merchant/settings` | `SettingsView` + `ProfileSettingsModal` | session/profile display และ client preference UI บางส่วน | ใช้ได้บางส่วน; language/theme/notification/audio/profile mutation หลายรายการยังไม่ persist จริง |
+| `/merchant/settings` | `SettingsView` + `ProfileSettingsModal` | session/profile display, browser speech test และ client preference UI บางส่วน | ใช้ได้บางส่วน; control ที่ไม่มี API/persistence ถูก disable แล้ว, audio preference ยังไม่ persist และ profile mutation ยังไม่ production-ready |
 | `/merchant/pos` | `PosView` | Product read บางส่วน; cart/order/receipt/hold bill เป็น client/localStorage | development demo; production แสดง unavailable |
 | `/merchant/orders` | `OrdersView` | hardcoded/localStorage order/QR state | development demo; production แสดง unavailable |
 | `/merchant/services` | `ServicesView` | hardcoded/localStorage service/booking state | development demo; production แสดง unavailable |
@@ -238,7 +238,7 @@ Merchant UI ใช้ `chatpos-payment-ai-main/app/page.tsx` และ `app/glob
 6. Products ต้องใช้ Product API เป็น authority; import/export, category และ image upload ห้ามแสดงว่าสำเร็จก่อนมี endpoint จริง
 7. Wallet ต้องคง withdrawal เป็น unavailable จนมี OTP, durable ledger, provider result และ reconciliation
 
-Visual layer ปัจจุบันใช้ Payment AI style แล้วใน Home, QuickPay, Transactions, Products, Finance, Settings, shared Merchant shell และ unavailable state. KYC คง document/chat workflow เดิมไว้ภายใต้ shared shell เพื่อไม่ให้การเปลี่ยน presentation กระทบ security และ versioning behavior
+Visual layer ปัจจุบันใช้ Payment AI phone shell, title header, bottom navigation, cards และ controls กับ Merchant route ทั้งหมดแล้ว. Transactions/Product/Services/Developer table ถูกจัดเป็น stacked cards บน phone shell; KYC คง document/chat logic เดิมภายใต้ Payment AI card treatment. Demo route แสดง `DEMO ONLY`, Developer แสดง `TESTING SURFACE` และ route ที่ไม่มี logic ใช้ unavailable state แทน UI สำเร็จปลอม
 
 ## ความสามารถตาม workflow
 

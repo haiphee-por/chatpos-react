@@ -38,7 +38,9 @@
 - Merchant Home notification ใช้ Store/recipient-scoped API พร้อม mark-one/read-all และ retry
 - Payment UI นำเฉพาะ visual language จาก reference; transaction command, idempotency, status และ error state ยังคงใช้ implementation ของ `chatpos-react`
 - Bottom navigation ใช้ `merchantNavigation.ts` ชุดเดียวกันทุก route และ route ที่ไม่มี logic จริงต้องแสดง unavailable แทน success/demo ใน production
-- UI shell ของ Home, QuickPay, Transactions, Products, Finance, Settings และ unavailable state ใช้ Payment AI visual language แล้ว; KYC คง workflow/inline state เดิมภายใต้ shell ใหม่เพื่อไม่กระทบ document security flow
+- Merchant route ทั้งหมดใช้ Payment AI phone shell/header/bottom navigation แล้ว. Body ของ QuickPay, Transactions, Products, Finance, Settings, KYC, POS, Orders, Services, SalesPage, Developer และ unavailable state ใช้ card/control treatment เดียวกัน โดยคง API/handler ของ `chatpos-react`
+- POS, Orders, Services และ SalesPage แสดง `DEMO ONLY`; Developer แสดง `TESTING SURFACE`; Tables, Benefits, STOPPAY และ Billing แสดง unavailable ตาม capability/implementation จริง
+- Settings ปิด control ที่ยังไม่มี persistence/API, Product import/export ถูก disable และ QR order policy ถูก disable; ห้ามแสดง `alert()` success แทน mutation จริง
 
 ## 0. Reference source และกติกาการนำเข้า
 
@@ -171,8 +173,8 @@ Reference bottom navigation ใช้ `orders`, `tables`, `home`, `pos` แล�
 #### M7: Release parity และ mock removal
 
 - [~] ลบ seeded/fake business data จาก production path หรือกั้นไว้เฉพาะ demo/test environment; POS/orders/services/salespage ใน Merchant portal และ public catalog ที่ไม่มี published sales page ถูกกั้นใน production แต่ยังมี legacy mock source ใน development code
-- [~] ตรวจ visual parity, text overflow, keyboard label และ reduced motion; Payment AI shell ใช้กับ Home/QuickPay/Transactions/Products/Finance/Settings/unavailable แล้ว แต่ยังรอ contrast และ full keyboard QA
-- [~] ตรวจ browser ที่ 390px สำหรับ Home, Payment, Transactions, Products, Wallet และ unavailable route แล้วไม่พบ horizontal overflow; ยังต้องตรวจ 430px, tablet, desktop ทุก route และ bottom-nav overlap ระหว่าง scroll
+- [~] ตรวจ visual parity, text overflow, keyboard label และ reduced motion; Payment AI shell/body treatment ใช้กับ Merchant route ทั้งหมดแล้ว แต่ยังรอ contrast และ full keyboard QA
+- [x] ตรวจ Merchant route ทั้ง 17 route ที่ 390px, 430px และ 768px แล้ว: secondary shell กว้างไม่เกิน 480px, header เดียว, ไม่มี document horizontal overflow และ table หลักถูกแปลงเป็น stacked cards บน phone shell
 - [ ] เพิ่ม browser E2E สำหรับ menu navigation, Home, payment, transactions, orders, products และ settings
 - [~] เพิ่ม permission/Store isolation, retry/idempotency และ session expiry evidence; server-side capability/Store guards และ payment/product idempotency มีแล้ว แต่ยังรอ browser/API evidence ครบทุก route
 - [~] ตรวจ console/log/network/localStorage ไม่รั่ว secret, payment data หรือ restricted PII; production API tester, demo profile PII และ payout action ถูกกั้นแล้ว แต่ยังต้อง security scan/evidence ครบทุก surface
