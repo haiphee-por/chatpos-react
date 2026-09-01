@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type PointerEvent } from 'react'
 import {
   BadgePercent,
   Banknote,
+  BarChart3,
   Bell,
   CalendarDays,
   CheckCircle2,
@@ -11,10 +12,14 @@ import {
   ClipboardList,
   CreditCard,
   Copy,
+  Eye,
+  EyeOff,
   FileClock,
   Gift,
+  Globe,
   Home,
   LockKeyhole,
+  LogOut,
   Menu,
   QrCode,
   ReceiptText,
@@ -62,6 +67,7 @@ type MerchantHomeProps = {
   onStoreChange: (storeId: string) => void
   onRetryStores: () => void
   onOpenProfile: () => void
+  onLogout: () => Promise<void>
 }
 
 type NotificationCategory = 'orders' | 'finance' | 'kyc' | 'system'
@@ -87,6 +93,14 @@ function formatDateTime(value: string, language: HomeLanguage) {
     dateStyle: 'medium',
     timeStyle: 'short',
   }).format(new Date(value))
+}
+
+function triggerButtonPress(event: PointerEvent<HTMLButtonElement>) {
+  const button = event.currentTarget
+  button.classList.remove('is-pressed')
+  void button.offsetWidth
+  button.classList.add('is-pressed')
+  window.setTimeout(() => button.classList.remove('is-pressed'), 220)
 }
 
 function useHomeData(storeId: string | null) {
@@ -157,6 +171,7 @@ export function MerchantHome({
   onStoreChange,
   onRetryStores,
   onOpenProfile,
+  onLogout,
 }: MerchantHomeProps) {
   const language: HomeLanguage = 'th'
   const [now, setNow] = useState(() => new Date())
@@ -206,23 +221,18 @@ export function MerchantHome({
           onReloadNotifications={reloadNotifications}
           onNavigate={onNavigate}
           onOpenProfile={onOpenProfile}
+          currentUser={currentUser}
+          onLogout={onLogout}
         />
       </header>
       <div className="screen">
         <section className="home-hero reference-home">
-          <PaymentTerminal
-            count={home?.summary.todayTransactionCount ?? null}
-            isLoading={homeState.status === 'loading'}
-            isStoreOpen={displayStore.isActive}
-            onNavigate={onNavigate}
-          />
-          <MerchantIdentityStrip store={displayStore} merchantId={merchantId} time={timeFormatted} />
+          <WalletHero store={displayStore} merchantId={merchantId} time={timeFormatted} isStoreOpen={displayStore.isActive} summary={home?.summary || null} isLoading={homeState.status === 'loading'} />
         </section>
         <section className="home-content reference-content">
-          <HomeSummary summary={home?.summary || null} isLoading={homeState.status === 'loading'} />
           <MainMenu home={home} onNavigate={onNavigate} />
-          <BenefitsAction enabled={home?.capabilities.canUseBenefits ?? false} onNavigate={onNavigate} />
           <ChannelPanel />
+          <RecentPayments />
           <SystemStatus homeState={homeState} notificationState={notificationState} />
           {homeState.error && <HomeStaleNotice message={isStale ? 'ข้อมูลหน้าหลักล่าสุดอาจไม่สด' : homeState.error} onRetry={reloadHome} />}
           {storeState.error && <HomeStaleNotice message={storeState.error} onRetry={onRetryStores} />}
@@ -259,6 +269,26 @@ function HomeLoadingState() {
   )
 }
 
+function WalletHero({ store, merchantId, time, isStoreOpen, summary, isLoading }: { store: DbStoreRow; merchantId: string | null; time: string; isStoreOpen: boolean; summary: DbHomeReadModel['summary'] | null; isLoading: boolean }) {
+  const [balanceVisible, setBalanceVisible] = useState(true)
+  const balance = formatMoney(summary?.availableBalance ?? summary?.availableToWithdraw ?? 0, 'th')
+
+  return (
+    <section className="merchant-wallet-card">
+      <div className="merchant-wallet-topline">
+        <span><WalletCards size={16} /> กระเป๋าเงินร้านค้า</span>
+        <span className={isStoreOpen ? 'is-ready' : 'is-closed'}><i />{isStoreOpen ? 'พร้อมใช้งาน' : 'ปิดบริการ'}</span>
+      </div>
+      <div className="merchant-wallet-balance">
+        <span>ยอดเงินพร้อมใช้</span>
+        <div><strong>{isLoading ? '—' : balanceVisible ? balance : '••••••'}</strong><em>THB</em><button onClick={() => setBalanceVisible((visible) => !visible)} type="button" aria-label={balanceVisible ? 'ซ่อนยอดเงิน' : 'แสดงยอดเงิน'}>{balanceVisible ? <Eye size={18} /> : <EyeOff size={18} />}</button></div>
+      </div>
+      <HomeSummary summary={summary} isLoading={isLoading} variant="wallet" />
+      <div className="merchant-wallet-meta"><span>{store.name || 'ร้านค้าของคุณ'}</span><span>{merchantId || 'Merchant'}</span><time>{time}</time></div>
+    </section>
+  )
+}
+
 function HomeStaleNotice({ message, onRetry }: { message: string; onRetry: () => void }) {
   return (
     <div className="mh-stale-notice" role="status">
@@ -280,6 +310,8 @@ function HomeHeader({
   onReloadNotifications,
   onNavigate,
   onOpenProfile,
+  currentUser,
+  onLogout,
 }: {
   unreadCount: number
   notifications: DbNotificationRow[]
@@ -292,27 +324,58 @@ function HomeHeader({
   onReloadNotifications: () => void
   onNavigate: (id: string) => void
   onOpenProfile: () => void
+  currentUser: AuthUser | null
+  onLogout: () => Promise<void>
 }) {
+  const [profileMenuOpen, setProfileMenuOpen] = useState(false)
+  const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false)
+  const displayName = currentUser?.name || 'เจ้าของร้านค้า'
+  const userInitials = displayName.slice(0, 2).toUpperCase()
+
+  const openProfile = () => {
+    setProfileMenuOpen(false)
+    onOpenProfile()
+  }
+
+  const requestLogout = () => {
+    setProfileMenuOpen(false)
+    setLogoutConfirmOpen(true)
+  }
+
+  const confirmLogout = () => {
+    setLogoutConfirmOpen(false)
+    void onLogout()
+  }
+
   return (
-    <div className="app-header-row">
+    <>
+      <div className="app-header-row">
       <button className="brand-button" onClick={() => onNavigate('home')} type="button" aria-label="ChatPOS">
         <span className="brand"><span className="brand-bubble"><Store size={19} /></span><b>Chat</b><strong>POS</strong></span>
       </button>
-      <MerchantStoreHeader store={selectedStore} availableStores={availableStores} onStoreChange={onStoreChange} />
-      <NotificationDrawer
-        notifications={notifications}
-        initialUnreadCount={unreadCount}
-        language={language}
-        isLoading={notificationState.status === 'loading'}
-        error={notificationState.error}
-        storeId={storeId}
-        onReload={onReloadNotifications}
-        onNavigate={onNavigate}
-      />
-      <button className="icon-button" onClick={onOpenProfile} type="button" aria-label="โปรไฟล์ร้านค้า">
-        <User size={21} />
-      </button>
-    </div>
+      <div className="home-header-actions">
+        <NotificationDrawer
+          notifications={notifications}
+          initialUnreadCount={unreadCount}
+          language={language}
+          isLoading={notificationState.status === 'loading'}
+          error={notificationState.error}
+          storeId={storeId}
+          onReload={onReloadNotifications}
+          onNavigate={onNavigate}
+        />
+        <MerchantStoreHeader store={selectedStore} availableStores={availableStores} onStoreChange={onStoreChange} onOpenProfileMenu={() => setProfileMenuOpen((open) => !open)} profileMenuOpen={profileMenuOpen} />
+      </div>
+      </div>
+      {profileMenuOpen && <>
+        <button className="home-profile-dismiss" onClick={() => setProfileMenuOpen(false)} type="button" aria-label="ปิดเมนูโปรไฟล์" />
+        <section className="home-profile-menu" aria-label="เมนูโปรไฟล์">
+          <div className="home-profile-summary"><span className="home-profile-large-avatar">{userInitials}</span><span><strong>{displayName}</strong><small>{currentUser?.role === 'owner' ? 'Merchant Owner' : currentUser?.role || 'Merchant Owner'}</small></span></div>
+          <div className="home-profile-actions"><button onClick={openProfile} type="button"><User size={18} /><span>โปรไฟล์ของฉัน</span><ChevronRight size={15} /></button><button onClick={requestLogout} type="button" className="is-danger"><LogOut size={18} /><span>ออกจากระบบ</span><ChevronRight size={15} /></button></div>
+        </section>
+      </>}
+      {logoutConfirmOpen && <div className="home-logout-dialog-overlay"><button className="home-logout-dialog-backdrop" onClick={() => setLogoutConfirmOpen(false)} type="button" aria-label="ยกเลิกการออกจากระบบ" /><section className="home-logout-dialog" role="dialog" aria-modal="true" aria-labelledby="home-logout-title"><span className="home-logout-icon"><LogOut size={22} /></span><h2 id="home-logout-title">ออกจากระบบ?</h2><p>คุณต้องการออกจากระบบ Merchant ใช่หรือไม่</p><div><button onClick={() => setLogoutConfirmOpen(false)} type="button">ยกเลิก</button><button className="is-confirm" onClick={confirmLogout} type="button"><LogOut size={16} />ออกจากระบบ</button></div></section></div>}
+    </>
   )
 }
 
@@ -320,20 +383,24 @@ function MerchantStoreHeader({
   store,
   availableStores,
   onStoreChange,
+  onOpenProfileMenu,
+  profileMenuOpen,
 }: {
   store: DbStoreRow
   availableStores: DbStoreRow[]
   onStoreChange: (storeId: string) => void
+  onOpenProfileMenu: () => void
+  profileMenuOpen: boolean
 }) {
   const storeName = store.name || 'ร้านค้าของคุณ'
 
   return (
-    <div className="merchant-switcher" title="เลือกสาขาร้านค้า">
+    <div className={`merchant-switcher ${profileMenuOpen ? 'is-open' : ''}`} title="เปิดเมนูโปรไฟล์และเลือกสาขาร้านค้า" role="button" tabIndex={0} aria-expanded={profileMenuOpen} onClick={onOpenProfileMenu} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onOpenProfileMenu() } }}>
       <Store size={24} aria-hidden="true" />
       <span>
         <small>ร้านที่ใช้งาน</small>
         {availableStores.length > 1 ? (
-          <select value={store.id} onChange={(event) => onStoreChange(event.target.value)} aria-label={`ร้านที่กำลังใช้งาน ${storeName}`}>
+          <select value={store.id} onClick={(event) => event.stopPropagation()} onChange={(event) => onStoreChange(event.target.value)} aria-label={`ร้านที่กำลังใช้งาน ${storeName}`}>
             {availableStores.map((availableStore) => <option key={availableStore.id} value={availableStore.id}>{availableStore.name}</option>)}
           </select>
         ) : (
@@ -401,7 +468,7 @@ function MerchantIdentityStrip({ store, merchantId, time }: { store: DbStoreRow;
   )
 }
 
-function HomeSummary({ summary, isLoading }: { summary: DbHomeReadModel['summary'] | null; isLoading: boolean }) {
+function HomeSummary({ summary, isLoading, variant = 'default' }: { summary: DbHomeReadModel['summary'] | null; isLoading: boolean; variant?: 'default' | 'wallet' }) {
   const values = [
     { label: 'ยอดรับวันนี้', value: summary?.receivedToday, unit: 'บาท', className: 'green', icon: Banknote },
     { label: 'เงินพร้อมถอน', value: summary?.availableToWithdraw, unit: 'บาท', className: 'blue', icon: WalletCards },
@@ -409,7 +476,7 @@ function HomeSummary({ summary, isLoading }: { summary: DbHomeReadModel['summary
   ]
 
   return (
-    <div className="summary-grid reference-summary" aria-label="สรุปยอดวันนี้">
+    <div className={`summary-grid reference-summary ${variant === 'wallet' ? 'wallet-summary' : ''}`} aria-label="สรุปยอดวันนี้">
       {values.map(({ label, value, unit, className, icon: Icon }) => (
         <button key={label} type="button">
           <span className={`stat-icon ${className}`}><Icon size={23} /></span>
@@ -423,15 +490,17 @@ function HomeSummary({ summary, isLoading }: { summary: DbHomeReadModel['summary
 }
 
 const mainMenuDefinitions = [
-  { id: 'pos', label: 'POS', description: 'ขายหน้าร้านและจัดการออเดอร์', className: 'green', icon: ReceiptText },
-  { id: 'wallet', label: 'บัญชีฉัน', description: 'ดูยอดเงินและบัญชีรับเงิน', className: 'blue', icon: WalletCards },
-  { id: 'stoppay', label: 'Stop Pay', description: 'ตรวจสอบรายการร้องเรียน', className: 'red', icon: LockKeyhole },
-  { id: 'transactions', label: 'ประวัติธุรกรรม', description: 'ดูรายการรับชำระย้อนหลัง', className: 'purple', icon: FileClock },
+  { id: 'payment', label: 'เก็บเงิน', className: 'green', icon: QrCode },
+  { id: 'wallet', label: 'ถอนเงิน', className: 'orange', icon: WalletCards },
+  { id: 'orders', label: 'รับออเดอร์', className: 'blue', icon: ClipboardList },
+  { id: 'reports', label: 'รายงาน', className: 'teal', icon: BarChart3 },
+  { id: 'salespage', label: 'SalePage', className: 'purple', icon: Globe },
+  { id: 'stoppay', label: 'Stop Pay', className: 'red', icon: LockKeyhole },
 ]
 
 function MainMenu({ home, onNavigate }: { home: DbHomeReadModel | null; onNavigate: (id: string) => void }) {
   const isEnabled = (id: string) => {
-    if (id === 'pos' || id === 'wallet') return true
+    if (id === 'payment' || id === 'wallet' || id === 'orders' || id === 'reports' || id === 'salespage') return true
     if (!home) return false
     if (id === 'stoppay') return home.capabilities.canUseStopPay
     return home.capabilities.canViewTransactions
@@ -447,9 +516,9 @@ function MainMenu({ home, onNavigate }: { home: DbHomeReadModel | null; onNaviga
         {mainMenuDefinitions.map((item) => {
           const Icon = item.icon
           return (
-          <button className={`feature-card ${item.className} ${isEnabled(item.id) ? '' : 'is-disabled'}`} key={item.id} onClick={() => onNavigate(item.id)} type="button" disabled={!isEnabled(item.id)}>
+          <button className={`feature-card ${item.className} ${isEnabled(item.id) ? '' : 'is-disabled'}`} key={item.id} onClick={() => onNavigate(item.id)} onPointerDown={triggerButtonPress} type="button" disabled={!isEnabled(item.id)}>
             <span className="feature-icon"><Icon size={34} /></span>
-            <span><b>{item.label}</b><small>{item.description}</small></span>
+            <span><b>{item.label}</b></span>
             <ChevronRight size={18} aria-hidden="true" />
           </button>
           )
@@ -482,20 +551,41 @@ function SystemStatus({ homeState, notificationState }: { homeState: StoreLoadSt
 
 function ChannelPanel() {
   const channels = [
-    ['P', 'PromptPay', 'c1'],
-    ['V', 'VISA / Mastercard', 'c2'],
-    ['W', 'WeChat Pay', 'c3'],
-    ['A', 'Alipay', 'c4'],
-    ['M', 'Mobile Banking', 'c5'],
-    ['T', 'TrueMoney', 'c6'],
+    ['PromptPay', '/payments/promptpay_front.png', 'c1'],
+    ['VISA / Mastercard', '/payments/visamasaster.png', 'c2'],
+    ['VISA ต่างประเทศ', '/payments/mastercard_visa_combined.png', 'c9'],
+    ['WeChat Pay', '/payments/wechatpay_front.png', 'c3'],
+    ['Alipay', '/payments/alipay_front.png', 'c4'],
+    ['TrueMoney', '/payments/truemoney_front.png', 'c6'],
+    ['LINE Pay', '/payments/linepay_front.png', 'c7'],
+    ['ShopeePay', '/payments/shopeepay_front.png', 'c8'],
   ]
 
   return (
     <section className="channel-panel" aria-labelledby="channels-title">
       <div className="section-title compact"><div><span>พร้อมใช้งาน</span><h2 id="channels-title">ช่องทางรับชำระ</h2></div></div>
       <div className="channel-grid">
-        {channels.map(([initial, label, className]) => <span key={label}><i className={`channel-logo ${className}`}>{initial}</i><b>{label}</b><small><CheckCircle2 size={12} /> พร้อมใช้</small></span>)}
+        {channels.map(([label, source, className]) => <span key={label} aria-label={label} title={label}><i className={`channel-logo ${className}`}><img src={source} alt={`${label} logo`} /></i></span>)}
       </div>
+    </section>
+  )
+}
+
+function RecentPayments() {
+  const payments = [
+    { channel: 'PromptPay', amount: '+320.00', time: '10:32 น.', tone: 'c1', logo: '/payments/promptpay_front.png', reference: 'TXN-20260830-1032-001' },
+    { channel: 'Visa ···· 4242', amount: '+1,250.00', time: '10:15 น.', tone: 'c2', logo: '/payments/visamasaster.png', reference: 'TXN-20260830-1015-002' },
+    { channel: 'WeChat Pay', amount: '+89.00', time: '09:46 น.', tone: 'c3', logo: '/payments/wechatpay_front.png', reference: 'TXN-20260830-0946-003' },
+  ]
+  const [selectedPayment, setSelectedPayment] = useState<(typeof payments)[number] | null>(null)
+
+  return (
+    <section className="recent-payments" aria-labelledby="recent-payments-title">
+      <div className="section-title compact"><div><span>รับเงินเข้าร้าน</span><h2 id="recent-payments-title">รายการรับเงินล่าสุด</h2></div><button type="button">ดูทั้งหมด <ChevronRight size={14} /></button></div>
+      <div className="recent-payment-list">
+        {payments.map((payment) => <button className="recent-payment-row" key={`${payment.channel}-${payment.time}`} onClick={() => setSelectedPayment(payment)} onPointerDown={triggerButtonPress} type="button" aria-label={`ดูรายละเอียด ${payment.channel} ${payment.amount}`}><i className={`channel-logo ${payment.tone}`}><img src={payment.logo} alt={`${payment.channel} logo`} /></i><span><b>{payment.channel}</b><small>{payment.time}</small></span><strong>{payment.amount}</strong><em>สำเร็จ</em></button>)}
+      </div>
+      {selectedPayment && <div className="recent-payment-dialog-overlay"><button className="recent-payment-dialog-backdrop" onClick={() => setSelectedPayment(null)} type="button" aria-label="ปิดรายละเอียดรายการรับเงิน" /><section className="recent-payment-dialog" role="dialog" aria-modal="true" aria-labelledby="recent-payment-dialog-title"><button className="recent-payment-dialog-close" onClick={() => setSelectedPayment(null)} type="button" aria-label="ปิดรายละเอียด"><X size={18} /></button><div className={`recent-payment-dialog-logo ${selectedPayment.tone}`}><img src={selectedPayment.logo} alt={`${selectedPayment.channel} logo`} /></div><span className="recent-payment-dialog-status">สำเร็จ</span><h3 id="recent-payment-dialog-title">รายละเอียดการรับเงิน</h3><strong className="recent-payment-dialog-amount">{selectedPayment.amount} บาท</strong><dl><div><dt>ช่องทาง</dt><dd>{selectedPayment.channel}</dd></div><div><dt>เวลา</dt><dd>{selectedPayment.time}</dd></div><div><dt>เลขอ้างอิง</dt><dd>{selectedPayment.reference}</dd></div></dl><button className="recent-payment-dialog-action" onClick={() => setSelectedPayment(null)} type="button">ปิด</button></section></div>}
     </section>
   )
 }
@@ -602,12 +692,12 @@ function NotificationDrawer({
 
   return (
     <>
-      <button className="mh-notification-trigger" onClick={() => setOpen(true)} type="button" aria-label={unreadCount > 0 ? `การแจ้งเตือน ${unreadCount} รายการใหม่` : 'การแจ้งเตือน'}>
+      <button className="mh-notification-trigger" onClick={(event) => { event.stopPropagation(); setOpen(true) }} type="button" aria-label={unreadCount > 0 ? `การแจ้งเตือน ${unreadCount} รายการใหม่` : 'การแจ้งเตือน'}>
         <Bell size={16} />
         {badgeLabel && <b>{badgeLabel}</b>}
       </button>
       {open && (
-        <div className="mn-fullscreen-overlay">
+        <div className="mn-fullscreen-overlay" onClick={(event) => event.stopPropagation()}>
           <button className="mn-fullscreen-backdrop" aria-label="ปิดการแจ้งเตือน" onClick={() => setOpen(false)} type="button" />
           <section className="mn-fullscreen-card" aria-label="ศูนย์แจ้งเตือน" aria-modal="true" role="dialog">
             <div className="mn-header">
@@ -640,20 +730,20 @@ function NotificationDrawer({
 }
 
 export function MerchantBottomNavigation({ active, onNavigate }: { active: string; onNavigate: (id: string) => void }) {
-  const bottomIds = ['orders', 'services', 'home', 'payment', 'salespage', 'settings']
+  const bottomIds = ['pos', 'services', 'home', 'salespage', 'settings']
   const items = bottomIds.map((id) => getMerchantNavItem(id))
   const renderItem = (item: MerchantNavItem, className = '') => {
     const Icon = item.icon
-    return <button className={`mh-bottom-item ${className} ${active === item.id ? 'active' : ''}`} key={item.id} onClick={() => onNavigate(item.id)} type="button"><Icon size={18} /><span>{item.label}</span></button>
+    return <button className={`mh-bottom-item ${className} ${active === item.id ? 'active' : ''}`} key={item.id} onClick={() => onNavigate(item.id)} onPointerDown={triggerButtonPress} type="button"><Icon size={18} /><span>{item.label}</span></button>
   }
 
   return (
     <nav className="mh-global-bottom-bar" aria-label="เมนูร้านค้าบนมือถือ">
-      {renderItem(items[0])}
-      {renderItem(items[1])}
-      <div className="mh-bottom-center-group">{renderItem({ ...items[2], icon: Home }, 'mh-bottom-home-btn')}{renderItem({ ...items[3], icon: QrCode }, 'mh-bottom-pay-btn')}</div>
-      {renderItem(items[4])}
-      {renderItem(items[5])}
+      {renderItem({ ...items[0], label: 'POS' })}
+      {renderItem({ ...items[1], label: 'บริการจอง' })}
+      <div className="mh-bottom-center-group">{renderItem({ ...items[2], label: 'หน้าหลัก', icon: Home }, 'mh-bottom-home-btn')}</div>
+      {renderItem({ ...items[3], label: 'SalePage' })}
+      {renderItem({ ...items[4], label: 'ตั้งค่า' })}
     </nav>
   )
 }

@@ -25,22 +25,22 @@ export type MerchantNavItem = {
 }
 
 export const merchantNavItems: MerchantNavItem[] = [
-  { id: 'home', label: 'หน้าหลัก', icon: LayoutDashboard, target: '#home', permission: 'merchant' },
-  { id: 'pos', label: 'ขายหน้าร้าน (POS)', icon: CreditCard, target: '#pos', permission: 'merchant' },
-  { id: 'payment', label: 'คิดเงิน', icon: QrCode, target: '#payment', permission: 'merchant' },
-  { id: 'orders', label: 'สั่งออเดอร์', icon: ClipboardList, target: '#orders', permission: 'merchant' },
-  { id: 'transactions', label: 'ประวัติธุรกรรม', icon: ReceiptText, target: '#transactions', permission: 'merchant' },
-  { id: 'products', label: 'สินค้า / สต็อก', icon: Package, target: '#products', permission: 'merchant' },
-  { id: 'services', label: 'คิวและบริการ', icon: Clock, target: '#services', permission: 'merchant' },
-  { id: 'salespage', label: 'เซลเพจ', icon: Globe, target: '#salespage', permission: 'merchant' },
-  { id: 'benefits', label: 'สิทธิพิเศษ', icon: BadgePercent, target: '#benefits', permission: 'merchant' },
-  { id: 'reports', label: 'รายงานการเงิน', icon: ReceiptText, target: '#reports', permission: 'merchant' },
-  { id: 'wallet', label: 'กระเป๋าเงิน', icon: WalletCards, target: '#wallet', permission: 'merchant' },
-  { id: 'billing', label: 'บิล', icon: ReceiptText, target: '#billing', permission: 'merchant' },
-  { id: 'stoppay', label: 'STOPPAY', icon: ShieldAlert, target: '#stoppay', permission: 'merchant' },
-  { id: 'kyc', label: 'KYC และเอกสาร', icon: FileCheck2, target: '#kyc', permission: 'merchant' },
-  { id: 'developer', label: 'โหมดนักพัฒนา', icon: Code, target: '#developer', permission: 'merchant' },
-  { id: 'settings', label: 'ตั้งค่า', icon: Settings, target: '#settings', permission: 'merchant' },
+  { id: 'home', label: 'หน้าหลัก', icon: LayoutDashboard, target: '/merchant/home', permission: 'merchant' },
+  { id: 'pos', label: 'ขายหน้าร้าน (POS)', icon: CreditCard, target: '/merchant/pos', permission: 'merchant' },
+  { id: 'payment', label: 'คิดเงิน', icon: QrCode, target: '/merchant/payment', permission: 'merchant' },
+  { id: 'orders', label: 'สั่งออเดอร์', icon: ClipboardList, target: '/merchant/orders', permission: 'merchant' },
+  { id: 'transactions', label: 'ประวัติธุรกรรม', icon: ReceiptText, target: '/merchant/transactions', permission: 'merchant' },
+  { id: 'products', label: 'สินค้า / สต็อก', icon: Package, target: '/merchant/products', permission: 'merchant' },
+  { id: 'services', label: 'คิวและบริการ', icon: Clock, target: '/merchant/services', permission: 'merchant' },
+  { id: 'salespage', label: 'เซลเพจ', icon: Globe, target: '/merchant/salespage', permission: 'merchant' },
+  { id: 'benefits', label: 'สิทธิพิเศษ', icon: BadgePercent, target: '/merchant/benefits', permission: 'merchant' },
+  { id: 'reports', label: 'รายงานการเงิน', icon: ReceiptText, target: '/merchant/reports', permission: 'merchant' },
+  { id: 'wallet', label: 'กระเป๋าเงิน', icon: WalletCards, target: '/merchant/wallet', permission: 'merchant' },
+  { id: 'billing', label: 'บิล', icon: ReceiptText, target: '/merchant/billing', permission: 'merchant' },
+  { id: 'stoppay', label: 'STOPPAY', icon: ShieldAlert, target: '/merchant/stoppay', permission: 'merchant' },
+  { id: 'kyc', label: 'KYC และเอกสาร', icon: FileCheck2, target: '/merchant/kyc', permission: 'merchant' },
+  { id: 'developer', label: 'โหมดนักพัฒนา', icon: Code, target: '/merchant/developer', permission: 'merchant' },
+  { id: 'settings', label: 'ตั้งค่า', icon: Settings, target: '/merchant/settings', permission: 'merchant' },
 ]
 
 export function getMerchantNavItem(id: string) {
