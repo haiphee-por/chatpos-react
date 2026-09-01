@@ -1745,3 +1745,74 @@
   .chatpos-support-boxes-grid { grid-template-columns: 1fr; }
   .chatpos-hero-mockup-stage { transform: scale(0.85); }
 }
+
+/* Payment AI public theme. */
+.chatpos-lp-root {
+  background:
+    radial-gradient(circle at 8% 5%, rgb(34 211 238 / 10%), transparent 28rem),
+    radial-gradient(circle at 95% 30%, rgb(120 104 255 / 9%), transparent 30rem),
+    #f4f8f6;
+  color: var(--chatpos-ink);
+  font-family: Tahoma, 'Noto Sans Thai', 'Plus Jakarta Sans', sans-serif;
+}
+
+.chatpos-nav-header {
+  border-bottom: 3px solid transparent;
+  border-image: linear-gradient(90deg, var(--chatpos-ai-green), var(--chatpos-ai-cyan), var(--chatpos-ai-violet), transparent) 1;
+  background: var(--chatpos-ai-header);
+  box-shadow: 0 14px 35px rgb(7 27 24 / 24%);
+}
+
+.chatpos-brand-name,
+.chatpos-brand-sub,
+.chatpos-nav-link,
+.chatpos-nav-link:hover {
+  color: #fff;
+}
+
+.chatpos-brand-sub,
+.chatpos-nav-link {
+  opacity: .75;
+}
+
+.chatpos-logo-icon {
+  border: 1px solid rgb(255 255 255 / 22%);
+  border-radius: 15px;
+  background: linear-gradient(145deg, rgb(0 185 132 / 90%), rgb(120 104 255 / 90%));
+  box-shadow: 0 0 25px rgb(34 211 238 / 28%), inset 0 1px rgb(255 255 255 / 40%);
+}
+
+.chatpos-btn-login-outline {
+  border-color: rgb(255 255 255 / 22%);
+  background: rgb(255 255 255 / 9%);
+  color: #fff;
+}
+
+.chatpos-btn-register-solid,
+.chatpos-hero-primary-btn,
+.chatpos-final-cta-btn {
+  background: linear-gradient(135deg, #00a977, #486eea);
+  box-shadow: 0 9px 22px rgb(72 110 234 / 24%);
+}
+
+.chatpos-feature-card,
+.chatpos-trust-card,
+.chatpos-demo-box-card,
+.chatpos-login-modal-card {
+  border-color: rgb(16 93 76 / 12%);
+  border-radius: 21px;
+  background: rgb(255 255 255 / 90%);
+  box-shadow: 0 12px 32px rgb(7 27 24 / 9%), inset 0 1px #fff;
+  backdrop-filter: blur(18px);
+}
+
+.chatpos-login-modal-card input {
+  border-color: rgb(0 185 132 / 16%);
+  border-radius: 12px;
+  background: #f8fcfa;
+}
+
+.chatpos-login-modal-card input:focus {
+  border-color: var(--chatpos-gold-500);
+  box-shadow: 0 0 0 4px rgb(245 189 58 / 13%);
+}

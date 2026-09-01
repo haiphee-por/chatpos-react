@@ -1586,3 +1586,104 @@
     grid-template-columns: repeat(3, 1fr);
   }
 }
+
+/* Latest Payment AI booking and handoff theme. */
+.bk-portal-page {
+  width: min(100%, 480px);
+  margin: 0 auto;
+  background:
+    radial-gradient(circle at 98% 18%, rgb(34 211 238 / 10%), transparent 15rem),
+    radial-gradient(circle at 0 65%, rgb(120 104 255 / 7%), transparent 18rem),
+    #f4f8f6;
+  color: var(--chatpos-ink);
+  font-family: Tahoma, 'Noto Sans Thai', sans-serif;
+  box-shadow: 0 38px 110px rgb(0 0 0 / 38%);
+}
+
+.bk-top-hero {
+  height: 260px;
+  background: #071b18;
+  border-bottom: 3px solid transparent;
+  border-image: linear-gradient(90deg, var(--chatpos-ai-green), var(--chatpos-ai-cyan), var(--chatpos-ai-violet), transparent) 1;
+}
+
+.bk-hero-dark-overlay {
+  background:
+    radial-gradient(circle at 88% -25%, rgb(34 211 238 / 32%), transparent 45%),
+    linear-gradient(180deg, rgb(7 27 24 / 20%), rgb(7 27 24 / 86%));
+}
+
+.bk-hero-header-text,
+.bk-portal-main {
+  max-width: 480px;
+}
+
+.bk-time-badge-pill,
+.bk-line-badge-pill {
+  min-height: 34px;
+  border-radius: 11px;
+  backdrop-filter: blur(12px);
+}
+
+.bk-float-store-card,
+.bk-single-service-card,
+.bk-modal-card,
+.cat-success-card {
+  border-color: rgb(16 93 76 / 12%);
+  border-radius: 21px;
+  background: rgb(255 255 255 / 92%);
+  box-shadow: 0 14px 34px rgb(7 27 24 / 11%), inset 0 1px #fff;
+  backdrop-filter: blur(18px);
+}
+
+.bk-avatar-wrapper,
+.bk-srv-thumb-bg {
+  border-color: rgb(0 185 132 / 18%);
+  background: linear-gradient(145deg, #effbf7, #e7f0ff);
+}
+
+.bk-avatar-verified-check,
+.bk-crown-circle-icon {
+  background: linear-gradient(135deg, #00a977, #486eea);
+}
+
+.bk-inset-address-box,
+.bk-form-field input,
+.bk-form-field select,
+.bk-form-field textarea,
+.cat-time-slot-btn {
+  border-color: rgb(0 185 132 / 14%);
+  border-radius: 12px;
+  background: #f8fcfa;
+}
+
+.bk-giant-book-now-btn,
+.bk-srv-book-btn,
+.bk-confirm-btn,
+.cat-success-act-btn.primary {
+  border: 0;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #00a977, #486eea);
+  color: #fff;
+  box-shadow: 0 9px 22px rgb(72 110 234 / 24%);
+}
+
+.bk-srv-duration-tag,
+.bk-card-rating-pill,
+.bk-srv-type-pill {
+  border-radius: 8px;
+}
+
+@media (max-width: 380px) {
+  .bk-single-service-card {
+    flex-direction: column;
+  }
+
+  .bk-srv-thumb-container {
+    width: 100%;
+  }
+
+  .bk-srv-thumb-bg {
+    min-height: 150px;
+  }
+}

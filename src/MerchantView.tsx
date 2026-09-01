@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { ProfileSettingsModal } from './ProfileSettingsModal'
 import { MerchantKycView } from './MerchantKycView'
 import { DeveloperConsoleView } from './DeveloperConsoleView'
-import { createDbProduct, fetchDbAssignments, fetchDbHomeResult, fetchDbProducts, fetchDbProductsResult, fetchDbStoresResult, fetchDbTransactionsResult, updateDbProduct, clearStoredUser, getStoredUser, logoutUser, type AuthUser, type DbAssignmentRow, type DbHomeReadModel, type DbProductRow, type DbStoreRow, type DbTransactionRow } from './dbApi'
+import { createDbProduct, fetchDbAssignments, fetchDbBenefitsResult, fetchDbHomeResult, fetchDbProducts, fetchDbProductsResult, fetchDbStoppay, fetchDbStoresResult, fetchDbTransactionsResult, transitionDbStoppay, updateDbProduct, clearStoredUser, getStoredUser, logoutUser, type AuthUser, type DbAssignmentRow, type DbBenefitRow, type DbHomeReadModel, type DbProductRow, type DbStoppayState, type DbStoreRow, type DbTransactionRow } from './dbApi'
 import { MerchantHome as MerchantHomeDashboard, MerchantBottomNavigation, type StoreLoadState } from './MerchantHomeView'
 import { QuickPayView as RoutedQuickPayView } from './QuickPayView'
 import { getMerchantNavItem, isMerchantNavAllowed, isMerchantNavId, merchantNavIdFromLocation, merchantNavItems, type MerchantNavCapabilities } from './merchantNavigation'
@@ -533,6 +533,10 @@ export function MerchantView({ currentUser }: { currentUser: AuthUser | null }) 
             allowDemoMerchantSurfaces ? <OrdersView onNavigate={navigate} /> : <MerchantUnavailableSection label="ออเดอร์" reason="Order API/persistence ยังไม่พร้อมใช้งาน" />
           ) : active === 'transactions' ? (
             <TransactionsView storeId={selectedStore?.id || currentUser?.store?.id || null} onNavigate={navigate} />
+          ) : active === 'benefits' ? (
+            <BenefitsView storeId={selectedStore?.id || currentUser?.store?.id || null} />
+          ) : active === 'stoppay' ? (
+            <StoppayView storeId={selectedStore?.id || currentUser?.store?.id || null} />
           ) : active === 'tables' ? (
             <MerchantSection active={active} label={current.label} />
           ) : active === 'reports' ? (
@@ -3853,6 +3857,130 @@ function BookingSettingsModal({
         </form>
       </div>
     </div>
+  )
+}
+
+function BenefitsView({ storeId }: { storeId: string | null }) {
+  const [benefits, setBenefits] = useState<DbBenefitRow[]>([])
+  const [state, setState] = useState<'loading' | 'ready' | 'empty' | 'error'>(storeId ? 'loading' : 'empty')
+  const [error, setError] = useState('')
+
+  const load = async () => {
+    if (!storeId) {
+      setBenefits([])
+      setState('empty')
+      return
+    }
+    setState('loading')
+    setError('')
+    const result = await fetchDbBenefitsResult(storeId)
+    if (result.error) {
+      setState('error')
+      setError(result.error)
+      return
+    }
+    setBenefits(result.data)
+    setState(result.data.length ? 'ready' : 'empty')
+  }
+
+  useEffect(() => {
+    void load()
+  }, [storeId])
+
+  return (
+    <section className="ai-benefits-view" aria-labelledby="benefits-title">
+      <div className="ai-route-intro">
+        <span><BadgePercent /></span>
+        <div><small>MEMBER BENEFITS</small><h2 id="benefits-title">สิทธิพิเศษของร้านค้า</h2><p>รายการที่ระบบยืนยันว่า Store นี้มีสิทธิ์ใช้งาน</p></div>
+        <button type="button" onClick={() => { void load() }} disabled={state === 'loading'} aria-label="รีเฟรชสิทธิพิเศษ"><RefreshCw className={state === 'loading' ? 'spin' : ''} /></button>
+      </div>
+      {state === 'loading' && <div className="merchant-transaction-state" aria-busy="true"><RefreshCw size={24} className="spin" /><span>กำลังโหลดสิทธิพิเศษ</span></div>}
+      {state === 'error' && <div className="merchant-data-alert" role="alert"><ShieldAlert size={18} /><span>{error}</span><button type="button" onClick={() => { void load() }}>ลองใหม่</button></div>}
+      {state === 'empty' && <div className="ai-benefits-empty"><Gift size={34} /><strong>ยังไม่มีสิทธิพิเศษที่เปิดใช้งาน</strong><p>สิทธิพิเศษใหม่จะแสดงเมื่อ Store ผ่านเงื่อนไขและอยู่ในช่วงเวลาที่กำหนด</p></div>}
+      {state === 'ready' && <div className="ai-benefits-grid">{benefits.map((benefit) => (
+        <article className={benefit.eligible ? 'eligible' : 'not-eligible'} key={benefit.id}>
+          <span><Gift /></span>
+          <div><small>{benefit.code}</small><strong>{benefit.title}</strong><p>{benefit.description}</p></div>
+          <em>{benefit.eligible ? 'ใช้สิทธิ์ได้' : 'ยังไม่เข้าเงื่อนไข'}</em>
+          {benefit.expiresAt && <time dateTime={benefit.expiresAt}>ถึง {new Date(benefit.expiresAt).toLocaleDateString('th-TH')}</time>}
+        </article>
+      ))}</div>}
+    </section>
+  )
+}
+
+const merchantStoppayActions: Record<string, { action: string; label: string; description: string }> = {
+  ACTIVE: { action: 'request_pause', label: 'ขอหยุดรับเงินชั่วคราว', description: 'ส่งคำขอให้ผู้ดูแลตรวจสอบก่อนเปลี่ยนสถานะ' },
+  PAUSED: { action: 'request_resume', label: 'ขอกลับมาเปิดรับเงิน', description: 'ส่งคำขอเปิดรับเงินอีกครั้งให้ผู้ดูแลอนุมัติ' },
+  SUSPENDED: { action: 'request_recovery', label: 'ขอให้ตรวจสอบเพื่อกู้คืน', description: 'ส่งเหตุผลและหลักฐานให้ทีมตรวจสอบสถานะร้าน' },
+}
+
+function StoppayView({ storeId }: { storeId: string | null }) {
+  const [stoppay, setStoppay] = useState<DbStoppayState | null>(null)
+  const [reason, setReason] = useState('')
+  const [state, setState] = useState<'loading' | 'ready' | 'error'>(storeId ? 'loading' : 'error')
+  const [error, setError] = useState(storeId ? '' : 'ยังไม่มี Store ที่เลือก')
+  const [submitting, setSubmitting] = useState(false)
+  const [notice, setNotice] = useState('')
+
+  const load = async () => {
+    if (!storeId) return
+    setState('loading')
+    setError('')
+    try {
+      setStoppay(await fetchDbStoppay(storeId))
+      setState('ready')
+    } catch (loadError: any) {
+      setError(loadError?.message || 'โหลดสถานะ STOPPAY ไม่สำเร็จ')
+      setState('error')
+    }
+  }
+
+  useEffect(() => {
+    void load()
+  }, [storeId])
+
+  const requestTransition = async () => {
+    if (!storeId || !stoppay) return
+    const transition = merchantStoppayActions[stoppay.status]
+    if (!transition) return
+    const normalizedReason = reason.trim()
+    if (normalizedReason.length < 5) {
+      setError('กรุณาระบุเหตุผลอย่างน้อย 5 ตัวอักษร')
+      return
+    }
+    if (!window.confirm(`${transition.label}\n\n${normalizedReason}`)) return
+    setSubmitting(true)
+    setError('')
+    setNotice('')
+    try {
+      await transitionDbStoppay({ storeId, action: transition.action, reason: normalizedReason, idempotencyKey: crypto.randomUUID() })
+      setReason('')
+      setNotice('ส่งคำขอเรียบร้อยแล้ว ระบบบันทึก audit และรอการตรวจสอบ')
+      await load()
+    } catch (transitionError: any) {
+      setError(transitionError?.message || 'ส่งคำขอ STOPPAY ไม่สำเร็จ')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const transition = stoppay ? merchantStoppayActions[stoppay.status] : null
+  return (
+    <section className="ai-stoppay-view" aria-labelledby="stoppay-title">
+      <div className={`ai-stoppay-status status-${(stoppay?.status || 'loading').toLowerCase()}`}>
+        <span><ShieldAlert /></span>
+        <div><small>STOPPAY STATUS</small><h2 id="stoppay-title">{state === 'loading' ? 'กำลังตรวจสอบสถานะ' : stoppay?.status || 'ไม่พบสถานะ'}</h2><p>{stoppay?.reason || 'ไม่มีเหตุผลหรือข้อจำกัดที่บันทึกไว้'}</p></div>
+        <button type="button" onClick={() => { void load() }} disabled={state === 'loading'} aria-label="รีเฟรชสถานะ STOPPAY"><RefreshCw className={state === 'loading' ? 'spin' : ''} /></button>
+      </div>
+      {error && <div className="merchant-data-alert" role="alert"><ShieldAlert size={18} /><span>{error}</span></div>}
+      {notice && <div className="ai-stoppay-notice" role="status"><CheckCircle2 />{notice}</div>}
+      {state === 'ready' && transition ? <section className="ai-stoppay-action">
+        <div><strong>{transition.label}</strong><p>{transition.description}</p></div>
+        <label><span>เหตุผลที่ขอดำเนินการ</span><textarea value={reason} onChange={(event) => { setReason(event.target.value); setError('') }} maxLength={1000} rows={4} placeholder="อธิบายเหตุผลเพื่อให้ผู้ดูแลตรวจสอบ" /></label>
+        <button type="button" onClick={() => { void requestTransition() }} disabled={submitting}>{submitting ? 'กำลังส่งคำขอ...' : transition.label}</button>
+      </section> : state === 'ready' && <div className="ai-stoppay-pending"><Clock size={24} /><strong>คำขออยู่ระหว่างดำเนินการ</strong><p>สถานะนี้ไม่มี action สำหรับ Merchant กรุณารอผลจาก Admin หรือ Compliance</p></div>}
+    </section>
   )
 }
 
@@ -9515,7 +9643,7 @@ function SettingsView({ onOpenProfile, onNavigate }: { onOpenProfile?: () => voi
   const [speechSpeed, setSpeechSpeed] = useState('1.0x')
   const [voiceGender, setVoiceGender] = useState('female' as VoiceGender)
   const [volumeLevel, setVolumeLevel] = useState(10)
-  const [qrPayMode, setQrPayMode] = useState('pay_first' as QrPayMode)
+  const qrPayMode: QrPayMode = 'pay_first'
 
   const speedPresets = ['0.5x', '1.0x', '1.5x', '2.0x', '2.5x', '3.0x']
 

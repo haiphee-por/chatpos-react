@@ -1728,3 +1728,144 @@
   color: #d97706;
   font-weight: 600;
 }
+
+/* Latest Payment AI order and handoff theme. */
+.cust-app-container {
+  width: min(100%, 480px);
+  max-width: 480px;
+  background:
+    radial-gradient(circle at 98% 18%, rgb(34 211 238 / 10%), transparent 14rem),
+    radial-gradient(circle at 0 55%, rgb(120 104 255 / 7%), transparent 18rem),
+    #f4f8f6;
+  color: var(--chatpos-ink);
+  font-family: Tahoma, 'Noto Sans Thai', sans-serif;
+  box-shadow: 0 0 0 1px rgb(255 255 255 / 8%), 0 38px 110px rgb(0 0 0 / 38%);
+}
+
+.cust-header {
+  border-bottom: 3px solid transparent;
+  border-image: linear-gradient(90deg, var(--chatpos-ai-green), var(--chatpos-ai-cyan), var(--chatpos-ai-violet), transparent) 1;
+  background: #f4f8f6;
+}
+
+.cust-banner-cover {
+  height: 178px;
+  background: #071b18;
+}
+
+.cust-banner-overlay {
+  background:
+    radial-gradient(circle at 88% -25%, rgb(34 211 238 / 35%), transparent 45%),
+    linear-gradient(180deg, rgb(7 27 24 / 18%), rgb(7 27 24 / 82%));
+}
+
+.cust-table-badge,
+.cust-open-badge {
+  min-height: 34px;
+  border-color: rgb(255 255 255 / 24%);
+  border-radius: 11px;
+  background: rgb(7 27 24 / 68%);
+  box-shadow: 0 6px 16px rgb(0 0 0 / 20%);
+}
+
+.cust-open-badge {
+  background: linear-gradient(135deg, rgb(0 185 132 / 86%), rgb(72 110 234 / 78%));
+}
+
+.cust-store-card {
+  margin: -38px 14px 0;
+  padding: 14px;
+  border: 1px solid rgb(0 185 132 / 18%);
+  border-radius: 21px;
+  background: rgb(255 255 255 / 93%);
+  box-shadow: 0 14px 32px rgb(7 27 24 / 14%), inset 0 1px #fff;
+  backdrop-filter: blur(18px);
+}
+
+.cust-store-meta {
+  padding-top: 4px;
+}
+
+.cust-logo-box {
+  border-radius: 18px;
+  box-shadow: 0 8px 18px rgb(70 122 255 / 18%);
+}
+
+.cust-verified-badge,
+.cust-cat-pill.active {
+  background: linear-gradient(135deg, #00a977, #486eea);
+}
+
+.cust-quick-table-actions {
+  padding: 12px 14px 14px;
+}
+
+.cust-table-action-btn {
+  min-height: 54px;
+  border-radius: 14px;
+  box-shadow: 0 7px 16px rgb(7 27 24 / 7%);
+}
+
+.cust-nav-section {
+  border-bottom-color: rgb(16 93 76 / 10%);
+  background: rgb(244 248 246 / 91%);
+  box-shadow: 0 8px 24px rgb(7 27 24 / 8%);
+  backdrop-filter: blur(18px);
+}
+
+.cust-search-box {
+  min-height: 48px;
+  border-color: rgb(0 185 132 / 16%);
+  border-radius: 14px;
+  background: #f8fcfa;
+}
+
+.cust-search-box:focus-within {
+  border-color: var(--chatpos-gold-500);
+  box-shadow: 0 0 0 4px rgb(245 189 58 / 13%);
+}
+
+.cust-cat-pill {
+  min-height: 38px;
+  border-color: rgb(16 93 76 / 12%);
+  border-radius: 11px;
+  background: rgb(255 255 255 / 82%);
+}
+
+.cust-grid {
+  gap: 10px;
+}
+
+.cust-menu-card,
+.cust-order-tracker-card,
+.cust-cart-item-card,
+.cust-modal-scroll {
+  border-color: rgb(16 93 76 / 12%);
+  border-radius: 18px;
+  background: rgb(255 255 255 / 92%);
+  box-shadow: 0 10px 25px rgb(7 27 24 / 8%), inset 0 1px #fff;
+}
+
+.cust-card-media {
+  background: linear-gradient(145deg, #effbf7, #e7f0ff);
+}
+
+.cust-card-tag {
+  border-radius: 8px;
+  background: linear-gradient(135deg, #00a977, #486eea);
+}
+
+.cust-view-cart-btn,
+.cust-primary-btn,
+.cust-checkout-btn {
+  border: 0;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #00a977, #486eea);
+  box-shadow: 0 9px 22px rgb(72 110 234 / 24%);
+}
+
+.cust-cart-drawer,
+.cust-modal-card {
+  border-radius: 24px 24px 0 0;
+  background: #f4f8f6;
+}

@@ -223,8 +223,8 @@ Merchant UI ใช้ `chatpos-payment-ai-main/app/page.tsx` และ `app/glob
 | `/merchant/services` | `ServicesView` | hardcoded/localStorage service/booking state | development demo; production แสดง unavailable |
 | `/merchant/salespage` | `SalesPageView` | hardcoded/localStorage builder state | development demo; production แสดง unavailable |
 | `/merchant/tables` | `MerchantSection` | ไม่มี Table/Order persistence | unavailable |
-| `/merchant/benefits` | `MerchantSection` | server มี capability/read API แต่ frontend view ยังไม่มี | unavailable จาก Merchant UI |
-| `/merchant/stoppay` | `MerchantSection` | server มี state machine/idempotent API แต่ frontend confirmation/recovery view ยังไม่มี | unavailable จาก Merchant UI |
+| `/merchant/benefits` | `BenefitsView` | Store-scoped benefits read API พร้อม loading/empty/error/retry | read-only UI พร้อมเมื่อ `canUseBenefits`; ยังไม่มี claim/redemption mutation |
+| `/merchant/stoppay` | `StoppayView` | Store-scoped state, merchant transition allowlist, reason, confirmation, idempotency และ audit | request UI พร้อมเมื่อ `canUseStopPay`; approval เป็นหน้าที่ Admin/Compliance |
 | `/merchant/billing` | `MerchantSection` | ยังไม่มี invoice/fee authority และ reconciliation view | unavailable |
 | `/merchant/developer` | `DeveloperConsoleView` | authenticated compatibility/testing surface | สำหรับ developer; ไม่ใช่ Merchant production workflow และห้าม persist secret ใน browser |
 
@@ -238,7 +238,15 @@ Merchant UI ใช้ `chatpos-payment-ai-main/app/page.tsx` และ `app/glob
 6. Products ต้องใช้ Product API เป็น authority; import/export, category และ image upload ห้ามแสดงว่าสำเร็จก่อนมี endpoint จริง
 7. Wallet ต้องคง withdrawal เป็น unavailable จนมี OTP, durable ledger, provider result และ reconciliation
 
-Visual layer ปัจจุบันใช้ Payment AI phone shell, title header, bottom navigation, cards และ controls กับ Merchant route ทั้งหมดแล้ว. Transactions/Product/Services/Developer table ถูกจัดเป็น stacked cards บน phone shell; KYC คง document/chat logic เดิมภายใต้ Payment AI card treatment. Demo route แสดง `DEMO ONLY`, Developer แสดง `TESTING SURFACE` และ route ที่ไม่มี logic ใช้ unavailable state แทน UI สำเร็จปลอม
+Visual layer ปัจจุบันใช้ Payment AI tokens, Tahoma-first Thai type, dark AI header, teal/cyan/violet accent, glass cards และ gold focus ring ทั้งระบบแล้ว: Landing, Login, Registration, Customer Ordering, Booking, Catalog, standalone QuickPay/Developer และ Merchant route ทั้งหมด. Transactions/Product/Services/Developer table ถูกจัดเป็น stacked cards บน phone shell; KYC คง document/chat logic เดิมภายใต้ Payment AI card treatment. Demo route แสดง `DEMO ONLY`, Developer แสดง `TESTING SURFACE` และ route ที่ไม่มี logic ใช้ unavailable state แทน UI สำเร็จปลอม
+
+Reference ล่าสุดมี `/order/[token]`, `/handoff/[id]`, `/admin`, `/admin/login`, `/login`, `/register` และ Membership screen เพิ่มเข้ามา. การรับเข้าฝั่ง `chatpos-react` มีขอบเขตดังนี้:
+
+- Login/Register/Customer/Booking/Catalog รับ visual theme แล้ว แต่คง session, registration, public payment และ Store policy ของ `chatpos-react`
+- Benefits และ STOPPAY มี local API อยู่แล้ว จึงเพิ่ม frontend view โดยใช้ local capability/authorization/idempotency
+- `/handoff/[id]` และ signed table-order token route ยังไม่มี Order persistence/authorization owner จึงยังไม่สร้าง mock route
+- `/admin` ไม่อยู่ใน `App.tsx` และเป็น backoffice คนละขอบเขต; ต้องตัดสิน owner/role/API ก่อนนำ Admin control center เข้ามา
+- Membership billing/subscription ของ reference ไม่ใช่ contract เดียวกับ local Benefits API; local routeแสดง active benefits แบบ read-only ส่วน Billing ยังคง unavailable
 
 ## ความสามารถตาม workflow
 

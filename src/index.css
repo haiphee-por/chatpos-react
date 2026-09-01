@@ -1,4 +1,42 @@
-:root { font-family: 'Noto Sans Thai', 'Leelawadee UI', sans-serif; color: #10213f; background: #f5f7fb; font-synthesis: none; text-rendering: optimizeLegibility; -webkit-font-smoothing: antialiased; }
+:root {
+	--chatpos-green-950: #003c2a;
+	--chatpos-green-900: #004b35;
+	--chatpos-green-800: #006047;
+	--chatpos-green-100: #dff5ea;
+	--chatpos-green-50: #f1fbf6;
+	--chatpos-gold-500: #f5bd3a;
+	--chatpos-gold-300: #ffd96d;
+	--chatpos-ai-ink: #071b18;
+	--chatpos-ai-green: #00b984;
+	--chatpos-ai-cyan: #22d3ee;
+	--chatpos-ai-violet: #7868ff;
+	--chatpos-ink: #103f32;
+	--chatpos-muted: #6a7d76;
+	--chatpos-line: #dce7e2;
+	--chatpos-canvas: #e8f1ed;
+	--chatpos-glass: rgb(255 255 255 / 90%);
+	--chatpos-ai-header:
+		radial-gradient(circle at 88% -25%, rgb(34 211 238 / 55%), transparent 44%),
+		radial-gradient(circle at 10% 120%, rgb(120 104 255 / 45%), transparent 48%),
+		linear-gradient(135deg, #071b18, #0a3028 62%, #123632);
+	font-family: Tahoma, 'Noto Sans Thai', 'Leelawadee UI', sans-serif;
+	color: var(--chatpos-ink);
+	background: var(--chatpos-canvas);
+	font-synthesis: none;
+	text-rendering: optimizeLegibility;
+	-webkit-font-smoothing: antialiased;
+}
 * { box-sizing: border-box; }
-body { margin: 0; min-width: 320px; }
-button { font: inherit; }
+html { background: var(--chatpos-ai-ink); }
+body { margin: 0; min-width: 320px; background: var(--chatpos-canvas); color: var(--chatpos-ink); }
+button, input, select, textarea { font: inherit; }
+button { -webkit-tap-highlight-color: transparent; }
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+[role='button']:focus-visible {
+	outline: 3px solid rgb(245 189 58 / 68%);
+	outline-offset: 2px;
+}

@@ -1577,3 +1577,118 @@
     padding: 16px 14px 40px 14px;
   }
 }
+
+/* Payment AI control-center theme. */
+.dev-console-shell,
+.dev-embedded-shell {
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at 10% 8%, rgb(34 211 238 / 12%), transparent 28rem),
+    radial-gradient(circle at 92% 82%, rgb(120 104 255 / 12%), transparent 30rem),
+    #f4f8f6;
+  color: var(--chatpos-ink);
+  font-family: Tahoma, 'Noto Sans Thai', sans-serif;
+}
+
+.dev-topbar,
+.dev-hero-header {
+  border-bottom: 3px solid transparent;
+  border-image: linear-gradient(90deg, var(--chatpos-ai-green), var(--chatpos-ai-cyan), var(--chatpos-ai-violet), transparent) 1;
+  background: var(--chatpos-ai-header);
+  color: #fff;
+  box-shadow: 0 14px 35px rgb(7 27 24 / 24%);
+}
+
+.dev-topbar h1,
+.dev-topbar p,
+.dev-hero-header h2,
+.dev-hero-header p,
+.dev-back-link {
+  color: #fff;
+}
+
+.dev-brand-icon {
+  border: 1px solid rgb(255 255 255 / 22%);
+  border-radius: 15px;
+  background: linear-gradient(145deg, rgb(0 185 132 / 90%), rgb(120 104 255 / 90%));
+  color: #fff;
+  box-shadow: 0 0 25px rgb(34 211 238 / 28%), inset 0 1px rgb(255 255 255 / 40%);
+}
+
+.dev-api-base-tag,
+.dev-env-switch {
+  border-color: rgb(255 255 255 / 16%);
+  border-radius: 12px;
+  background: rgb(255 255 255 / 9%);
+  color: #fff;
+}
+
+.dev-container {
+  max-width: 1180px;
+}
+
+.dev-nav-tabs {
+  padding: 4px;
+  border: 1px solid rgb(16 93 76 / 10%);
+  border-radius: 14px;
+  background: #edf6f2;
+}
+
+.dev-nav-tab {
+  min-height: 42px;
+  border-radius: 11px;
+}
+
+.dev-nav-tab.active,
+.dev-btn-primary {
+  border-color: transparent;
+  background: linear-gradient(135deg, #00a977, #486eea);
+  color: #fff;
+  box-shadow: 0 7px 16px rgb(72 110 234 / 20%);
+}
+
+.dev-stat-card,
+.dev-section-card,
+.dev-quick-guide-card,
+.dev-provider-card,
+.dev-modal-card {
+  border-color: rgb(16 93 76 / 12%);
+  border-radius: 20px;
+  background: rgb(255 255 255 / 92%);
+  box-shadow: 0 12px 30px rgb(7 27 24 / 8%), inset 0 1px #fff;
+  backdrop-filter: blur(18px);
+}
+
+.dev-input,
+.dev-select,
+.dev-textarea {
+  border-color: rgb(0 185 132 / 16%);
+  border-radius: 12px;
+  background: #f8fcfa;
+}
+
+.dev-input:focus,
+.dev-select:focus,
+.dev-textarea:focus {
+  border-color: var(--chatpos-gold-500);
+  box-shadow: 0 0 0 4px rgb(245 189 58 / 13%);
+}
+
+@media (max-width: 640px) {
+  .dev-topbar,
+  .dev-hero-header {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .dev-topbar-right,
+  .dev-env-switch {
+    width: 100%;
+  }
+
+  .dev-nav-tabs {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+}

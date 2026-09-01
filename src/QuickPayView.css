@@ -1278,3 +1278,75 @@
     display: none;
   }
 }
+
+/* Standalone Payment AI shell; embedded Merchant rules remain authoritative above. */
+body:has(.qp-standalone-shell) {
+  background:
+    radial-gradient(circle at 15% 8%, rgb(34 211 238 / 19%), transparent 30rem),
+    radial-gradient(circle at 88% 78%, rgb(120 104 255 / 20%), transparent 32rem),
+    linear-gradient(145deg, #061815, #0b2822);
+}
+
+.qp-standalone-shell {
+  width: min(100%, 480px);
+  margin: 0 auto;
+  background:
+    radial-gradient(circle at 98% 18%, rgb(34 211 238 / 10%), transparent 15rem),
+    radial-gradient(circle at 0 65%, rgb(120 104 255 / 7%), transparent 18rem),
+    #f4f8f6;
+  color: var(--chatpos-ink);
+  font-family: Tahoma, 'Noto Sans Thai', sans-serif;
+  box-shadow: 0 38px 110px rgb(0 0 0 / 42%);
+}
+
+.qp-standalone-shell > .qp-standalone-header {
+  position: relative;
+  min-height: 84px;
+  padding: 14px 16px;
+  border-bottom: 3px solid transparent;
+  border-image: linear-gradient(90deg, var(--chatpos-ai-green), var(--chatpos-ai-cyan), var(--chatpos-ai-violet), transparent) 1;
+  background: var(--chatpos-ai-header);
+  color: #fff;
+  box-shadow: 0 14px 35px rgb(7 27 24 / 24%);
+}
+
+.qp-standalone-shell .qp-header-store-badge,
+.qp-standalone-shell .qp-header-tool-btn {
+  border-color: rgb(255 255 255 / 16%);
+  border-radius: 11px;
+  background: rgb(255 255 255 / 9%);
+  color: #fff;
+}
+
+.qp-standalone-shell .qp-amount-section,
+.qp-standalone-shell .qp-channel-card,
+.qp-standalone-shell .qp-summary-modal-card {
+  border-color: rgb(16 93 76 / 12%);
+  border-radius: 20px;
+  background: rgb(255 255 255 / 93%);
+  box-shadow: 0 12px 30px rgb(7 27 24 / 9%), inset 0 1px #fff;
+}
+
+.qp-standalone-shell .qp-method-btn {
+  border-color: rgb(0 185 132 / 12%);
+  border-radius: 16px;
+  background: linear-gradient(145deg, #effbf7, #e7f0ff);
+}
+
+.qp-standalone-shell .qp-method-btn.active,
+.qp-standalone-shell .qp-calc-grid .qp-pay-active-btn {
+  border-color: transparent;
+  background: linear-gradient(135deg, #00a977, #486eea);
+  box-shadow: 0 8px 20px rgb(72 110 234 / 22%);
+}
+
+.qp-standalone-shell .qp-calc-grid button {
+  border-color: rgb(16 93 76 / 12%);
+  background: rgb(255 255 255 / 94%);
+  box-shadow: 0 5px 12px rgb(7 27 24 / 8%);
+}
+
+.qp-standalone-shell .qp-calc-grid .qp-op-btn {
+  background: linear-gradient(145deg, #0c5546, #073c32);
+  color: #a2ffdc;
+}

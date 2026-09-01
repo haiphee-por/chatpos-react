@@ -2128,3 +2128,110 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* Latest Payment AI public catalog theme. */
+.cat-page-wrapper {
+  width: min(100%, 480px);
+  margin: 0 auto;
+  background:
+    radial-gradient(circle at 98% 18%, rgb(34 211 238 / 10%), transparent 15rem),
+    radial-gradient(circle at 0 65%, rgb(120 104 255 / 7%), transparent 18rem),
+    #f4f8f6;
+  color: var(--chatpos-ink);
+  font-family: Tahoma, 'Noto Sans Thai', sans-serif;
+  box-shadow: 0 38px 110px rgb(0 0 0 / 38%);
+}
+
+.cat-hero-cover-section {
+  height: 200px;
+  background: #071b18;
+  border-bottom: 3px solid transparent;
+  border-image: linear-gradient(90deg, var(--chatpos-ai-green), var(--chatpos-ai-cyan), var(--chatpos-ai-violet), transparent) 1;
+}
+
+.cat-hero-gradient-overlay {
+  background:
+    radial-gradient(circle at 88% -25%, rgb(34 211 238 / 30%), transparent 45%),
+    linear-gradient(180deg, rgb(7 27 24 / 16%), rgb(7 27 24 / 84%));
+}
+
+.cat-hero-top-bar,
+.cat-center-container {
+  max-width: 480px;
+}
+
+.cat-hero-status-pill,
+.cat-circle-btn {
+  min-height: 36px;
+  border-radius: 12px;
+  backdrop-filter: blur(12px);
+}
+
+.cat-store-profile-card,
+.cat-menu-showcase-section,
+.cat-product-show-card,
+.cat-modal-dialog,
+.cat-unavailable-state .cat-store-profile-card {
+  border-color: rgb(16 93 76 / 12%);
+  border-radius: 21px;
+  background: rgb(255 255 255 / 92%);
+  box-shadow: 0 14px 34px rgb(7 27 24 / 10%), inset 0 1px #fff;
+  backdrop-filter: blur(18px);
+}
+
+.cat-avatar-frame,
+.cat-product-media-box {
+  border-color: rgb(0 185 132 / 18%);
+  background: linear-gradient(145deg, #effbf7, #e7f0ff);
+}
+
+.cat-avatar-label,
+.cat-tab-pill.active,
+.cat-store-btn.line-solid {
+  background: linear-gradient(135deg, #00a977, #486eea);
+  color: #fff;
+}
+
+.cat-promo-ribbon-card {
+  border-color: rgb(110 241 193 / 18%);
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at 100% 0%, rgb(34 211 238 / 36%), transparent 50%),
+    linear-gradient(145deg, #07231e, #0b4135);
+}
+
+.cat-search-pill-box,
+.cat-tab-pill {
+  border-color: rgb(0 185 132 / 14%);
+  border-radius: 12px;
+  background: #f8fcfa;
+}
+
+.cat-search-pill-box:focus-within {
+  border-color: var(--chatpos-gold-500);
+  box-shadow: 0 0 0 4px rgb(245 189 58 / 13%);
+}
+
+.cat-products-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.cat-product-show-card {
+  border-radius: 17px;
+}
+
+.cat-store-btn,
+.cat-modal-inquire-btn {
+  border-radius: 12px;
+}
+
+@media (max-width: 380px) {
+  .cat-products-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .cat-store-profile-card {
+    padding: 14px;
+  }
+}

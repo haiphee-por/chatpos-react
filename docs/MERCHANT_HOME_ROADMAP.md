@@ -27,8 +27,8 @@
 | `/merchant/services` | service/booking demo surface | hardcoded/localStorage | **development demo เท่านั้น** | Service/availability/booking schema และ API; production แสดง unavailable |
 | `/merchant/salespage` | sales page builder demo | hardcoded/localStorage | **development demo เท่านั้น** | published page API, durable content, domain/slug ownership, analytics และ payment linkage; production แสดง unavailable |
 | `/merchant/tables` | Payment AI unavailable state | ไม่มี Table API/view | **ยังใช้ไม่ได้** | Table CRUD, token/QR ownership, order linkage และ persistence |
-| `/merchant/benefits` | Payment AI unavailable state | มี capability/read API แต่ยังไม่มี Merchant view | **ยังใช้ไม่ได้จาก UI** | benefits list/detail/eligibility UI และ empty/error/pagination evidence |
-| `/merchant/stoppay` | Payment AI unavailable state | มี server state machine และ idempotent API แต่ยังไม่มี Merchant view | **ยังใช้ไม่ได้จาก UI** | status/reason view, confirmation/recovery policy และ role transition UX |
+| `/merchant/benefits` | Payment AI membership-style cards พร้อม loading/empty/error | Store-scoped `/api/db/benefits` | **read-only UI พร้อมเมื่อ capability เปิด** | claim/redemption mutation และ pagination UX; demo Store ปัจจุบันปิด capability |
+| `/merchant/stoppay` | Payment AI status/action cards | `/api/db/stoppay`, server transition allowlist, idempotency และ audit | **Merchant request UI พร้อมเมื่อ capability เปิด** | Admin/Compliance approval UI และ recovery evidence; demo Store ปัจจุบันปิด capability |
 | `/merchant/billing` | Payment AI unavailable state | มี capability flag แต่ยังไม่มี billing authority/view | **ยังใช้ไม่ได้** | invoice/fee source, Finance sign-off, reconciliation และ download contract |
 | `/merchant/developer` | authenticated compatibility/testing console | server-session API บางส่วนและ development examples | **เครื่องมือนักพัฒนา ไม่ใช่ Merchant production workflow** | real key/webhook management และ telemetry owner; ห้าม persist secret ใน browser |
 
@@ -41,6 +41,7 @@
 - Merchant route ทั้งหมดใช้ Payment AI phone shell/header/bottom navigation แล้ว. Body ของ QuickPay, Transactions, Products, Finance, Settings, KYC, POS, Orders, Services, SalesPage, Developer และ unavailable state ใช้ card/control treatment เดียวกัน โดยคง API/handler ของ `chatpos-react`
 - POS, Orders, Services และ SalesPage แสดง `DEMO ONLY`; Developer แสดง `TESTING SURFACE`; Tables, Benefits, STOPPAY และ Billing แสดง unavailable ตาม capability/implementation จริง
 - Settings ปิด control ที่ยังไม่มี persistence/API, Product import/export ถูก disable และ QR order policy ถูก disable; ห้ามแสดง `alert()` success แทน mutation จริง
+- Global Payment AI tokens/theme ใช้กับ Landing, Merchant Login, Registration, Customer Ordering, Booking, Catalog, standalone QuickPay และ standalone/embedded Developer แล้ว นอกเหนือจาก Merchant route ทั้งหมด
 
 ## 0. Reference source และกติกาการนำเข้า
 
@@ -68,6 +69,12 @@
 | `pos` | POS shortcut และ cashier entry | `MerchantView.tsx` POS route | server payment flow เป็น authority |
 | `product-manager` | product table, category, stock, image modal | `CatalogPageView.tsx` และ Product API | Product API เป็น authority; draft เท่านั้นที่ local |
 | `settings` | account, notification และ integration settings | `ProfileSettingsModal.tsx` และ settings view | permission/secret policy เป็น authority |
+| `/login` | phone-first login card และ checking/error state | `AuthViews.tsx`/`LandingPageView.tsx` | server session และ `loginUser` ของ `chatpos-react` เป็น authority; ไม่ย้าย mobile-only auth contract |
+| `/register` | AI header, wizard, location และ success card | `MerchantRegistrationView.tsx` | `registerMerchant`/assignment/KYC flow เดิมเป็น authority |
+| `/order/[token]` | public menu, cart, order history และ status cards | `CustomerView.tsx` | ปัจจุบันยังไม่มี signed token-bound Order API; ใช้ visual เท่านั้นและ production order persistence ยังเป็น dependency |
+| `/handoff/[id]` | staff order detail, progress และ handoff actions | ยังไม่มี dedicated target | ต้องมี Order API, Store authorization, status state machine และ idempotent mutation ก่อนสร้าง route |
+| `/admin` และ `/admin/login` | control center, KYC/catalog moderation, membership, agent และ reports theme | ไม่มี admin route ใน `chatpos-react` client router | admin logic อยู่คนละ owner/backoffice; ห้ามคัดลอก mock contractเข้ามาโดยไม่มี role/API decision |
+| `membership` | membership quota, daily fee และ ledger cards | `/merchant/benefits` สำหรับ active benefit read เท่านั้น | membership billing/subscription contract ของ reference ไม่ใช่ local authority; billing ยัง unavailable |
 
 Reference bottom navigation ใช้ `orders`, `tables`, `home`, `pos` และ `settings`; เมนูเต็มของ `chatpos-react` อยู่ใน [`merchantNavigation.ts`](../src/merchantNavigation.ts). Sidebar, Home shortcut และ mobile bottom navigation ต้องใช้ navigation mapping ชุดเดียวกัน และ browser refresh/Back/Forward ต้องรักษา active route ให้ตรงกัน
 

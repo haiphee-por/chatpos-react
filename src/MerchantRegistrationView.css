@@ -1201,3 +1201,103 @@
   font-size: 12px;
   color: var(--reg-muted);
 }
+
+/* Payment AI registration theme; registration and KYC logic remain unchanged. */
+.reg-shell {
+  --reg-primary: var(--chatpos-green-800);
+  --reg-primary-dark: var(--chatpos-green-950);
+  --reg-primary-light: var(--chatpos-ai-green);
+  --reg-primary-bg: var(--chatpos-green-50);
+  --reg-primary-ring: rgb(245 189 58 / 16%);
+  --reg-accent: var(--chatpos-ai-violet);
+  --reg-line: var(--chatpos-line);
+  --reg-ink: var(--chatpos-ink);
+  --reg-muted: var(--chatpos-muted);
+  --reg-bg: #f4f8f6;
+  --reg-sidebar-bg: var(--chatpos-ai-header);
+  background:
+    radial-gradient(circle at 98% 18%, rgb(34 211 238 / 10%), transparent 16rem),
+    radial-gradient(circle at 0 55%, rgb(120 104 255 / 7%), transparent 20rem),
+    #f4f8f6;
+  font-family: Tahoma, 'Noto Sans Thai', sans-serif;
+}
+
+.reg-header {
+  border-bottom: 3px solid transparent;
+  border-image: linear-gradient(90deg, var(--chatpos-ai-green), var(--chatpos-ai-cyan), var(--chatpos-ai-violet), transparent) 1;
+  background: var(--chatpos-ai-header);
+  box-shadow: 0 14px 35px rgb(7 27 24 / 26%);
+}
+
+.reg-header-inner,
+.reg-main {
+  width: min(100%, 720px);
+}
+
+.reg-logo-mark {
+  border: 1px solid rgb(255 255 255 / 22%);
+  border-radius: 15px;
+  background: linear-gradient(145deg, rgb(0 185 132 / 90%), rgb(120 104 255 / 90%));
+  box-shadow: 0 0 25px rgb(34 211 238 / 28%), inset 0 1px rgb(255 255 255 / 40%);
+}
+
+.reg-card,
+.reg-quick-card,
+.reg-notice,
+.reg-decision-card {
+  border-color: rgb(16 93 76 / 12%);
+  border-radius: 21px;
+  background: rgb(255 255 255 / 92%);
+  box-shadow: 0 14px 36px rgb(7 27 24 / 10%), inset 0 1px #fff;
+  backdrop-filter: blur(18px);
+}
+
+.reg-stage-badge,
+.reg-step.active .reg-step-number,
+.reg-progress-fill {
+  background: linear-gradient(135deg, #00a977, #486eea);
+  color: #fff;
+}
+
+.reg-input,
+.reg-select,
+.reg-textarea,
+.reg-field input,
+.reg-field select,
+.reg-field textarea {
+  border-color: rgb(0 185 132 / 16%);
+  border-radius: 12px;
+  background: #f8fcfa;
+}
+
+.reg-input:focus,
+.reg-select:focus,
+.reg-textarea:focus,
+.reg-field input:focus,
+.reg-field select:focus,
+.reg-field textarea:focus {
+  border-color: var(--chatpos-gold-500);
+  box-shadow: 0 0 0 4px rgb(245 189 58 / 13%);
+}
+
+.reg-primary-btn,
+.reg-quick-submit-btn,
+.reg-next-btn,
+.reg-submit-btn {
+  border: 0;
+  border-radius: 13px;
+  background: linear-gradient(135deg, #00a977, #486eea);
+  color: #fff;
+  box-shadow: 0 9px 22px rgb(72 110 234 / 24%);
+}
+
+@media (max-width: 640px) {
+  .reg-header-inner,
+  .reg-main {
+    width: 100%;
+  }
+
+  .reg-main {
+    padding: 18px 14px 40px;
+  }
+}
