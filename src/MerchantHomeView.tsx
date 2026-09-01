@@ -1,9 +1,12 @@
 import { useEffect, useState, type PointerEvent } from 'react'
 import {
+  Activity,
+  ArrowDownToLine,
   BadgePercent,
   Banknote,
   BarChart3,
   Bell,
+  Bot,
   CalendarDays,
   CheckCircle2,
   Check,
@@ -17,6 +20,7 @@ import {
   FileClock,
   Gift,
   Globe,
+  Grid2X2,
   Home,
   LockKeyhole,
   LogOut,
@@ -32,6 +36,7 @@ import {
   User,
   WalletCards,
   X,
+  Zap,
 } from 'lucide-react'
 import {
   fetchDbHomeResult,
@@ -205,15 +210,8 @@ export function MerchantHome({
   onLogout,
 }: MerchantHomeProps) {
   const language: HomeLanguage = 'th'
-  const [now, setNow] = useState(() => new Date())
   const { home, state: homeState, reload: reloadHome } = useHomeData(storeId)
   const { notifications, state: notificationState, reload: reloadNotifications } = useNotificationData(storeId)
-  const { transactions, state: transactionState, reload: reloadTransactions } = useRecentTransactions(storeId)
-
-  useEffect(() => {
-    const timer = setInterval(() => setNow(new Date()), 1000)
-    return () => clearInterval(timer)
-  }, [])
 
   if (storeState.status === 'loading' && !selectedStore) {
     return <HomeLoadingState />
@@ -233,14 +231,23 @@ export function MerchantHome({
   }
 
   const displayStore = home?.store || selectedStore
-  const merchantId = displayStore.merchantId || currentUser?.store?.merchantId || null
   const isStale = Boolean(homeState.error && homeState.fetchedAt)
-  const timeFormatted = formatClock(now, language, displayStore.timezone)
   const unreadNotificationCount = home?.unreadNotificationCount ?? notifications.filter((item) => !item.readAt).length
+  const canViewBalance = home?.capabilities.canViewBalance === true
+  const receivedToday = homeState.status === 'loading'
+    ? '—'
+    : canViewBalance
+      ? formatMoney(home?.summary.receivedToday ?? null, language)
+      : 'ไม่มีสิทธิ์'
+  const availableToWithdraw = homeState.status === 'loading'
+    ? '—'
+    : canViewBalance
+      ? formatMoney(home?.summary.availableToWithdraw ?? null, language)
+      : 'ไม่มีสิทธิ์'
 
   return (
-    <div className="merchant-home-view reference-page">
-      <header className="app-header">
+    <div className="merchant-home-view reference-page ai-merchant-home">
+      <header className="app-header ai-home-header">
         <HomeHeader
           unreadCount={unreadNotificationCount}
           notifications={notifications}
@@ -257,19 +264,63 @@ export function MerchantHome({
           onLogout={onLogout}
         />
       </header>
-      <div className="screen">
-        <section className="home-hero reference-home">
-          <WalletHero store={displayStore} merchantId={merchantId} time={timeFormatted} isStoreOpen={displayStore.isActive} summary={home?.summary || null} capabilities={home?.capabilities} isLoading={homeState.status === 'loading'} />
+      <main className="ai-home-screen">
+        <button className="ai-balance-strip" onClick={() => onNavigate('transactions')} type="button">
+          <span><b>ยอดรับวันนี้</b><strong>฿{receivedToday}</strong></span>
+          <span><b>พร้อมถอน</b><strong>฿{availableToWithdraw}</strong></span>
+          <ChevronRight aria-hidden="true" />
+        </button>
+
+        <section className="ai-command-card">
+          <div className="ai-command-head">
+            <span className="ai-agent-avatar"><Bot aria-hidden="true" /></span>
+            <div><small>CHATPOS INTELLIGENCE</small><strong>AI Payment Assistant</strong></div>
+            <span className="ai-online"><i /> ออนไลน์</span>
+          </div>
+          <p><Sparkles aria-hidden="true" /> พร้อมช่วยเลือกรูปแบบรับเงิน สรุปยอดขาย และเชื่อมทุกออเดอร์ให้ร้านอัตโนมัติ</p>
+          <div className="ai-quick-actions">
+            <button onClick={() => onNavigate('payment')} type="button"><Zap aria-hidden="true" /> รับเงินด่วน</button>
+            <button onClick={() => onNavigate('transactions')} type="button"><Activity aria-hidden="true" /> วิเคราะห์วันนี้</button>
+          </div>
         </section>
-        <section className="home-content reference-content">
-          <MainMenu home={home} onNavigate={onNavigate} />
-          <ChannelPanel />
-          <RecentPayments transactions={transactions} state={transactionState} onRetry={reloadTransactions} onNavigate={onNavigate} />
-          <SystemStatus homeState={homeState} notificationState={notificationState} />
-          {homeState.error && <HomeStaleNotice message={isStale ? 'ข้อมูลหน้าหลักล่าสุดอาจไม่สด' : homeState.error} onRetry={reloadHome} />}
-          {storeState.error && <HomeStaleNotice message={storeState.error} onRetry={onRetryStores} />}
-        </section>
-      </div>
+
+        <div className="ai-payment-section-title">
+          <span>รับชำระอัจฉริยะ</span>
+          <small><Sparkles aria-hidden="true" /> AI ROUTING ACTIVE</small>
+        </div>
+
+        <AiPaymentGrid home={home} onNavigate={onNavigate} />
+        {homeState.error && <HomeStaleNotice message={isStale ? 'ข้อมูลหน้าหลักล่าสุดอาจไม่สด' : homeState.error} onRetry={reloadHome} />}
+        {storeState.error && <HomeStaleNotice message={storeState.error} onRetry={onRetryStores} />}
+      </main>
+    </div>
+  )
+}
+
+const aiPaymentTiles = [
+  { id: 'promptpay', label: 'QR PromptPay', description: 'สร้าง QR อัตโนมัติ', target: 'payment', tone: 'featured', icon: QrCode },
+  { id: 'visa', label: 'VISA THAI', description: 'รับบัตรแบบไร้สัมผัส', target: 'payment', tone: '', icon: CreditCard },
+  { id: 'truemoney', label: 'TrueMoney', description: 'เชื่อมกระเป๋าเงินทันที', target: 'payment', tone: '', icon: WalletCards },
+  { id: 'other', label: 'ช่องทางอื่นๆ', description: 'AI เลือกช่องทางที่เหมาะสม', target: 'payment', tone: 'other', icon: Grid2X2 },
+  { id: 'withdraw', label: 'ถอนเงิน', description: 'จัดการเงินพร้อมถอน', target: 'wallet', tone: '', icon: ArrowDownToLine },
+  { id: 'all', label: 'รับทั้งหมด', description: 'รวมทุกช่องทางในจุดเดียว', target: 'payment', tone: 'featured', icon: Banknote },
+] as const
+
+function AiPaymentGrid({ home, onNavigate }: { home: DbHomeReadModel | null; onNavigate: (id: string) => void }) {
+  return (
+    <div className="ai-payment-grid" aria-label="ช่องทางรับชำระเงิน">
+      {aiPaymentTiles.map((item, index) => {
+        const Icon = item.icon
+        const enabled = Boolean(home) && (item.target === 'wallet' ? home.capabilities.canViewBalance : home.store.isActive)
+        return (
+          <button className={`ai-payment-tile ${item.tone}`} disabled={!enabled} key={item.id} onClick={() => onNavigate(item.target)} onPointerDown={triggerButtonPress} type="button">
+            <span className="ai-number-badge">{index + 1}</span>
+            <span className="ai-method-mark"><Icon aria-hidden="true" />{item.id === 'truemoney' && <b>W</b>}{item.id === 'all' && <Check aria-hidden="true" />}</span>
+            <strong>{item.label}</strong>
+            <small>{item.description}</small>
+          </button>
+        )
+      })}
     </div>
   )
 }
@@ -388,11 +439,14 @@ function HomeHeader({
 
   return (
     <>
-      <div className="app-header-row">
-      <button className="brand-button" onClick={() => onNavigate('home')} type="button" aria-label="ChatPOS">
-        <span className="brand"><span className="brand-bubble"><Store size={19} /></span><b>Chat</b><strong>POS</strong></span>
-      </button>
-      <div className="home-header-actions">
+      <div className="ai-home-header-row">
+        <button className="ai-home-orb" onClick={() => setProfileMenuOpen((open) => !open)} type="button" aria-label="เปิดเมนูร้านค้าและโปรไฟล์">
+          <Sparkles aria-hidden="true" />
+        </button>
+        <button className="ai-home-brand" onClick={() => onNavigate('home')} type="button" aria-label="ChatPOS AI หน้าหลัก">
+          <span><b>Chat</b><strong>POS</strong><sup>AI</sup></span>
+          <small><i /> AI Commerce Operating System</small>
+        </button>
         <NotificationDrawer
           notifications={notifications}
           initialUnreadCount={unreadCount}
@@ -403,12 +457,11 @@ function HomeHeader({
           onReload={onReloadNotifications}
           onNavigate={onNavigate}
         />
-        <MerchantStoreHeader store={selectedStore} availableStores={availableStores} onStoreChange={onStoreChange} onOpenProfileMenu={() => setProfileMenuOpen((open) => !open)} profileMenuOpen={profileMenuOpen} />
-      </div>
       </div>
       {profileMenuOpen && <>
         <button className="home-profile-dismiss" onClick={() => setProfileMenuOpen(false)} type="button" aria-label="ปิดเมนูโปรไฟล์" />
         <section className="home-profile-menu" aria-label="เมนูโปรไฟล์">
+          <MerchantStoreHeader store={selectedStore} availableStores={availableStores} onStoreChange={onStoreChange} onOpenProfileMenu={() => undefined} profileMenuOpen={profileMenuOpen} />
           <div className="home-profile-summary"><span className="home-profile-large-avatar">{userInitials}</span><span><strong>{displayName}</strong><small>{currentUser?.role === 'owner' ? 'Merchant Owner' : currentUser?.role || 'Merchant Owner'}</small></span></div>
           <div className="home-profile-actions"><button onClick={openProfile} type="button"><User size={18} /><span>โปรไฟล์ของฉัน</span><ChevronRight size={15} /></button><button onClick={requestLogout} type="button" className="is-danger"><LogOut size={18} /><span>ออกจากระบบ</span><ChevronRight size={15} /></button></div>
         </section>
