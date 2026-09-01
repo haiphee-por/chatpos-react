@@ -408,14 +408,29 @@ API ปัจจุบันมี `GET /api/db/kyc` และ `POST /api/db/kyc
 `MerchantView.tsx` รวมความสามารถหลายกลุ่มไว้ใน dashboard เดียว เช่น:
 
 - ดูสถานะร้านค้าและ KYC
-- จัดการสินค้า หมวดหมู่ สต็อก และราคา
+- จัดการสินค้า หมวดหมู่ สต็อก และราคา โดย `ProductsView` ใช้ Store-scoped Product API; ส่วน POS และ public catalog ยังมี transitional state บางส่วน
 - จัดการบริการและตารางจอง
 - สร้าง/แก้ sales page และ catalog
 - สร้างลิงก์หรือ QR สำหรับช่องทางขาย
-- ดูคำสั่งซื้อ รายการชำระเงิน และการจ่ายเงิน
-- ตั้งค่าโปรไฟล์และ integration settings ที่เปิดให้ Merchant ใช้
+- ดูคำสั่งซื้อและรายการชำระเงิน; wallet, revenue, billing และ payout ยังต้องแยกตามสถานะ prototype/feature gate ด้านล่าง
+- เปิดหน้าตั้งค่าโปรไฟล์, notification และ integration entry ที่อนุญาตให้ Merchant ใช้
 
-ข้อมูล operational prototype หลายรายการยังเก็บใน `localStorage` และ sync ระหว่างหน้าด้วย `storage` event จึงควรย้ายไป API/database เมื่อทำระบบหลายผู้ใช้หรือ production. Session, API authorization และ integration secret ไม่อยู่ใน localStorage
+ข้อมูล operational prototype หลายรายการยังเก็บใน `localStorage` และ sync ระหว่างหน้าด้วย `storage` event จึงไม่ใช่ authority สำหรับระบบหลายผู้ใช้หรือ production. Session, API authorization และ integration secret ไม่อยู่ใน localStorage
+
+### Account และ supporting surfaces
+
+สถานะปัจจุบันของ surface ที่อ้างอิงจาก UI reference มีดังนี้:
+
+| Surface | Source ปัจจุบัน | สถานะและข้อจำกัด |
+|---|---|---|
+| Profile / account | `ProfileSettingsModal.tsx`, `SettingsView` ใน `MerchantView.tsx` | แสดงข้อมูลจาก server session ได้ แต่การกดบันทึก profile ใน modal ยังเป็น local UI prototype; การแก้ Store profile จริงต้องผ่าน signed `PATCH /api/v1/stores/profile` จาก server integration ตาม contract |
+| Notifications | `MerchantHomeView.tsx`, `dbApi.ts` | ใช้ `/api/db/notifications` แบบ Store/recipient-scoped และมี mark-one/read-all mutation พร้อม server authorization; ถ้าโหลดไม่ได้ต้องแสดง error/retry ไม่ใช่ข้อมูล static |
+| Notification preferences | settings/integration surface | ยังไม่มี Merchant preference persistence ที่ยืนยันใน local contract; ห้ามทำให้ toggle ใน UI สื่อว่าการส่ง email/SMS ถูกบันทึกจริงจนกว่าจะมี API/data owner |
+| Integration / Developer entry | `DeveloperConsoleView.tsx`, `ProfileSettingsModal.tsx`, `chatposApi.ts` | ใช้ server session และเป็น compatibility testing; `getStoredApiKey()` ไม่คืน key และ `setStoredApiKey()` ไม่เขียน browser storage, ส่วน browser token minting `/api/v1/auth` ตอบ `410 API_TOKEN_DEPRECATED` |
+| Wallet / revenue / billing | `WalletView`, `ReportsView`, Home summary | UI ยังมีข้อมูลตัวอย่าง/ค่า hardcode และ Home balance จะเป็น `—` หรือ `ยังไม่พร้อม` เมื่อ ledger/capability ยังไม่พร้อม; ต้องมี Finance/Payment source และ reconciliation ก่อนใช้เป็นยอดจริง |
+| Withdrawal / payout | `/api/v1/payouts` prototype และ wallet UI | route ปัจจุบันคืน `processing` แบบ prototype ยังไม่มี durable withdrawal, OTP, provider result หรือ reconciliation และยังไม่ใช่ readiness-gated payout flow; ต้องกั้นไม่ให้เป็น production action และห้ามแสดงว่าเงินถูกโอนแล้ว |
+
+Account/supporting flow ที่จะเปิดเป็น production ต้องตรวจ role, Store ownership, capability และ feature flag ที่ server; การซ่อนเมนูหรือปุ่มเป็นเพียง UX และ prototype บางส่วนในปัจจุบันยังอยู่ระหว่างการ harden. โดยเฉพาะยอดเงิน, transaction, payout และ KYC ห้ามให้ browser คำนวณสิทธิ์หรือเปลี่ยนสถานะเอง
 
 ### Customer ordering
 
@@ -606,22 +621,22 @@ See [docs/PHASE5_SECURITY_OPERATIONS.md](PHASE5_SECURITY_OPERATIONS.md) for secr
 
 ### PostgreSQL state
 
-ใช้ `src/dbApi.ts` เป็น helper สำหรับ `/api/db` และแปลงข้อมูลบางส่วนจาก database ให้เข้ากับ model ใน `mockData.ts` เพื่อให้ view เดิมใช้งานได้
+ใช้ `src/dbApi.ts` เป็น helper สำหรับ `/api/db`; view บางส่วนยังแปลง server rows ให้เข้ากับ model เดิมใน `mockData.ts` เพื่อรองรับ transitional UI แต่ข้อมูลที่บันทึกแล้วต้องยึด API/ฐานข้อมูลเป็น authority
 
 ใช้ `src/chatposApi.ts` เป็น helper สำหรับ Developer API และส่ง `credentials: 'include'` เพื่อใช้ HttpOnly session cookie. ห้ามเก็บหรือส่ง API key จาก browser; `/api/v1/auth` token minting ถูกปิดแล้ว
 
 ### Browser prototype state
 
-ข้อมูลที่พบว่าเก็บใน browser ได้แก่:
+ข้อมูลที่ยังพบว่าเก็บใน browser ได้แก่:
 
 - display cache ของ user session ซึ่งไม่ใช่ authority; server session เป็นแหล่งอ้างอิงจริง
 - active tab และ hash ของ dashboard
-- สินค้า หมวดหมู่ บริการ และการจอง
+- draft/legacy state ของสินค้า หมวดหมู่ บริการ และการจอง; `ProductsView` ใช้ Product API แล้ว แต่ POS/public catalog ยังมี transitional local state
 - sales pages, QR slugs และ channel groups
 - customer orders, staff calls และ live merchant orders
-- pending checkout และ recent transactions
+- pending checkout และ legacy UI cache บางส่วน; transaction history และ Home recent payments ต้องอ่านจาก server API
 
-เมื่อเพิ่ม state ใหม่ให้ระบุให้ชัดว่าเป็น `server state`, `client state` หรือ `mock state` และกำหนด migration path หากจะรองรับหลายอุปกรณ์
+ห้ามเก็บ bearer secret, signing secret, webhook secret, OTP, token หรือ restricted PII ใน browser storage, URL หรือ log. เมื่อเพิ่ม state ใหม่ให้ระบุให้ชัดว่าเป็น `server state`, `client state`, `local draft` หรือ `mock state` และกำหนด migration path หากจะรองรับหลายอุปกรณ์
 
 ## แนวทางพัฒนาต่อ
 
