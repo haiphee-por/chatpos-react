@@ -202,6 +202,44 @@ npm run lint
 
 เมื่อเพิ่ม route ใหม่ ให้ตรวจลำดับเงื่อนไขใน `src/App.tsx` ด้วย เพราะ route ที่ใช้ `startsWith()` อาจครอบคลุม pathname อื่นโดยไม่ตั้งใจ
 
+### Merchant UI source และสถานะ route จริง
+
+Merchant UI ใช้ `chatpos-payment-ai-main/app/page.tsx` และ `app/globals.css` เป็น **visual/interaction reference เท่านั้น**. Business logic, session, Store ownership, capability, API, idempotency, persistence และ error state ต้องยึด implementation ใน `chatpos-react`. ห้ามย้าย seeded data, local success state หรือ localStorage business authority จาก reference เข้ามา. `docs/419449.jpg` และ `docs/base.html` เป็น artifact เก่าและไม่ใช่ visual acceptance source แล้ว
+
+สถานะที่ตรวจจาก render branch ใน `MerchantView.tsx` และ server/API ณ 2026-09-01:
+
+| Merchant route | Owning view | Data/logic ที่ใช้จริง | สถานะ |
+|---|---|---|---|
+| `/merchant/home` | `MerchantHomeView.tsx` | Home read model, Store capability, notification API และ authenticated Store context | ใช้ได้เมื่อ `MERCHANT_HOME_CONTRACT_ENABLED` และ schema พร้อม |
+| `/merchant/payment` | `QuickPayView.tsx` | transaction command, stable idempotency key, QR/checkout response และ status polling | frontend logic พร้อม; การรับเงินจริงขึ้นกับ routing flags, Store credential, Backoffice/LLGW และ callback readiness |
+| `/merchant/transactions` | `TransactionsView` | Store-scoped Transaction API พร้อม search/filter | ใช้ได้แบบ read-only; ยังไม่มี detail/export UX |
+| `/merchant/products` | `ProductsView` | Product create/read/update ผ่าน PostgreSQL, Store scope และ optimistic conflict | ใช้ได้บางส่วน; bulk import/export ถูก disable เพราะยังไม่มี API, และยังขาด private image upload/category persistence/history |
+| `/merchant/reports` | `MerchantFinanceView` | Home summary และ transaction read model | ใช้ได้บางส่วนแบบ read-only; ไม่มี real chart/date range/export |
+| `/merchant/wallet` | `MerchantFinanceView` | balance summary และรายการธุรกรรมจาก server | ดูได้; withdrawal/auto payout/bank change ยังไม่ใช่ production mutation |
+| `/merchant/kyc` | `MerchantKycView.tsx` | KYC case/document version/chat/assignment API และ Store/Case authorization | implement แล้วแต่ feature/integration-gated; ต้องมี storage/scanner/Backoffice evidence |
+| `/merchant/settings` | `SettingsView` + `ProfileSettingsModal` | session/profile display และ client preference UI บางส่วน | ใช้ได้บางส่วน; language/theme/notification/audio/profile mutation หลายรายการยังไม่ persist จริง |
+| `/merchant/pos` | `PosView` | Product read บางส่วน; cart/order/receipt/hold bill เป็น client/localStorage | development demo; production แสดง unavailable |
+| `/merchant/orders` | `OrdersView` | hardcoded/localStorage order/QR state | development demo; production แสดง unavailable |
+| `/merchant/services` | `ServicesView` | hardcoded/localStorage service/booking state | development demo; production แสดง unavailable |
+| `/merchant/salespage` | `SalesPageView` | hardcoded/localStorage builder state | development demo; production แสดง unavailable |
+| `/merchant/tables` | `MerchantSection` | ไม่มี Table/Order persistence | unavailable |
+| `/merchant/benefits` | `MerchantSection` | server มี capability/read API แต่ frontend view ยังไม่มี | unavailable จาก Merchant UI |
+| `/merchant/stoppay` | `MerchantSection` | server มี state machine/idempotent API แต่ frontend confirmation/recovery view ยังไม่มี | unavailable จาก Merchant UI |
+| `/merchant/billing` | `MerchantSection` | ยังไม่มี invoice/fee authority และ reconciliation view | unavailable |
+| `/merchant/developer` | `DeveloperConsoleView` | authenticated compatibility/testing surface | สำหรับ developer; ไม่ใช่ Merchant production workflow และห้าม persist secret ใน browser |
+
+กฎเวลาแก้ UI ของ route เหล่านี้:
+
+1. เปลี่ยน markup/CSS ได้โดยไม่เปลี่ยน API ownership หรือ state transition เดิม
+2. Route ที่มี server read อย่างเดียวต้องไม่เพิ่มปุ่ม mutation จาก prototype
+3. Route ที่ยังเป็น demo ต้องถูกกั้นด้วย `allowDemoMerchantSurfaces`; production ต้องแสดง unavailable พร้อมเหตุผล
+4. ปุ่มที่ backend ยังไม่มีต้อง disabled/unavailable ห้ามใช้ `alert()` หรือ local state แสดงผลสำเร็จปลอม
+5. Payment ต้องใช้ `createTransactionCommand`, `transactionQrImageUrl`, idempotency key และ server status เดิม แม้ UI จะยกมาจาก Payment AI
+6. Products ต้องใช้ Product API เป็น authority; import/export, category และ image upload ห้ามแสดงว่าสำเร็จก่อนมี endpoint จริง
+7. Wallet ต้องคง withdrawal เป็น unavailable จนมี OTP, durable ledger, provider result และ reconciliation
+
+Visual layer ปัจจุบันใช้ Payment AI style แล้วใน Home, QuickPay, Transactions, Products, Finance, Settings, shared Merchant shell และ unavailable state. KYC คง document/chat workflow เดิมไว้ภายใต้ shared shell เพื่อไม่ให้การเปลี่ยน presentation กระทบ security และ versioning behavior
+
 ## ความสามารถตาม workflow
 
 ### Merchant onboarding และ KYC

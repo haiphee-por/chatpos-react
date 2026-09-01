@@ -486,7 +486,7 @@ export function MerchantView({ currentUser }: { currentUser: AuthUser | null }) 
   )
 
   return (
-    <div className={`merchant-app ${active === 'home' ? 'merchant-app-home' : ''}`}>
+    <div className={`merchant-app merchant-app-ai ${active === 'home' ? 'merchant-app-home' : ''}`}>
       {active !== 'home' && sidebar}
       {active !== 'home' && mobileOpen && (
         <div className="merchant-mobile">
@@ -1971,30 +1971,19 @@ function ProductsView({ storeId }: { storeId: string | null }) {
             <button
               type="button"
               className="qs-excel-btn import"
-              onClick={() => {
-                playTapSound('pop')
-                const fileInput = document.createElement('input')
-                fileInput.type = 'file'
-                fileInput.accept = '.csv,.xlsx'
-                fileInput.onchange = () => {
-                  playTapSound('success')
-                  alert('นำเข้าข้อมูลสินค้าผ่าน Excel/CSV สำเร็จ! อัปเดตรายการสินค้าใหม่เรียบร้อยแล้ว')
-                }
-                fileInput.click()
-              }}
+              disabled
+              title="ยังไม่มี Product bulk import API"
             >
-              📥 นำเข้า Excel/CSV
+              นำเข้า Excel/CSV · ยังไม่พร้อม
             </button>
 
             <button
               type="button"
               className="qs-excel-btn export"
-              onClick={() => {
-                playTapSound('success')
-                alert('ดาวน์โหลดไฟล์รายการสินค้าคลังสต็อก (Products_Export.xlsx) สำเร็จ!')
-              }}
+              disabled
+              title="ยังไม่มี Product export API"
             >
-              📤 ส่งออก Excel
+              ส่งออก Excel · ยังไม่พร้อม
             </button>
           </div>
         </div>
@@ -3893,17 +3882,23 @@ function MerchantSection({ active, label }: { active: string; label: string }) {
   }
   const item = content[active] ?? { title: label, description: 'จัดการข้อมูลร้านค้าของคุณ', icon: Store }
   const SectionIcon = item.icon
-  const isUnavailable = active === 'tables'
+  const unavailableReasons: Record<string, string> = {
+    tables: 'ยังไม่มี Table/Order API และ persistence ที่ผูกกับ Store',
+    benefits: 'มี read API และ capability แล้ว แต่ยังไม่มี Merchant benefits view ที่ใช้งานได้',
+    stoppay: 'มี server state machine แล้ว แต่ยังไม่มี Merchant STOPPAY view และ confirmation flow',
+    billing: 'ยังไม่มี billing source, invoice view และ reconciliation ที่ Finance รับรอง',
+  }
+  const unavailableReason = unavailableReasons[active] || 'ยังไม่มี production view และ data owner ที่ยืนยันสำหรับเมนูนี้'
   return (
-    <section className="merchant-placeholder">
+    <section className="merchant-placeholder" role="status">
       <div className="merchant-placeholder-icon">
         <SectionIcon size={28} />
       </div>
-      <p className="merchant-eyebrow">MERCHANT WORKSPACE</p>
-      <h2>{item.title}</h2>
+      <p className="merchant-eyebrow">FEATURE UNAVAILABLE</p>
+      <h2>{item.title} ยังไม่พร้อมใช้งาน</h2>
       <p>{item.description}</p>
       <div className="merchant-demo-note">
-        <Checkmark /> {isUnavailable ? 'ยังไม่พร้อมใช้งาน: ต้องมี Table/Order API และ persistence ของ Store ก่อน' : 'หน้านี้พร้อมต่อเข้ากับ workflow จาก apps/merchant และ API จริง'}
+        <Checkmark /> {unavailableReason}
       </div>
     </section>
   )

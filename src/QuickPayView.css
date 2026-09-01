@@ -456,6 +456,222 @@
   transform: scale(0.98);
 }
 
+/* Payment AI presentation; transaction and polling logic remain in QuickPayView. */
+.merchant-app-ai .qp-standalone-shell {
+  min-height: auto;
+  background:
+    radial-gradient(circle at 98% 12%, rgba(34, 211, 238, .1), transparent 15rem),
+    radial-gradient(circle at 0 70%, rgba(120, 104, 255, .07), transparent 18rem),
+    #f4f8f6;
+  color: #071b18;
+  font-family: Tahoma, "Noto Sans Thai", sans-serif;
+}
+
+.merchant-app-ai .qp-standalone-header {
+  position: relative;
+  top: auto;
+  margin: 0 16px;
+  padding: 10px 12px;
+  border: 1px solid rgba(120, 104, 255, .13);
+  border-radius: 14px;
+  background: linear-gradient(90deg, rgba(236, 250, 245, .94), rgba(241, 239, 255, .9));
+  box-shadow: 0 8px 22px rgba(7, 27, 24, .07);
+}
+
+.merchant-app-ai .qp-header-store-badge {
+  min-width: 0;
+  padding: 6px 9px;
+  border-color: rgba(0, 185, 132, .18);
+  border-radius: 11px;
+  background: rgba(255, 255, 255, .76);
+  color: #173f36;
+}
+
+.merchant-app-ai .qp-header-store-badge strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.merchant-app-ai .qp-header-tool-btn {
+  min-width: 36px;
+  min-height: 36px;
+  justify-content: center;
+  padding: 7px 9px;
+  border-color: rgba(16, 93, 76, .12);
+  border-radius: 11px;
+  background: rgba(255, 255, 255, .82);
+  color: #566b64;
+}
+
+.merchant-app-ai .qp-standalone-main {
+  padding: 12px 16px 28px;
+}
+
+.merchant-app-ai .qp-full-container {
+  max-width: 580px;
+  gap: 10px;
+}
+
+.merchant-app-ai .qp-amount-section {
+  padding: 18px 20px 16px;
+  border: 1px solid rgba(16, 93, 76, .12);
+  border-radius: 20px;
+  background: rgba(255, 255, 255, .94);
+  box-shadow: 0 10px 25px rgba(7, 27, 24, .09), inset 0 1px #fff;
+}
+
+.merchant-app-ai .qp-amount-label {
+  color: #102d27;
+  font-size: 15px;
+  font-weight: 900;
+  text-transform: none;
+}
+
+.merchant-app-ai .qp-amount-row {
+  justify-content: flex-end;
+  min-height: 68px;
+  padding-right: 72px;
+  border-bottom: 1px solid #e2ebe7;
+}
+
+.merchant-app-ai .qp-currency-prefix,
+.merchant-app-ai .qp-amount-val {
+  color: #071b18;
+}
+
+.merchant-app-ai .qp-amount-val {
+  font-size: clamp(44px, 10vw, 66px);
+  font-weight: 900;
+}
+
+.merchant-app-ai .qp-mascot-peek {
+  top: 25px;
+  right: 15px;
+  height: 65px;
+  opacity: .82;
+}
+
+.merchant-app-ai .qp-preset-row {
+  border-top: 0;
+}
+
+.merchant-app-ai .qp-preset-row button {
+  min-height: 38px;
+  border-color: rgba(0, 185, 132, .15);
+  border-radius: 11px;
+  background: #eff9f5;
+  color: #087b59;
+}
+
+.merchant-app-ai .qp-channel-card {
+  padding: 14px;
+  border: 1px solid rgba(16, 93, 76, .12);
+  border-radius: 20px;
+  background: rgba(255, 255, 255, .9);
+  box-shadow: 0 10px 25px rgba(7, 27, 24, .08), inset 0 1px #fff;
+  backdrop-filter: blur(14px);
+}
+
+.merchant-app-ai .qp-channel-header span {
+  color: #102d27;
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.merchant-app-ai .qp-tag-badge {
+  background: linear-gradient(90deg, #effaf5, #f1efff);
+  color: #6658c9;
+}
+
+.merchant-app-ai .qp-method-btn {
+  height: 64px;
+  border-color: rgba(0, 185, 132, .12);
+  border-radius: 16px;
+  background: linear-gradient(145deg, #effbf7, #e7f5ef);
+  box-shadow: inset 0 1px #fff;
+}
+
+.merchant-app-ai .qp-method-btn.active {
+  border-color: rgba(0, 185, 132, .35);
+  background: linear-gradient(145deg, rgba(0, 185, 132, .13), rgba(72, 110, 234, .11));
+  box-shadow: 0 8px 18px rgba(70, 122, 255, .15);
+}
+
+.merchant-app-ai .qp-check-badge {
+  background: linear-gradient(135deg, #00b984, #486eea);
+}
+
+.merchant-app-ai .qp-calc-grid {
+  gap: 8px;
+}
+
+.merchant-app-ai .qp-calc-grid button {
+  height: 68px;
+  border: 1px solid rgba(16, 93, 76, .12);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, .94);
+  color: #071b18;
+  box-shadow: 0 5px 12px rgba(7, 27, 24, .08), inset 0 1px #fff;
+}
+
+.merchant-app-ai .qp-calc-grid .qp-op-btn {
+  border-color: rgba(0, 185, 132, .2);
+  background: linear-gradient(145deg, #0c5546, #073c32);
+  color: #a2ffdc;
+}
+
+.merchant-app-ai .qp-calc-grid .qp-clear-btn,
+.merchant-app-ai .qp-calc-grid .qp-backspace-btn {
+  background: linear-gradient(145deg, #f8f7ff, #eeeaff);
+  color: #6958d7;
+}
+
+.merchant-app-ai .qp-calc-grid .qp-pay-active-btn {
+  min-height: 60px;
+  border: 0;
+  background: linear-gradient(135deg, #00a977, #486eea);
+  box-shadow: 0 9px 22px rgba(72, 110, 234, .24);
+}
+
+.merchant-app-ai .qp-summary-modal-card {
+  border: 1px solid rgba(0, 185, 132, .18);
+  border-radius: 22px;
+  box-shadow: 0 24px 70px rgba(7, 27, 24, .28);
+}
+
+@media (max-width: 520px) {
+  .merchant-app-ai .qp-standalone-header {
+    margin-inline: 0;
+  }
+
+  .merchant-app-ai .qp-header-tool-btn .hide-sm,
+  .merchant-app-ai .qp-channel-tags {
+    display: none;
+  }
+
+  .merchant-app-ai .qp-standalone-main {
+    padding-inline: 0;
+  }
+
+  .merchant-app-ai .qp-channel-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .merchant-app-ai .qp-amount-row {
+    padding-right: 52px;
+  }
+
+  .merchant-app-ai .qp-mascot-peek {
+    right: 4px;
+    height: 55px;
+  }
+
+  .merchant-app-ai .qp-calc-grid button {
+    height: 60px;
+  }
+}
+
 /* ── 4. Modal Styles (Bill Summary, Discount & Payment QR) ─────────────── */
 .qp-summary-modal-overlay {
   position: fixed;

@@ -6,6 +6,40 @@
 >
 > อัปเดตล่าสุด: 2026-09-01
 
+> Visual source ปัจจุบัน: ใช้หน้าและ style ที่รันจาก `chatpos-payment-ai-main/app/page.tsx` กับ `app/globals.css` เท่านั้น. `docs/419449.jpg` และ `docs/base.html` เป็น artifact เก่าและไม่ใช้ตัดสิน visual parity หรือ acceptance อีกต่อไป
+
+## สถานะ implementation ที่ตรวจจากโค้ดจริง (2026-09-01)
+
+ตารางนี้เป็นสถานะล่าสุดของ Merchant route และมี precedence เหนือ baseline/historical note ที่อยู่ช่วงท้ายเอกสาร. คำว่า "มี UI" ไม่เท่ากับ "ใช้งานจริง": ต้องดู source ของข้อมูล, mutation, persistence, capability และ external dependency ของแต่ละ route ด้วย
+
+| Route | UI ปัจจุบัน | Logic/data authority | สถานะใช้จริง | สิ่งที่ยังขาด |
+|---|---|---|---|---|
+| `/merchant/home` | Payment AI header, balance strip, assistant card, payment tiles และ bottom nav | `/api/db/home`, notifications และ Store-scoped capability | **ใช้ได้เมื่อ Home contract เปิด** | Store/session/timeout browser matrix และ rollout evidence |
+| `/merchant/payment` | Payment AI amount, channel picker, keypad, QR/result modal | `createTransactionCommand`, idempotency key, status polling และ persisted Transaction | **logic implement แล้ว แต่ขึ้นกับ integration readiness** | ต้องเปิด transaction routing/query flags, Store credential, Backoffice/LLGW และ webhook/reconcile ที่ผ่าน staging |
+| `/merchant/transactions` | filter, search และ responsive transaction cards/table | Store-scoped `/api/db/transactions` | **ใช้ได้แบบ read-only** | detail view, pagination UX, export และ browser permission evidence |
+| `/merchant/products` | product/stock list, filter, create/edit modal | PostgreSQL Product API, Store ownership และ optimistic `updatedAt` conflict | **ใช้ได้บางส่วน** | delete/bulk import/export, category persistence, private image upload และ history; ปุ่ม import/export ถูก disable แล้ว ไม่แสดง fake success |
+| `/merchant/reports` | Payment AI cards และรายการล่าสุด | `/api/db/home` + `/api/db/transactions` | **ใช้ได้บางส่วนแบบ read-only** | date range, real chart/top-product aggregation และ export API |
+| `/merchant/wallet` | balance metrics, transaction list และ unavailable payout panel | `/api/db/home` + `/api/db/transactions` | **ดูข้อมูลได้; ถอนเงินยังใช้ไม่ได้** | verified bank account model, OTP, durable withdrawal ledger, provider result และ reconciliation |
+| `/merchant/kyc` | KYC workspace, document timeline/version และ chat | PostgreSQL KYC APIs, Store/Case authorization, signed Backoffice integration | **implement แล้วแบบ feature/integration-gated** | private storage/scanner/encryption และ Backoffice staging evidence ก่อน production sign-off |
+| `/merchant/settings` | account entry, notification/audio/QR preference UI | session/profile display บางส่วน; client state สำหรับ preference หลายรายการ | **ใช้ได้บางส่วน** | profile/preference/password mutation contract; language/theme/notification preference ยังไม่ persist จริง |
+| `/merchant/pos` | POS demo surface | DB Product read บางส่วน แต่ cart/order/receipt/hold bill ยังเป็น client/localStorage | **development demo เท่านั้น** | POS/order/table/payment persistence และ settlement; production แสดง unavailable |
+| `/merchant/orders` | order/QR demo surface | hardcoded/localStorage | **development demo เท่านั้น** | Order API, Store authorization, status mutation, idempotency และ race handling; production แสดง unavailable |
+| `/merchant/services` | service/booking demo surface | hardcoded/localStorage | **development demo เท่านั้น** | Service/availability/booking schema และ API; production แสดง unavailable |
+| `/merchant/salespage` | sales page builder demo | hardcoded/localStorage | **development demo เท่านั้น** | published page API, durable content, domain/slug ownership, analytics และ payment linkage; production แสดง unavailable |
+| `/merchant/tables` | Payment AI unavailable state | ไม่มี Table API/view | **ยังใช้ไม่ได้** | Table CRUD, token/QR ownership, order linkage และ persistence |
+| `/merchant/benefits` | Payment AI unavailable state | มี capability/read API แต่ยังไม่มี Merchant view | **ยังใช้ไม่ได้จาก UI** | benefits list/detail/eligibility UI และ empty/error/pagination evidence |
+| `/merchant/stoppay` | Payment AI unavailable state | มี server state machine และ idempotent API แต่ยังไม่มี Merchant view | **ยังใช้ไม่ได้จาก UI** | status/reason view, confirmation/recovery policy และ role transition UX |
+| `/merchant/billing` | Payment AI unavailable state | มี capability flag แต่ยังไม่มี billing authority/view | **ยังใช้ไม่ได้** | invoice/fee source, Finance sign-off, reconciliation และ download contract |
+| `/merchant/developer` | authenticated compatibility/testing console | server-session API บางส่วนและ development examples | **เครื่องมือนักพัฒนา ไม่ใช่ Merchant production workflow** | real key/webhook management และ telemetry owner; ห้าม persist secret ใน browser |
+
+สถานะข้าม route ที่ใช้ได้จริงแล้ว:
+
+- Server session ผ่าน HttpOnly cookie, Store ownership, role/capability guard และ active URL mapping ใช้ logic ของ `chatpos-react`
+- Merchant Home notification ใช้ Store/recipient-scoped API พร้อม mark-one/read-all และ retry
+- Payment UI นำเฉพาะ visual language จาก reference; transaction command, idempotency, status และ error state ยังคงใช้ implementation ของ `chatpos-react`
+- Bottom navigation ใช้ `merchantNavigation.ts` ชุดเดียวกันทุก route และ route ที่ไม่มี logic จริงต้องแสดง unavailable แทน success/demo ใน production
+- UI shell ของ Home, QuickPay, Transactions, Products, Finance, Settings และ unavailable state ใช้ Payment AI visual language แล้ว; KYC คง workflow/inline state เดิมภายใต้ shell ใหม่เพื่อไม่กระทบ document security flow
+
 ## 0. Reference source และกติกาการนำเข้า
 
 `chatpos-payment-ai-main` เป็น reference project สำหรับ visual language, layout และ interaction ของ Merchant UI โดยจุดอ้างอิงหลักคือ [`app/page.tsx`](../../chatpos-payment-ai-main/app/page.tsx), [`app/globals.css`](../../chatpos-payment-ai-main/app/globals.css) และ asset ใน `chatpos-payment-ai-main/public/`. โปรเจกต์นี้มี mock/seeded data และ `localStorage` persistence บางส่วน จึงใช้เป็นต้นแบบ UX เท่านั้น ไม่ใช่ source of truth ของข้อมูลธุรกิจหรือ authorization
@@ -71,17 +105,17 @@ Reference bottom navigation ใช้ `orders`, `tables`, `home`, `pos` แล�
 - [x] ระบุ source ของ visual reference ใน `chatpos-payment-ai-main/app/page.tsx`, `app/globals.css` และ `public/`
 - [x] รวม sidebar, Home shortcut และ `MerchantBottomNavigation` ให้ใช้ navigation mapping ชุดเดียวกันผ่าน `merchantNavigation.ts`
 - [~] ให้ URL, active menu, refresh, browser Back และ browser Forward ใช้ state เดียวกัน
-- [ ] ตรวจทุก target ใน `merchantNavigation.ts` ว่าเปิด view ได้จริง หรือมี `disabled/unavailable` state ที่ชัดเจน
-- [ ] ตรวจ mobile bottom navigation ที่ 390px และ 430px รวม safe-area และ touch target อย่างน้อย 44px
+- [x] ตรวจทุก target ใน `merchantNavigation.ts` แล้ว: route ที่มี logic render view จริง และ `tables`, `benefits`, `stoppay`, `billing` แสดง unavailable พร้อมเหตุผลเฉพาะ; demo route ถูกกั้นใน production
+- [~] ตรวจ mobile bottom navigation ที่ 390px แล้ว ไม่มี horizontal overflow และ touch target หลักไม่น้อยกว่า 44px; ยังต้องตรวจ 430px และ safe-area บนอุปกรณ์จริง
 - [ ] แนบ screenshot comparison ของ shell บน mobile และ desktop พร้อม deviation ที่ยอมรับได้
 
 **M1 เสร็จเมื่อ:** เมนูทุกตัวที่แสดงมี target และ active state ถูกต้อง, navigation ไม่ทำให้ URL กับหน้าจอไม่ตรงกัน และมี screenshot evidence ครบ
 
 #### M2: Home parity และ server data
 
-- [~] ปรับ header, Store context, balance summary, quick-action grid และ management list ตาม reference
-- [~] แสดงชื่อร้าน, Merchant ID, สาขา, status และเวลา จาก authenticated Store/server state
-- [~] เชื่อม Home summary กับ `/api/db/home` และ capability/permission ที่เกี่ยวข้อง
+- [x] ปรับ Payment AI header, Store/profile entry, balance summary, assistant action และ payment tile grid โดยไม่ย้าย mock logic จาก reference
+- [x] Store selector/profile ใช้ authenticated Store/session state และอยู่ในเมนู AI header; หน้า Home ไม่แสดงชื่อร้าน/ID hardcode
+- [x] เชื่อม Home summary กับ `/api/db/home` และ capability/permission ที่เกี่ยวข้อง
 - [x] เอา hardcoded store name, Merchant ID, balance, counts และ fake success state ออกจาก Home production path; recent payments อ่านจาก Store-scoped transaction API
 - [~] ทำ `loading`, `ready`, `empty`, `error`, `unavailable`, `retry` และ stale state ให้ครบทุก Home data block; Home, notification และ recent payment states มีแล้ว แต่ channel capability/readiness ยังไม่มี server field รองรับ
 - [~] ทำ notification/profile/store selector ให้ใช้ data และ mutation จริง ไม่ใช้ static action; notification และ Store selector ใช้ API จริงแล้ว แต่ profile save ยังเป็น prototype และรอ profile mutation contract
@@ -91,7 +125,7 @@ Reference bottom navigation ใช้ `orders`, `tables`, `home`, `pos` แล�
 
 #### M3: Payment parity
 
-- [~] ปรับ keypad, amount card, payment tiles และ method picker ตาม reference ใน `QuickPayView.tsx`; visual comparison ยังรอ
+- [~] ปรับ Payment AI visual layer ของ keypad, amount card, payment channel picker และ modal ใน `QuickPayView.tsx` โดยคง transaction/idempotency/polling logic เดิม; ยังรอ screenshot comparison 430px และ desktop sign-off
 - [x] เชื่อม payment command ผ่าน `chatposApi.ts` และ server-side routing ตาม contract พร้อมส่งชื่อ Store จาก Merchant context
 - [x] รองรับ PromptPay QR, Hosted Checkout, `qrString`, `qrImageUrl`, `checkoutRedirectUrl` และ expiry ตาม response จริง
 - [x] แสดง payment loading, timeout, provider error, cancelled, pending และ paid จาก server state เท่านั้น
@@ -137,8 +171,8 @@ Reference bottom navigation ใช้ `orders`, `tables`, `home`, `pos` แล�
 #### M7: Release parity และ mock removal
 
 - [~] ลบ seeded/fake business data จาก production path หรือกั้นไว้เฉพาะ demo/test environment; POS/orders/services/salespage ใน Merchant portal และ public catalog ที่ไม่มี published sales page ถูกกั้นใน production แต่ยังมี legacy mock source ใน development code
-- [~] ตรวจ visual parity, text overflow, contrast, keyboard focus, screen reader label และ reduced motion; เพิ่ม overflow guard, focus semantics และ global reduced-motion rule แล้ว แต่ยังรอ visual QA evidence
-- [~] ตรวจ responsive ที่ 390px, 430px, tablet และ desktop โดยไม่มี horizontal overflow หรือ bottom-nav overlap; เพิ่ม layout constraints/safe-area แล้ว แต่ยังรอ browser evidence
+- [~] ตรวจ visual parity, text overflow, keyboard label และ reduced motion; Payment AI shell ใช้กับ Home/QuickPay/Transactions/Products/Finance/Settings/unavailable แล้ว แต่ยังรอ contrast และ full keyboard QA
+- [~] ตรวจ browser ที่ 390px สำหรับ Home, Payment, Transactions, Products, Wallet และ unavailable route แล้วไม่พบ horizontal overflow; ยังต้องตรวจ 430px, tablet, desktop ทุก route และ bottom-nav overlap ระหว่าง scroll
 - [ ] เพิ่ม browser E2E สำหรับ menu navigation, Home, payment, transactions, orders, products และ settings
 - [~] เพิ่ม permission/Store isolation, retry/idempotency และ session expiry evidence; server-side capability/Store guards และ payment/product idempotency มีแล้ว แต่ยังรอ browser/API evidence ครบทุก route
 - [~] ตรวจ console/log/network/localStorage ไม่รั่ว secret, payment data หรือ restricted PII; production API tester, demo profile PII และ payout action ถูกกั้นแล้ว แต่ยังต้อง security scan/evidence ครบทุก surface
@@ -214,9 +248,9 @@ Reference bottom navigation ใช้ `orders`, `tables`, `home`, `pos` แล�
 | รูปแบบหลัก | Mobile-first ที่ 390-430px; desktop ใช้ Merchant Portal shell เดิมและจัดวางให้ scan ได้ | baseline สำหรับ Design |
 | ข้อมูลสำคัญ | Store, balance, transaction และ notification ต้องมาจาก server read model; mock ใช้ได้เฉพาะ demo/test | ข้อกำหนด release |
 
-### 3.2 Annotated wireframe จากภาพอ้างอิง
+### 3.2 Annotated wireframe ของ Merchant Home
 
-ภาพอ้างอิง: [419449.jpg](419449.jpg)
+wireframe ด้านล่างเป็น historical information architecture เท่านั้น. Visual acceptance ให้เทียบกับ `chatpos-payment-ai-main` ที่รันปัจจุบัน ไม่ใช้ `419449.jpg` หรือ `base.html`
 
 #### Mobile 390-430px
 

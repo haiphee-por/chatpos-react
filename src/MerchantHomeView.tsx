@@ -311,7 +311,11 @@ function AiPaymentGrid({ home, onNavigate }: { home: DbHomeReadModel | null; onN
     <div className="ai-payment-grid" aria-label="ช่องทางรับชำระเงิน">
       {aiPaymentTiles.map((item, index) => {
         const Icon = item.icon
-        const enabled = Boolean(home) && (item.target === 'wallet' ? home.capabilities.canViewBalance : home.store.isActive)
+        const enabled = home
+          ? item.target === 'wallet'
+            ? home.capabilities.canViewBalance
+            : home.store.isActive
+          : false
         return (
           <button className={`ai-payment-tile ${item.tone}`} disabled={!enabled} key={item.id} onClick={() => onNavigate(item.target)} onPointerDown={triggerButtonPress} type="button">
             <span className="ai-number-badge">{index + 1}</span>
