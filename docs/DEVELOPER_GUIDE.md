@@ -31,6 +31,28 @@ flowchart LR
     API --> External[Payment Gateway or external services]
 ```
 
+### การเชื่อมต่อ Merchant กับ PD/Agent Backoffice
+
+```mermaid
+sequenceDiagram
+    participant MB as Merchant Browser/POS
+    participant M as Merchant Backend<br/>chatpos.biz
+    participant BO as PD/Agent Backoffice
+    participant LLGW
+
+    MB->>M: สมัครร้านค้า / KYC / สร้างรายการชำระเงิน
+    M->>BO: Signed API + scope + Idempotency-Key
+    BO->>BO: ตรวจ tenant, ownership, signature และ idempotency
+    BO->>LLGW: สร้าง payment ด้วย PD child credential
+    LLGW-->>BO: ผล payment และ signed status webhook
+    BO-->>M: Signed callback: assignment / KYC / store / payment status
+    M-->>MB: แสดงสถานะล่าสุดแก่ Merchant/POS
+    M->>BO: Signed status query เมื่อ callback ล่าช้าหรือ ต้อง reconcile
+    BO-->>M: สถานะจาก Transaction ที่ persist แล้ว
+```
+
+Merchant ติดต่อ PD/Agent ผ่าน `chatpos.biz` เท่านั้น: คำสั่ง Assignment, KYC document/profile และ payment ใช้ signed Merchant API; callback กลับไปยัง `chatpos.biz` ใช้ signed webhook. LLGW ติดต่อกับ PD/Agent Backoffice เท่านั้น และ provider credential, raw payload กับ webhook signature ต้องไม่ถูกส่งต่อไปยัง Browser หรือ Merchant client.
+
 ### Frontend
 
 - `src/app/layout.tsx` เป็น root layout ของ Next.js และโหลด global CSS ทั้งหมด
