@@ -9,7 +9,7 @@
 > **Runtime precedence:** Source code, database migrations และ deployment configuration เป็น executable authority. หาก behavior จริงไม่ตรงเอกสาร ให้ถือเป็น documentation drift และต้องอัปเดตไฟล์นี้ใน change เดียวกัน ห้ามใช้ข้อความในเอกสารเพื่อข้าม authorization, feature flag หรือ server validation
 
 ลำดับการใช้อ้างอิง:
-
+ทิ
 1. `DEVELOPER_GUIDE.md` ระบุสถานะปัจจุบันและ ownership ที่ทีมต้องยึด
 2. Contract เฉพาะทาง เช่น `CHATPOS_CLIENT_INTEGRATION_GUIDE.md` และ decision record กำหนด payload/security boundary ของ integration นั้น
 3. `MERCHANT_HOME_ROADMAP.md` ระบุเป้าหมาย งานค้าง และ acceptance evidence; ห้ามใช้สถานะเก่าใน roadmap ทับ current status ใน guide นี้
