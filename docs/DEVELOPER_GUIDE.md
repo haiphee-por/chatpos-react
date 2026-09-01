@@ -2,13 +2,26 @@
 
 คู่มือนี้อธิบายว่า ChatPOS ทำอะไรได้บ้าง ระบบแบ่งส่วนอย่างไร และนักพัฒนาควรแก้หรือเพิ่มฟีเจอร์ตรงไหน เหมาะสำหรับทีมที่ทำงานกับ frontend, API, PostgreSQL และ workflow Merchant KYC
 
-> สถานะปัจจุบัน: ChatPOS ใช้ Next.js เป็น frontend framework และมี custom API server แยกจาก Next.js. Session/authentication ของ API ใช้ server-side session ผ่าน HttpOnly cookie แล้ว แต่บาง workflow ด้านสินค้า บริการ การจอง และคำสั่งซื้อยังใช้ `localStorage` หรือ mock data จึงไม่ควรตีความว่าทุกฟีเจอร์เป็นระบบ production ที่มี persistence ครบแล้ว
+> **Canonical developer source:** เอกสารนี้เป็น source of truth ด้าน architecture, route ownership, implementation status, data authority, feature gate และ production boundary ของ repository `chatpos-react`
+>
+> **Last synchronized:** 2026-09-01 กับ `src/App.tsx`, `src/merchantNavigation.ts`, Merchant/Public views, `src/dbApi.ts`, `src/chatposApi.ts`, `src/useThaiVoice.ts`, `src/lib/server/api-handler.cjs` และ migrations ปัจจุบัน
+>
+> **Runtime precedence:** Source code, database migrations และ deployment configuration เป็น executable authority. หาก behavior จริงไม่ตรงเอกสาร ให้ถือเป็น documentation drift และต้องอัปเดตไฟล์นี้ใน change เดียวกัน ห้ามใช้ข้อความในเอกสารเพื่อข้าม authorization, feature flag หรือ server validation
+
+ลำดับการใช้อ้างอิง:
+
+1. `DEVELOPER_GUIDE.md` ระบุสถานะปัจจุบันและ ownership ที่ทีมต้องยึด
+2. Contract เฉพาะทาง เช่น `CHATPOS_CLIENT_INTEGRATION_GUIDE.md` และ decision record กำหนด payload/security boundary ของ integration นั้น
+3. `MERCHANT_HOME_ROADMAP.md` ระบุเป้าหมาย งานค้าง และ acceptance evidence; ห้ามใช้สถานะเก่าใน roadmap ทับ current status ใน guide นี้
+4. `NEXT_STEPS_CHECKLIST.md` ใช้ติดตามการส่งมอบ ไม่ใช่ authority ของ runtime behavior
+
+> สถานะปัจจุบัน: ChatPOS ใช้ Next.js และให้ custom API handler ทำงานใน Next.js process เดียวกันผ่าน catch-all Route Handler. Session/authentication ใช้ server-side session ผ่าน HttpOnly cookie แล้ว. Merchant Products ใช้ Store-scoped PostgreSQL API แต่ POS, services, orders, sales page, booking/customer operational state บางส่วนยังเป็น demo, mock หรือ `localStorage` จึงไม่ควรตีความว่าทุกหน้ามี production persistence ครบแล้ว
 
 ## ภาพรวมความสามารถ
 
 ChatPOS รวมความสามารถของระบบจัดการร้านค้าและการชำระเงินไว้ในชุดเดียว:
 
-- สมัครและเข้าสู่ระบบสำหรับ Merchant, Agent, PD และ Admin ตามข้อมูลในฐานข้อมูล
+- สมัครและเข้าสู่ระบบ Merchant ผ่าน client route ปัจจุบัน; Agent, PD, Compliance และ Admin มี schema/server capability บางส่วนแต่ไม่มี dedicated login/dashboard route ใน `src/App.tsx`
 - ลงทะเบียนร้านค้าแบบรวดเร็ว และกรอกข้อมูลธุรกิจ/เอกสาร KYC แบบ wizard
 - Merchant back office สำหรับข้อมูลร้านค้า สินค้า บริการ การจอง หน้าขาย และช่องทางรับเงิน
 - หน้าสั่งซื้อสำหรับลูกค้าในร้าน โต๊ะอาหาร delivery และ takeaway
@@ -121,7 +134,7 @@ npm run db:migrate
 npm run db:seed
 ```
 
-Migration หลักอยู่ที่ [`database/migrations/001_initial_chatpos_schema.sql`](../database/migrations/001_initial_chatpos_schema.sql) ถึง [`database/migrations/008_merchant_home_contract.sql`](../database/migrations/008_merchant_home_contract.sql) ครอบคลุมตาราง core ที่ `server.cjs` ใช้ รวมถึง Merchant KYC, assignment, profile/document version, server session, rate limit, audit, idempotency, webhook dedupe, settlement retry/dead-letter, document scan quarantine, OTP challenge persistence, Store-scoped Backoffice credential mapping และ Merchant Home capability/benefit/STOPPAY state. หลัง migration ให้ใช้ [`database/seed.cjs`](../database/seed.cjs) ผ่าน `npm run db:seed` เพื่อสร้างข้อมูลทดลองแบบ idempotent สำหรับทุก role และ workflow หลัก; ตั้ง `SEED_PASSWORD` ได้เมื่อต้องการเปลี่ยนรหัสผ่าน demo. ตารางเหล่านี้เป็น durable schema; client helper แบบ in-memory ยังใช้เฉพาะ unit test และไม่ควรใช้แทน persistence layer จริง
+Migration ที่ใช้งานอยู่ใน [`database/migrations/`](../database/migrations/) ครอบคลุม `001_initial_chatpos_schema.sql` ถึง `012_kyc_document_backoffice_dispatch.sql` รวมถึง Merchant KYC, assignment, profile/document version, server session, rate limit, audit, idempotency, webhook dedupe, settlement retry/dead-letter, document scan quarantine, OTP challenge persistence, Store-scoped Backoffice credential mapping, encrypted callback secret, Merchant Home capability/benefit/STOPPAY state และ pending document dispatch. Directory นี้เป็น migration inventory authority; ปัจจุบันมี migration prefix `009` สองไฟล์ที่เป็นคนละ change และต้องคง deterministic filename order ของ migration runner. หลัง migration ให้ใช้ [`database/seed.cjs`](../database/seed.cjs) ผ่าน `npm run db:seed` เพื่อสร้างข้อมูลทดลองแบบ idempotent; ตั้ง `SEED_PASSWORD` ได้เมื่อต้องการเปลี่ยนรหัสผ่าน demo. ตารางเหล่านี้เป็น durable schema และห้ามแทนด้วย in-memory/localStorage state ใน production
 
 ### Production
 
@@ -130,7 +143,7 @@ npm run build
 npm run start
 ```
 
-Dockerfile จะ build Next.js แล้วรัน single Node process ใน container โดยเปิดเฉพาะพอร์ต `3000`. ไม่ต้องใช้ Next.js rewrites หรือ loopback proxy อีกต่อไปเพราะ browser เรียก same-origin `/api/*` ตรงเข้า Next.js runtime. [`src/lib/server/api-handler.cjs`](../src/lib/server/api-handler.cjs) โหลด `.env` ก่อน แล้ว override ด้วย `.env.production` เมื่อ `NODE_ENV=production` เพื่อให้ feature flag เช่น `TRANSACTION_ROUTING_ENABLED`, `MERCHANT_HOME_CONTRACT_ENABLED` ตรงกันทั้ง frontend และ API. หากได้ 404 จาก `/api/v1/*` ให้ตรวจว่า Next.js ยังทำงานอยู่ด้วย `curl https://<host>/api/health/live` และ endpoint นี้เป็น POST-only จึงจะได้ 404 หาก navigate จาก browser bar โดยตรง (GET)
+Dockerfile จะ build Next.js แล้วรัน single Node process ใน container โดยเปิดเฉพาะพอร์ต `3000`. ไม่ต้องใช้ Next.js rewrites หรือ loopback proxy เพราะ browser เรียก same-origin `/api/*` ตรงเข้า Next.js runtime. [`src/lib/server/api-handler.cjs`](../src/lib/server/api-handler.cjs) โหลด `.env` ก่อน แล้ว override ด้วย `.env.production` เมื่อ `NODE_ENV=production` เพื่อให้ feature flag เช่น `TRANSACTION_ROUTING_ENABLED`, `MERCHANT_HOME_CONTRACT_ENABLED` ตรงกันทั้ง frontend และ API. หากได้ 404 จาก `/api/v1/*` ให้ตรวจ liveness ด้วย `GET https://<host>/api/health/live`; readiness ของ PostgreSQL ใช้ `GET /api/health/ready`
 
 ### ตรวจสอบโค้ด
 
@@ -154,32 +167,32 @@ npm run lint
 | `PGDATABASE` | `src/lib/server/api-handler.cjs` | `chatpos` หากไม่กำหนด |
 | `NEXT_PUBLIC_APP_URL` | application/deployment config | URL ภายนอกของเว็บ |
 | `SESSION_SECRET` | legacy/config compatibility | ไม่ใช้แทน database session token; ห้ามใช้ค่า default ใน production |
-| `KYC_DOCUMENT_LINK_SECRET` | `server/integration/documentAccess.cjs` | secret สำหรับ HMAC signed document URL; หากไม่กำหนดจะใช้ `SESSION_SECRET` เป็น fallback |
-| `KYC_PRIVATE_STORAGE_ROOT` | `server/integration/privateDocumentStorage.cjs` | root ของ private document filesystem; ค่าเริ่มต้นคือ `private-storage` ใต้ working directory |
-| `ALLOWED_ORIGINS` | `server.cjs` | exact comma-separated origins; ห้ามใช้ wildcard เมื่อเปิด credentials |
-| `AUTH_LOGIN_RATE_LIMIT` / `AUTH_LOGIN_RATE_WINDOW_SECONDS` | `server.cjs` | login limit ต่อ IP/email bucket |
-| `SETTLEMENT_RETRY_INTERVAL_MS` / `SETTLEMENT_MAX_ATTEMPTS` | `server.cjs` | durable settlement retry และ dead-letter policy |
-| `DOCUMENT_SCANNER_URL` / `DOCUMENT_SCANNER_TOKEN` / `DOCUMENT_SCANNER_TIMEOUT_MS` | `server/integration/documentSecurity.cjs` | scanner ไม่พร้อมจะ quarantine เอกสาร ไม่ถือว่าสแกนผ่าน |
-| `KYC_OTP_TTL_SECONDS` / `KYC_OTP_MAX_ATTEMPTS` / `KYC_OTP_RESEND_COOLDOWN_SECONDS` / `KYC_OTP_LOCK_SECONDS` | `server/integration/otpService.cjs` | policy ของ local KYC challenge; SMSUP adapter รองรับการส่งและตรวจ OTP เมื่อ `SMS_OTP_ENABLED` และ provider readiness เปิด |
-| `KYC_DOCUMENT_INTAKE_ENABLED` | `server.cjs` / `server/integration/signedMerchantClient.cjs` | gate ของการส่ง KYC document metadata ไปยัง PD/Agent Backoffice; ค่า default เป็น `false`, production ปัจจุบันเป็น `true` |
-| `KYC_DOCUMENT_RETRY_INTERVAL_MS` | `server.cjs` | รอบ retry เอกสารที่บันทึกใน Merchant แล้วแต่ยังรอ remote KYC Case หรือส่งไป Backoffice ไม่สำเร็จ; ค่าเริ่มต้น `30000` มิลลิวินาที |
-| `KYC_DOCUMENT_LINK_TTL_SECONDS` | `server/integration/signedMerchantClient.cjs` | อายุ signed document download URL; `86400` เท่ากับ 24 ชั่วโมง |
-| `AGENT_PD_INTEGRATION_ENABLED` / `AGENT_PD_ASSIGNMENT_ENABLED` / feature flags อื่น | `server.cjs` / integration services | ค่า static ระดับ deployment สำหรับเปิด-ปิด capability; ไม่ใช่ credential หรือ Store mapping |
-| `AGENT_PD_CREDENTIAL_ENVIRONMENT` / `AGENT_PD_KEY_ID_HEADER` | `server/integration/storeBackofficeCredentials.cjs` / signed client | environment ที่ใช้เลือก mapping และชื่อ header Key ID ซึ่งเป็นค่า static ของ deployment |
-| `backoffice_store_credentials` | `server/integration/storeBackofficeCredentials.cjs` | dynamic mapping ต่อ Store และ environment; เก็บ Base URL, Backoffice Store ID, Key ID และ secret reference เท่านั้น ไม่เก็บ secret จริง. `backofficeStoreId` ต้อง provision เมื่อ UUID ของ Backoffice กับ local Store ต่างกัน เพราะใช้ resolve inbound callback |
-| `CHATPOS_BACKOFFICE_BEARER_SECRET` / `CHATPOS_BACKOFFICE_SIGNING_SECRET` | `server/integration/signedMerchantClient.cjs` และ `storeBackofficeCredentials.cjs` | ใช้เป็น runtime secret ปกติจาก server environment/secret manager สำหรับ outbound request; ห้ามส่งเข้า browser |
-| `CHATPOS_BACKOFFICE_CALLBACK_SECRET` | `server/integration/storeBackofficeCredentials.cjs` ผ่าน `callbackSecretRef` | ใช้ตรวจ callback จาก Backoffice เมื่อเลือก `env:` reference; ค่าเริ่มต้น `db:encrypted` จะรับ `webhookSecret` จาก request แรกแล้วเก็บแบบเข้ารหัสใน DB และใช้ secret เดิมกับ request ถัดไป |
-| `LLGW_PAYMENT_WEBHOOK_ENABLED` | `server.cjs` | local LLGW receiver ปิดเป็นค่าเริ่มต้น; อย่าเปิดจนกว่า ownership/exception จะได้รับอนุมัติ |
+| `KYC_DOCUMENT_LINK_SECRET` | `src/lib/server/integration/documentAccess.cjs` | secret สำหรับ HMAC signed document URL; หากไม่กำหนดจะใช้ `SESSION_SECRET` เป็น fallback |
+| `KYC_PRIVATE_STORAGE_ROOT` | `src/lib/server/integration/privateDocumentStorage.cjs` | root ของ private document filesystem; ค่าเริ่มต้นคือ `private-storage` ใต้ working directory |
+| `ALLOWED_ORIGINS` | `src/lib/server/api-handler.cjs` | exact comma-separated origins; ห้ามใช้ wildcard เมื่อเปิด credentials |
+| `AUTH_LOGIN_RATE_LIMIT` / `AUTH_LOGIN_RATE_WINDOW_SECONDS` | `src/lib/server/api-handler.cjs` | login limit ต่อ IP/email bucket |
+| `SETTLEMENT_RETRY_INTERVAL_MS` / `SETTLEMENT_MAX_ATTEMPTS` | `src/lib/server/api-handler.cjs` | durable settlement retry และ dead-letter policy |
+| `DOCUMENT_SCANNER_URL` / `DOCUMENT_SCANNER_TOKEN` / `DOCUMENT_SCANNER_TIMEOUT_MS` | `src/lib/server/integration/documentSecurity.cjs` | scanner ไม่พร้อมจะ quarantine เอกสาร ไม่ถือว่าสแกนผ่าน |
+| `KYC_OTP_TTL_SECONDS` / `KYC_OTP_MAX_ATTEMPTS` / `KYC_OTP_RESEND_COOLDOWN_SECONDS` / `KYC_OTP_LOCK_SECONDS` | `src/lib/server/integration/otpService.cjs` | policy ของ local KYC challenge; SMSUP adapter รองรับการส่งและตรวจ OTP เมื่อ `SMS_OTP_ENABLED` และ provider readiness เปิด |
+| `KYC_DOCUMENT_INTAKE_ENABLED` | `src/lib/server/api-handler.cjs` / `src/lib/server/integration/signedMerchantClient.cjs` | gate ของการส่ง KYC document metadata ไปยัง PD/Agent Backoffice; ค่า default เป็น `false`, production ปัจจุบันเป็น `true` |
+| `KYC_DOCUMENT_RETRY_INTERVAL_MS` | `src/lib/server/api-handler.cjs` | รอบ retry เอกสารที่บันทึกใน Merchant แล้วแต่ยังรอ remote KYC Case หรือส่งไป Backoffice ไม่สำเร็จ; ค่าเริ่มต้น `30000` มิลลิวินาที |
+| `KYC_DOCUMENT_LINK_TTL_SECONDS` | `src/lib/server/integration/signedMerchantClient.cjs` | อายุ signed document download URL; `86400` เท่ากับ 24 ชั่วโมง |
+| `AGENT_PD_INTEGRATION_ENABLED` / `AGENT_PD_ASSIGNMENT_ENABLED` / feature flags อื่น | `src/lib/server/api-handler.cjs` / integration services | ค่า staticระดับ deployment สำหรับเปิด-ปิด capability; ไม่ใช่ credential หรือ Store mapping |
+| `AGENT_PD_CREDENTIAL_ENVIRONMENT` / `AGENT_PD_KEY_ID_HEADER` | `src/lib/server/integration/storeBackofficeCredentials.cjs` / signed client | environment ที่ใช้เลือก mapping และชื่อ header Key ID ซึ่งเป็นค่า static ของ deployment |
+| `backoffice_store_credentials` | `src/lib/server/integration/storeBackofficeCredentials.cjs` | dynamic mapping ต่อ Store และ environment; เก็บ Base URL, Backoffice Store ID, Key ID และ secret reference เท่านั้น ไม่เก็บ secret จริง. `backofficeStoreId` ต้อง provision เมื่อ UUID ของ Backoffice กับ local Store ต่างกัน เพราะใช้ resolve inbound callback |
+| `CHATPOS_BACKOFFICE_BEARER_SECRET` / `CHATPOS_BACKOFFICE_SIGNING_SECRET` | `src/lib/server/integration/signedMerchantClient.cjs` และ `storeBackofficeCredentials.cjs` | ใช้เป็น runtime secret ปกติจาก server environment/secret manager สำหรับ outbound request; ห้ามส่งเข้า browser |
+| `CHATPOS_BACKOFFICE_CALLBACK_SECRET` | `src/lib/server/integration/storeBackofficeCredentials.cjs` ผ่าน `callbackSecretRef` | ใช้ตรวจ callback จาก Backoffice เมื่อเลือก `env:` reference; ค่าเริ่มต้น `db:encrypted` จะรับ `webhookSecret` จาก request แรกแล้วเก็บแบบเข้ารหัสใน DB และใช้ secret เดิมกับ request ถัดไป |
+| `LLGW_PAYMENT_WEBHOOK_ENABLED` | `src/lib/server/api-handler.cjs` | local LLGW receiver ปิดเป็นค่าเริ่มต้น; อย่าเปิดจนกว่า ownership/exception จะได้รับอนุมัติ |
 | `AGENT_PD_SIGNING_SECRET_PREVIOUS` / `AGENT_PD_CALLBACK_SECRET_PREVIOUS` | signed PD/Agent Backoffice integration | รับ secret เดิมชั่วคราวระหว่าง rotation แล้วต้องลบเพื่อ revoke |
 | `LLGW_PAYMENT_WEBHOOK_SECRET_PREVIOUS` | LLGW webhook verification | รับ secret เดิมชั่วคราวระหว่าง rotation แล้วต้องลบเพื่อ revoke |
 | `PAYMENT_STATUS_WEBHOOK_ENABLED` | normalized payment-status callback receiver | ปิดเป็นค่าเริ่มต้นจนกว่า external contract และ staging evidence จะผ่าน |
 | `PAYMENT_STATUS_WEBHOOK_SECRET(_PREVIOUS)` | normalized payment-status callback verification | secret manager เท่านั้น; รองรับ rotation ชั่วคราว |
 | `PAYMENT_STATUS_TIMESTAMP_TOLERANCE_SECONDS` | normalized payment-status callback verification | ค่าเริ่มต้น 300 วินาที |
-| `MERCHANT_HOME_CONTRACT_ENABLED` | `server.cjs` | gate ของ Home read model, capabilities, benefits, notifications และ STOPPAY routes; ค่าเริ่มต้น `false` |
-| `TRANSACTION_ROUTING_ENABLED` / `TRANSACTION_QUERY_ROUTING_ENABLED` | `server/integration/transactionService.cjs` | forward payment command และ query ไป Backoffice แบบ opt-in; ปิดเป็นค่าเริ่มต้น |
+| `MERCHANT_HOME_CONTRACT_ENABLED` | `src/lib/server/api-handler.cjs` | gate ของ Home read model, capabilities, benefits, notifications และ STOPPAY routes; ค่าเริ่มต้น `false` |
+| `TRANSACTION_ROUTING_ENABLED` / `TRANSACTION_QUERY_ROUTING_ENABLED` | `src/lib/server/integration/transactionService.cjs` | forward payment command และ query ไป Backoffice แบบ opt-in; ปิดเป็นค่าเริ่มต้น |
 | `AGENT_PD_TRANSACTION_COMMAND_PATH` / `AGENT_PD_TRANSACTION_QUERY_PATH` | signed Backoffice client | path placeholder ที่ต้องตรงกับ signed contract ก่อนเปิด routing |
-| `PUBLIC_PAYMENT_STORE_ID` | `server.cjs` public payment route | local Store UUID ที่อนุญาตให้ Booking/Customer สร้าง payment ผ่าน LLGW; ต้องมี active `backoffice_store_credentials` mapping |
-| `PUBLIC_PAYMENT_MAX_AMOUNT` | `server.cjs` public payment route | ยอดสูงสุดต่อรายการของ public payment; ค่าเริ่มต้น `100000` |
+| `PUBLIC_PAYMENT_STORE_ID` | `src/lib/server/api-handler.cjs` public payment route | local Store UUID ที่อนุญาตให้ Booking/Customer สร้าง payment ผ่าน LLGW; ต้องมี active `backoffice_store_credentials` mapping |
+| `PUBLIC_PAYMENT_MAX_AMOUNT` | `src/lib/server/api-handler.cjs` public payment route | ยอดสูงสุดต่อรายการของ public payment; ค่าเริ่มต้น `100000` |
 
 `.env.example` ยังมีตัวแปรชื่อ `VITE_API_URL` และ `VITE_APP_ENV` จากยุค Vite เดิม ซึ่งไม่ใช่ตัวแปรที่ Next runtime ปัจจุบันอ่านโดยตรง ให้ใช้ `NEXT_PUBLIC_APP_URL` เป็นหลัก
 
@@ -201,6 +214,8 @@ npm run lint
 | `/developer/*` | `DeveloperConsoleView` | API playground สำหรับ user ที่ login แล้ว |
 
 เมื่อเพิ่ม route ใหม่ ให้ตรวจลำดับเงื่อนไขใน `src/App.tsx` ด้วย เพราะ route ที่ใช้ `startsWith()` อาจครอบคลุม pathname อื่นโดยไม่ตั้งใจ
+
+สำหรับ Merchant navigation ให้แก้ [`src/merchantNavigation.ts`](../src/merchantNavigation.ts) เป็นจุดแรก เพราะไฟล์นี้เป็น authority ของ menu ID, URL target, bottom navigation และ capability visibility. จากนั้นจึงเพิ่ม render branch ใน `MerchantView.tsx`; ห้ามสร้าง menu target แยกใน component จน URL, active state และ direct-route guard ไม่ตรงกัน
 
 ### Merchant UI source และสถานะ route จริง
 
@@ -247,6 +262,20 @@ Reference ล่าสุดมี `/order/[token]`, `/handoff/[id]`, `/admin`, 
 - `/handoff/[id]` และ signed table-order token route ยังไม่มี Order persistence/authorization owner จึงยังไม่สร้าง mock route
 - `/admin` ไม่อยู่ใน `App.tsx` และเป็น backoffice คนละขอบเขต; ต้องตัดสิน owner/role/API ก่อนนำ Admin control center เข้ามา
 - Membership billing/subscription ของ reference ไม่ใช่ contract เดียวกับ local Benefits API; local routeแสดง active benefits แบบ read-only ส่วน Billing ยังคง unavailable
+
+### ระบบเสียงภาษาไทย
+
+`src/useThaiVoice.ts` เป็น shared voice engine ที่นำ behavior จาก reference มาใช้โดยไม่ผูกกับ business state. รองรับ Web Speech API บนอุปกรณ์ทั่วไป และ sequential MP3 fallback เมื่อเปิดผ่าน LINE/in-app browser. ไฟล์เสียง 42 รายการอยู่ที่ `public/audio/th/`
+
+| Surface | เสียงที่รองรับ | Trigger |
+|---|---|---|
+| Standalone และ Merchant QuickPay | อ่านเลข/operator ทุกปุ่ม, ช่องทางชำระ, ยอดก่อนยืนยัน และยอดเมื่อชำระสำเร็จ | user กด keypad/method/สร้าง QR และผล payment เปลี่ยนเป็น paid |
+| Customer Ordering | อ่านผลส่งออเดอร์และผลยืนยันชำระเงิน | user ส่งออเดอร์หรือยืนยันชำระสำเร็จ |
+| Settings | ทดสอบ Web Speech ตาม speed/voice/volume ที่เลือก | user กดปุ่มทดสอบ |
+
+ทุก surface มี toggle, test และสถานะ `idle`, `ready`, `speaking`, `unsupported`, `error`. Browser ต้องได้รับ user gesture ก่อนเล่นเสียง; ห้ามพยายาม bypass autoplay policy. LINE mode ตรวจจาก user agent/query compatibility และใช้ไฟล์ `/audio/th/*.mp3`. Component cleanup ต้อง cancel speech และหยุด audio เมื่อ unmount
+
+ยังไม่มีเสียงแจ้งออเดอร์เข้าจริงใน Merchant Orders เพราะ Order API/persistence ยังไม่พร้อม. ห้ามประกาศ order arrival จาก mock/localStorage เป็น production behavior; ให้เพิ่มเมื่อมี server event/polling owner และ dedupe contract แล้ว
 
 ## ความสามารถตาม workflow
 
@@ -344,7 +373,7 @@ flowchart TD
 6. หลังยืนยันสำเร็จให้บันทึก `phoneVerifiedAt` และออก registration session/server-side token ห้ามถือว่าแค่ส่ง OTP สำเร็จคือยืนยันตัวตนแล้ว
 7. การส่ง OTP ซ้ำต้อง invalidate OTP เดิมตาม policy และห้ามส่งรหัสผ่าน query string, browser storage หรือ log
 
-KYC case SMS/OTP ปัจจุบันมี SMSUP adapter ใน [`server/integration/smsupClient.cjs`](../server/integration/smsupClient.cjs), local challenge persistence และ routes ใน [`server.cjs`](../server.cjs) โดยเปิดใช้งานเมื่อ `SMS_OTP_ENABLED=true`, `SMS_OTP_PROVIDER_READY=true` และ `SMS_PROVIDER=smsup_plus`. ต้องทำ real delivery/verification E2E, ตรวจการหมุน credential และยืนยัน owner/contract กับ PD/Agent ให้ครบก่อนถือว่าเป็น production-ready
+KYC case SMS/OTP ปัจจุบันมี SMSUP adapter ใน [`src/lib/server/integration/smsupClient.cjs`](../src/lib/server/integration/smsupClient.cjs), local challenge persistence และ routes ใน [`src/lib/server/api-handler.cjs`](../src/lib/server/api-handler.cjs) โดยเปิดใช้งานเมื่อ `SMS_OTP_ENABLED=true`, `SMS_OTP_PROVIDER_READY=true` และ `SMS_PROVIDER=smsup_plus`. ยังไม่มี production/staging delivery evidence ใน repository; ต้องทำ real delivery/verification E2E, ตรวจการหมุน credential และยืนยัน owner/contract กับ PD/Agent ก่อนถือว่า production-ready
 
 #### 2. สร้างบัญชี Merchant และข้อมูลร้านค้า
 
@@ -434,7 +463,7 @@ API ปัจจุบันมี `GET /api/db/kyc` และ `POST /api/db/kyc
 
 ห้ามสร้าง payout จาก frontend โดยตรง, ห้ามถือว่า response `200` คือเงินเข้าบัญชีแล้ว และห้ามสร้าง withdrawal ใหม่เมื่อ request เดิม timeout ก่อนรู้ผล ให้ตรวจสถานะด้วย `withdrawalId`/idempotency key เดิม
 
-ปัจจุบัน `POST /api/v1/payouts` ใน `server.cjs` ยังเป็น prototype ที่คืนสถานะ `processing` และยังไม่มี OTP SMS, durable withdrawal record, provider integration หรือ settlement reconciliation ดังนั้น flow ถอนเงินจริงยังต้อง implement เพิ่มก่อนเปิด feature
+ปัจจุบัน `POST /api/v1/payouts` ใน `src/lib/server/api-handler.cjs` ยังเป็น prototype ที่คืนสถานะ `processing` และยังไม่มี OTP SMS, durable withdrawal record, provider integration หรือ settlement reconciliation ดังนั้น flow ถอนเงินจริงยังต้อง implement เพิ่มก่อนเปิด feature
 
 #### สถานะ implementation ของ flow นี้
 
@@ -563,7 +592,7 @@ Non-PromptPay channels ต้องส่ง `channel` เป็นชื่อ 
 
 `POST /api/v1/public-payments` เป็น server-side bridge สำหรับ public Booking/Customer pages เท่านั้น. Request ใช้ `Idempotency-Key` และ body ที่จำเป็นคือ `amount`, `channel` (`promptpay` หรือ `checkout`), `customerName`, `customerPhone` และ `note`; browser ไม่ส่ง bearer/signing secret และไม่เลือก Store เอง. Route สร้าง success/failed redirect จาก Merchant `NEXT_PUBLIC_APP_URL` แล้ว forward ให้ Backoffice/LLGW เพื่อไม่ให้ hosted checkout กลับไปที่ domain ของ Backoffice. Response ใช้โครงสร้าง `transaction` เดียวกับ `/api/v1/transactions` และต้องเก็บ `paymentReference`/`gatewayReference` สำหรับตรวจสถานะ
 
-`DeveloperConsoleView.tsx` เป็นเครื่องมือทดลอง endpoint และดู developer logs สำหรับผู้ใช้ที่ผ่าน server session แล้ว. ตัวอย่างหรือ Bearer API key ที่กรอกใน Playground เป็น compatibility testing สำหรับการจำลอง server-to-server เท่านั้น ไม่ใช่ authentication path ของ Merchant Home; Home ต้องใช้ HttpOnly session กับ `/api/db/*`. Frontend route guard เป็นเพียง UX, authorization จริงเกิดที่ `server.cjs`, browser token minting จาก `/api/v1/auth` ถูกปิดด้วย `410 API_TOKEN_DEPRECATED` และห้าม persist API key ใน `localStorage`, cookie หรือ source code
+`DeveloperConsoleView.tsx` เป็นเครื่องมือทดลอง endpoint และดู developer logs สำหรับผู้ใช้ที่ผ่าน server session แล้ว. ตัวอย่างหรือ Bearer API key ที่กรอกใน Playground เป็น compatibility testing สำหรับการจำลอง server-to-server เท่านั้น ไม่ใช่ authentication path ของ Merchant Home; Home ต้องใช้ HttpOnly session กับ `/api/db/*`. Frontend route guard เป็นเพียง UX, authorization จริงเกิดที่ `src/lib/server/api-handler.cjs`, browser token minting จาก `/api/v1/auth` ถูกปิดด้วย `410 API_TOKEN_DEPRECATED` และห้าม persist API key ใน `localStorage`, cookie หรือ source code
 
 ## API reference ภายใน
 
@@ -625,7 +654,7 @@ External target payment command/query ใช้ signed Merchant API ตาม [C
 
 ### Signed Backoffice Client
 
-การเชื่อมต่อ Agent/PD Backoffice ฝั่ง server ใช้ [server/integration/signedMerchantClient.cjs](../server/integration/signedMerchantClient.cjs) เท่านั้น ห้าม import โมดูลนี้จาก `src/` หรือส่ง secret ไป browser โมดูลนี้ทำงานดังนี้:
+การเชื่อมต่อ Agent/PD Backoffice ฝั่ง server ใช้ [`src/lib/server/integration/signedMerchantClient.cjs`](../src/lib/server/integration/signedMerchantClient.cjs) เท่านั้น ห้าม importโมดูลนี้เข้า client component หรือส่ง secret ไป browser โมดูลนี้ทำงานดังนี้:
 
 - serialize JSON เป็น raw body เพียงครั้งเดียว แล้วใช้ string เดิมสำหรับ HTTP body และ SHA-256 digest ทุก retry
 - สร้าง canonical path, timestamp, nonce และ `v1=` HMAC-SHA256 signature ตาม [Client Integration Guide](CHATPOS_CLIENT_INTEGRATION_GUIDE.md)
@@ -633,7 +662,7 @@ External target payment command/query ใช้ signed Merchant API ตาม [C
 - retry เฉพาะ network error, timeout, `429` และ `5xx` ด้วย exponential backoff + jitter; ไม่ retry `4xx` อื่นหรือ idempotency conflict
 - ส่ง structured log ที่มี request metadata, body digest และ error code โดย redaction จะไม่ปล่อย raw body, secret, PII หรือ signature เต็มค่า
 
-สร้าง client ใน custom API server ด้วย `createBackofficeClient()` และตั้ง `AGENT_PD_INTEGRATION_ENABLED=true` เฉพาะ environment ที่ผ่าน staging contract test แล้ว ค่า env และ feature flags ดูได้จาก `.env.example` ระหว่าง rotation ให้ใส่ secret เดิมในตัวแปร `_PREVIOUS` ชั่วคราว แล้วลบออกเพื่อ revoke หลัง retry/clock-skew window หมด ส่วน unit tests อยู่ที่ [server/integration/signedMerchantClient.test.cjs](../server/integration/signedMerchantClient.test.cjs) และเรียกด้วย `npm run test:integration`
+สร้าง client ใน `src/lib/server/api-handler.cjs` ด้วย `createBackofficeClient()` และตั้ง `AGENT_PD_INTEGRATION_ENABLED=true` เฉพาะ environment ที่ผ่าน staging contract test แล้ว ค่า env และ feature flags ดูได้จาก `.env.example` ระหว่าง rotation ให้ใส่ secret เดิมในตัวแปร `_PREVIOUS` ชั่วคราว แล้วลบออกเพื่อ revoke หลัง retry/clock-skew window หมด ส่วน integration tests อยู่ใน [`src/lib/server/integration/`](../src/lib/server/integration/) และเรียกด้วย `npm run test:integration`
 
 อย่า hardcode database URL หรือ secret ใน component และอย่าใช้ `NEXT_PUBLIC_*` กับค่าที่เป็นความลับ
 
@@ -689,12 +718,12 @@ See [docs/PHASE5_SECURITY_OPERATIONS.md](PHASE5_SECURITY_OPERATIONS.md) for secr
 ## แนวทางพัฒนาต่อ
 
 1. แยก route selection ออกจาก `src/App.tsx` ไปเป็น Next route segments ทีละ workflow เมื่อจำเป็นต้องใช้ SSR, metadata หรือ server authorization
-2. ย้าย API จาก custom `server.cjs` ไป Next Route Handlers หรือ service backend ที่มี validation และ error contract ชัดเจน หากต้องการรวม deployment
+2. แยก `src/lib/server/api-handler.cjs` เป็น route/domain modules ทีละส่วนเมื่อช่วยลด coupling โดยคง catch-all adapter, validation, authorization และ error contract เดิม
 3. เพิ่ม schema validation ของ request/response ก่อนส่ง query database
 4. เติม PostgreSQL integration/E2E tests สำหรับ session, permission matrix, ownership, idempotency, version conflict และ webhook dedupe
 5. ต่อ private upload/scanner/storage encryption และยืนยัน key rotation/revoke กับ deployment platform
 6. ย้ายข้อมูลธุรกิจและ order state ที่ต้องใช้ข้ามอุปกรณ์จาก localStorage ไป PostgreSQL
-7. ทำ KYC case, document version, KYC chat และ audit log ให้เป็น append-only model
+7. เพิ่ม PostgreSQL E2E และ operational evidence ให้ KYC case, immutable document version, append-only chat และ audit model ที่มีอยู่แล้ว
 8. เพิ่ม tests สำหรับ status transition, permission matrix, payment idempotency และ document access
 9. เติม metrics/alert wiring, backup/restore drill, incident runbook และ Product/Compliance/Security/PD-Agent Backoffice sign-off ก่อน production
 

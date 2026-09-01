@@ -16,8 +16,12 @@ import {
   Upload,
   MapPin,
   Check,
-  UtensilsCrossed
+  UtensilsCrossed,
+  PlayCircle,
+  Volume2,
+  VolumeX
 } from 'lucide-react'
+import { useThaiVoice } from './useThaiVoice'
 
 /* Web Audio API Sound Utility */
 const playTapSound = (type: 'pop' | 'click' | 'success' = 'click') => {
@@ -242,6 +246,7 @@ const customerMenuData: CustomerMenuItem[] = [
 ]
 
 export function CustomerView() {
+  const voice = useThaiVoice(true)
   // Check if current view is a physical Table Order (e.g. /t01, ?table=1) vs Online Catalog / Delivery / Takeaway
   const isTableOrder = (() => {
     try {
@@ -584,6 +589,7 @@ export function CustomerView() {
     setIsCartOpen(false)
     setIsTrackerOpen(true)
     setSlipUploaded(false)
+    voice.speakOrderComplete()
   }
 
   // Handle Slip Upload
@@ -720,6 +726,7 @@ export function CustomerView() {
       '🧾',
       'success'
     )
+    voice.speakPaymentComplete(effectiveAmount)
   }
 
   const filteredMenu = menuItems.filter(
@@ -791,6 +798,12 @@ export function CustomerView() {
               <span>⭐ 4.9 (520+ รีวิว)</span>
             </div>
           </div>
+        </div>
+
+        <div className={`cust-voice-control status-${voice.status}`}>
+          <button type="button" onClick={voice.toggle} aria-label={voice.enabled ? 'ปิดเสียงภาษาไทย' : 'เปิดเสียงภาษาไทย'}>{voice.enabled ? <Volume2 /> : <VolumeX />}</button>
+          <span><strong>{!voice.enabled ? 'ปิดเสียงภาษาไทย' : voice.status === 'speaking' ? 'กำลังพูด...' : voice.status === 'ready' ? voice.lineMode ? 'เสียงไทยใน LINE พร้อมใช้งาน' : 'เสียงไทยพร้อมใช้งาน' : voice.status === 'error' ? 'เปิดเสียงไม่ได้' : voice.status === 'unsupported' ? 'อุปกรณ์ไม่รองรับเสียงพูด' : 'เสียงยืนยันออเดอร์'}</strong><small>ระบบจะอ่านผลส่งออเดอร์และชำระเงิน</small></span>
+          <button type="button" onClick={voice.test} disabled={!voice.enabled}><PlayCircle /> ทดสอบ</button>
         </div>
 
         {/* Quick Table / Store Action Buttons */}

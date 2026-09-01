@@ -1869,3 +1869,79 @@
   border-radius: 24px 24px 0 0;
   background: #f4f8f6;
 }
+
+.cust-voice-control {
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 9px;
+  margin: 10px 14px 0;
+  padding: 9px 10px;
+  border: 1px solid rgb(0 185 132 / 13%);
+  border-radius: 13px;
+  background: linear-gradient(90deg, rgb(237 249 245 / 94%), rgb(241 239 255 / 86%));
+  color: #315f51;
+  box-shadow: 0 7px 18px rgb(7 27 24 / 7%);
+}
+
+.cust-voice-control > button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-width: 38px;
+  min-height: 34px;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #00a977, #4078ea);
+  color: #fff;
+  cursor: pointer;
+  font-size: 9px;
+  font-weight: 900;
+}
+
+.cust-voice-control > button:disabled {
+  cursor: not-allowed;
+  opacity: .45;
+}
+
+.cust-voice-control > button svg {
+  width: 16px;
+  height: 16px;
+}
+
+.cust-voice-control > span {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+}
+
+.cust-voice-control strong,
+.cust-voice-control small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cust-voice-control strong {
+  color: #173f36;
+  font-size: 10px;
+}
+
+.cust-voice-control small {
+  margin-top: 2px;
+  color: #71827d;
+  font-size: 8px;
+}
+
+.cust-voice-control.status-speaking {
+  border-color: rgb(120 104 255 / 22%);
+  box-shadow: 0 0 0 3px rgb(120 104 255 / 7%);
+}
+
+.cust-voice-control.status-error,
+.cust-voice-control.status-unsupported {
+  border-color: rgb(214 55 55 / 22%);
+  background: #fff5f6;
+}

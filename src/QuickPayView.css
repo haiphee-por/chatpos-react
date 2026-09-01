@@ -1350,3 +1350,68 @@ body:has(.qp-standalone-shell) {
   background: linear-gradient(145deg, #0c5546, #073c32);
   color: #a2ffdc;
 }
+
+.qp-voice-check {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 9px 10px;
+  border: 1px solid rgb(0 185 132 / 13%);
+  border-radius: 13px;
+  background: linear-gradient(90deg, rgb(237 249 245 / 92%), rgb(241 239 255 / 82%));
+  color: #315f51;
+  font-size: 10px;
+}
+
+.qp-voice-check > span,
+.qp-voice-check > button {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.qp-voice-check > span {
+  min-width: 0;
+}
+
+.qp-voice-check > span svg {
+  flex: 0 0 auto;
+  width: 16px;
+  height: 16px;
+  color: #0b966b;
+}
+
+.qp-voice-check > span b {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.qp-voice-check > button {
+  flex: 0 0 auto;
+  min-height: 32px;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 9px;
+  background: linear-gradient(135deg, #00a977, #4078ea);
+  color: #fff;
+  cursor: pointer;
+  font-size: 9px;
+  font-weight: 900;
+}
+
+.qp-voice-check > button:disabled {
+  cursor: not-allowed;
+  opacity: .45;
+}
+
+.qp-voice-check > button svg {
+  width: 14px;
+  height: 14px;
+}
+
+.qp-voice-check.status-speaking {
+  border-color: rgb(120 104 255 / 22%);
+  box-shadow: 0 0 0 3px rgb(120 104 255 / 7%);
+}

@@ -13,10 +13,12 @@ import {
   Maximize2,
   Minimize2,
   RefreshCw,
+  PlayCircle,
   Volume2,
   VolumeX,
 } from 'lucide-react'
 import { checkTransactionStatus, createTransactionCommand, normalizeTransactionPaymentStatus, quickPayMethodToChannel, transactionQrImageUrl, type TransactionPayment } from './chatposApi'
+import { useThaiVoice } from './useThaiVoice'
 
 /* Web Audio API Sound Generator */
 const playAudioEffect = (type: 'beep' | 'pop' | 'success' | 'clear') => {
@@ -161,6 +163,7 @@ export function QuickPayView({ storeName = 'ร้านค้าของคุ
   const [prevAmount, setPrevAmount] = useState<number | null>(null)
   const [selectedMethod, setSelectedMethod] = useState<QuickPayMethod>('promptpay')
   const [soundEnabled, setSoundEnabled] = useState(true)
+  const voice = useThaiVoice(true)
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [copiedPayLink, setCopiedPayLink] = useState(false)
 
@@ -226,6 +229,7 @@ export function QuickPayView({ storeName = 'ร้านค้าของคุ
       note: note || 'คิดเงินด่วนหน้าร้าน',
     })
     playSound('success')
+    voice.speakPaymentComplete(typeof transaction.amount === 'number' ? transaction.amount : netPayable)
     setSummaryStep('success')
   }
 
@@ -359,6 +363,7 @@ export function QuickPayView({ storeName = 'ร้านค้าของคุ
   // Keypad Handlers
   const handleKeyClick = (val: string) => {
     playSound('beep')
+    voice.speakKey(val)
     if (val === 'ล้าง') {
       playSound('clear')
       setAmountStr('0')
@@ -435,6 +440,7 @@ export function QuickPayView({ storeName = 'ร้านค้าของคุ
   const handleOpenSummaryModal = () => {
     if (numAmount <= 0) return
     playSound('pop')
+    voice.speakPaymentTotal(numAmount, getChannelInfo(selectedMethod).name, selectedMethod)
     setDiscountValue(0)
     setDiscountNote('')
     setSummaryStep('summary')
@@ -507,6 +513,12 @@ export function QuickPayView({ storeName = 'ร้านค้าของคุ
     }
   }
 
+  const selectPaymentMethod = (method: QuickPayMethod) => {
+    setSelectedMethod(method)
+    const channel = getChannelInfo(method)
+    voice.speakMethod(method, channel.name)
+  }
+
   return (
     <div className={`qp-standalone-shell ${isFullscreen ? 'fullscreen' : ''}`}>
       {/* ── Top Bar (Clean & Responsive) ────────────────────────── */}
@@ -531,10 +543,10 @@ export function QuickPayView({ storeName = 'ร้านค้าของคุ
           <button
             type="button"
             className="qp-header-tool-btn"
-            onClick={() => setSoundEnabled(!soundEnabled)}
-            title={soundEnabled ? 'ปิดเสียง' : 'เปิดเสียง'}
+            onClick={() => { setSoundEnabled(!soundEnabled); voice.toggle() }}
+            title={voice.enabled ? 'ปิดเสียงภาษาไทย' : 'เปิดเสียงภาษาไทย'}
           >
-            {soundEnabled ? <Volume2 size={16} color="#10b981" /> : <VolumeX size={16} color="#94a3b8" />}
+            {voice.enabled ? <Volume2 size={16} color="#10b981" /> : <VolumeX size={16} color="#94a3b8" />}
           </button>
 
           <button
@@ -551,6 +563,10 @@ export function QuickPayView({ storeName = 'ร้านค้าของคุ
       {/* ── Main Container (Matches MerchantView QuickPay Layout) ─── */}
       <main className="qp-standalone-main">
         <div className="qp-full-container">
+          <div className={`qp-voice-check status-${voice.status}`}>
+            <span>{voice.enabled ? <Volume2 /> : <VolumeX />}<b>{!voice.enabled ? 'ปิดเสียงภาษาไทย' : voice.status === 'speaking' ? 'กำลังพูด...' : voice.status === 'ready' ? voice.lineMode ? 'เสียงไทยใน LINE พร้อมใช้งาน' : 'เสียงไทยพร้อมใช้งาน' : voice.status === 'unsupported' ? 'อุปกรณ์นี้ไม่รองรับเสียงพูด' : voice.status === 'error' ? 'เปิดเสียงไม่ได้ กรุณาลองอีกครั้ง' : 'แตะทดสอบเสียงก่อนรับเงิน'}</b></span>
+            <button type="button" onClick={voice.test} disabled={!voice.enabled}><PlayCircle /> ทดสอบเสียง</button>
+          </div>
           
           {/* 1. Amount Display Section */}
           <div className="qp-amount-section" style={{ position: 'relative', overflow: 'hidden' }}>
@@ -613,7 +629,7 @@ export function QuickPayView({ storeName = 'ร้านค้าของคุ
               {/* 1. PromptPay */}
               <button
                 className={`qp-method-btn ${selectedMethod === 'promptpay' ? 'active' : ''}`}
-                onClick={() => setSelectedMethod('promptpay')}
+                onClick={() => selectPaymentMethod('promptpay')}
                 type="button"
               >
                 {selectedMethod === 'promptpay' && <span className="qp-check-badge">✓</span>}
@@ -625,7 +641,7 @@ export function QuickPayView({ storeName = 'ร้านค้าของคุ
               {/* 2. TrueMoney Wallet */}
               <button
                 className={`qp-method-btn ${selectedMethod === 'truemoney' ? 'active' : ''}`}
-                onClick={() => setSelectedMethod('truemoney')}
+                onClick={() => selectPaymentMethod('truemoney')}
                 type="button"
               >
                 {selectedMethod === 'truemoney' && <span className="qp-check-badge">✓</span>}
@@ -637,7 +653,7 @@ export function QuickPayView({ storeName = 'ร้านค้าของคุ
               {/* 3. VISA ไทย */}
               <button
                 className={`qp-method-btn ${selectedMethod === 'visa_th' ? 'active' : ''}`}
-                onClick={() => setSelectedMethod('visa_th')}
+                onClick={() => selectPaymentMethod('visa_th')}
                 type="button"
               >
                 {selectedMethod === 'visa_th' && <span className="qp-check-badge">✓</span>}
@@ -649,7 +665,7 @@ export function QuickPayView({ storeName = 'ร้านค้าของคุ
               {/* 4. VISA ต่างชาติ */}
               <button
                 className={`qp-method-btn ${selectedMethod === 'visa_int' ? 'active' : ''}`}
-                onClick={() => setSelectedMethod('visa_int')}
+                onClick={() => selectPaymentMethod('visa_int')}
                 type="button"
               >
                 {selectedMethod === 'visa_int' && <span className="qp-check-badge">✓</span>}
@@ -661,7 +677,7 @@ export function QuickPayView({ storeName = 'ร้านค้าของคุ
               {/* 5. WeChat Pay */}
               <button
                 className={`qp-method-btn ${selectedMethod === 'wechat' ? 'active' : ''}`}
-                onClick={() => setSelectedMethod('wechat')}
+                onClick={() => selectPaymentMethod('wechat')}
                 type="button"
               >
                 {selectedMethod === 'wechat' && <span className="qp-check-badge">✓</span>}
@@ -673,7 +689,7 @@ export function QuickPayView({ storeName = 'ร้านค้าของคุ
               {/* 6. LINE Pay */}
               <button
                 className={`qp-method-btn ${selectedMethod === 'linepay' ? 'active' : ''}`}
-                onClick={() => setSelectedMethod('linepay')}
+                onClick={() => selectPaymentMethod('linepay')}
                 type="button"
               >
                 {selectedMethod === 'linepay' && <span className="qp-check-badge">✓</span>}
@@ -685,7 +701,7 @@ export function QuickPayView({ storeName = 'ร้านค้าของคุ
               {/* 7. Alipay */}
               <button
                 className={`qp-method-btn ${selectedMethod === 'alipay' ? 'active' : ''}`}
-                onClick={() => setSelectedMethod('alipay')}
+                onClick={() => selectPaymentMethod('alipay')}
                 type="button"
               >
                 {selectedMethod === 'alipay' && <span className="qp-check-badge">✓</span>}
@@ -697,7 +713,7 @@ export function QuickPayView({ storeName = 'ร้านค้าของคุ
               {/* 8. ShopeePay */}
               <button
                 className={`qp-method-btn ${selectedMethod === 'shopeepay' ? 'active' : ''}`}
-                onClick={() => setSelectedMethod('shopeepay')}
+                onClick={() => selectPaymentMethod('shopeepay')}
                 type="button"
               >
                 {selectedMethod === 'shopeepay' && <span className="qp-check-badge">✓</span>}

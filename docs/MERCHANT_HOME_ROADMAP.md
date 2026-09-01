@@ -1,6 +1,6 @@
 # ChatPOS Merchant UI Implementation Roadmap
 
-เอกสารนี้เป็น roadmap หลักสำหรับนำ UI และ interaction ที่ Manager ออกแบบไว้ใน `chatpos-payment-ai-main` เข้ามา implement ใน `chatpos-react` โดยเริ่มจาก Merchant Home และขยายไปยัง payment, orders, tables, catalog, services และ settings. ให้ใช้คู่กับ [DEVELOPER_GUIDE.md](DEVELOPER_GUIDE.md), [NEXT_STEPS_CHECKLIST.md](NEXT_STEPS_CHECKLIST.md) และ integration contract ที่เกี่ยวข้อง
+เอกสารนี้เป็น roadmap สำหรับนำ UI และ interaction ที่ Manager ออกแบบไว้ใน `chatpos-payment-ai-main` เข้ามา implement ใน `chatpos-react`. สถานะ implementation ปัจจุบัน, architecture และ production boundary ให้ยึด [DEVELOPER_GUIDE.md](DEVELOPER_GUIDE.md) เป็น canonical source; roadmap นี้ใช้ติดตามเป้าหมาย งานค้าง และ acceptance evidence เท่านั้น
 
 > สถานะเอกสาร: Draft สำหรับแตกงาน Product, UX/UI, Frontend, Backend และ QA
 >
@@ -42,6 +42,7 @@
 - POS, Orders, Services และ SalesPage แสดง `DEMO ONLY`; Developer แสดง `TESTING SURFACE`; Tables, Benefits, STOPPAY และ Billing แสดง unavailable ตาม capability/implementation จริง
 - Settings ปิด control ที่ยังไม่มี persistence/API, Product import/export ถูก disable และ QR order policy ถูก disable; ห้ามแสดง `alert()` success แทน mutation จริง
 - Global Payment AI tokens/theme ใช้กับ Landing, Merchant Login, Registration, Customer Ordering, Booking, Catalog, standalone QuickPay และ standalone/embedded Developer แล้ว นอกเหนือจาก Merchant route ทั้งหมด
+- เพิ่ม shared Thai voice engine, ไฟล์เสียง 42 clips, LINE MP3 fallback และ Web Speech สำหรับ QuickPay keypad/method/amount/payment success กับ Customer order/payment completion แล้ว; Merchant order-arrival speech ยังรอ Order API/event owner
 
 ## 0. Reference source และกติกาการนำเข้า
 
@@ -106,15 +107,15 @@ Reference bottom navigation ใช้ `orders`, `tables`, `home`, `pos` แล�
 
 ### 0.4 Checklist implement จาก reference
 
-ใช้ checklist นี้เป็นสถานะหลักของงานนำ UI จาก `chatpos-payment-ai-main` เข้ามาใน `chatpos-react`. สถานะ `[x]` หมายถึงมี implementation หรือเอกสารหลักฐานใน repository แล้ว, `[~]` หมายถึงมีบางส่วนแต่ยังขาด contract/evidence/production behavior, และ `[ ]` หมายถึงยังไม่เริ่มหรือยังไม่ผ่านเกณฑ์จบ
+ใช้ checklist นี้ติดตามงานนำ UI จาก `chatpos-payment-ai-main` เข้ามาใน `chatpos-react`; current implementation status ให้ยึด `DEVELOPER_GUIDE.md`. สถานะ `[x]` หมายถึงมี implementation หรือเอกสารหลักฐานใน repository แล้ว, `[~]` หมายถึงมีบางส่วนแต่ยังขาด contract/evidence/production behavior, และ `[ ]` หมายถึงยังไม่เริ่มหรือยังไม่ผ่านเกณฑ์จบ
 
 #### M1: Shell parity และ navigation
 
 - [x] บันทึก reference view, menu และ target implementation ในหัวข้อ 0.1
 - [x] ระบุ source ของ visual reference ใน `chatpos-payment-ai-main/app/page.tsx`, `app/globals.css` และ `public/`
 - [x] รวม sidebar, Home shortcut และ `MerchantBottomNavigation` ให้ใช้ navigation mapping ชุดเดียวกันผ่าน `merchantNavigation.ts`
-- [~] ให้ URL, active menu, refresh, browser Back และ browser Forward ใช้ state เดียวกัน
-- [x] ตรวจทุก target ใน `merchantNavigation.ts` แล้ว: route ที่มี logic render view จริง และ `tables`, `benefits`, `stoppay`, `billing` แสดง unavailable พร้อมเหตุผลเฉพาะ; demo route ถูกกั้นใน production
+- [x] ให้ URL, active menu, refresh, browser Back และ browser Forward ใช้ state เดียวกันผ่าน `merchantNavIdFromLocation`, `pushState`, `popstate` และ `hashchange`
+- [x] ตรวจทุก target ใน `merchantNavigation.ts` แล้ว: route ที่มี logic render view จริง, Benefits/STOPPAY ใช้ API ตาม capability, `tables`/`billing` แสดง unavailable และ demo route ถูกกั้นใน production
 - [~] ตรวจ mobile bottom navigation ที่ 390px แล้ว ไม่มี horizontal overflow และ touch target หลักไม่น้อยกว่า 44px; ยังต้องตรวจ 430px และ safe-area บนอุปกรณ์จริง
 - [ ] แนบ screenshot comparison ของ shell บน mobile และ desktop พร้อม deviation ที่ยอมรับได้
 
