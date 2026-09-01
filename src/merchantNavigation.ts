@@ -13,6 +13,7 @@ import {
   ReceiptText,
   Settings,
   ShieldAlert,
+  UtensilsCrossed,
   WalletCards,
 } from 'lucide-react'
 
@@ -29,6 +30,7 @@ export const merchantNavItems: MerchantNavItem[] = [
   { id: 'pos', label: 'ขายหน้าร้าน (POS)', icon: CreditCard, target: '/merchant/pos', permission: 'merchant' },
   { id: 'payment', label: 'คิดเงิน', icon: QrCode, target: '/merchant/payment', permission: 'merchant' },
   { id: 'orders', label: 'สั่งออเดอร์', icon: ClipboardList, target: '/merchant/orders', permission: 'merchant' },
+  { id: 'tables', label: 'จัดการโต๊ะ', icon: UtensilsCrossed, target: '/merchant/tables', permission: 'merchant' },
   { id: 'transactions', label: 'ประวัติธุรกรรม', icon: ReceiptText, target: '/merchant/transactions', permission: 'merchant' },
   { id: 'products', label: 'สินค้า / สต็อก', icon: Package, target: '/merchant/products', permission: 'merchant' },
   { id: 'services', label: 'คิวและบริการ', icon: Clock, target: '/merchant/services', permission: 'merchant' },
@@ -42,6 +44,27 @@ export const merchantNavItems: MerchantNavItem[] = [
   { id: 'developer', label: 'โหมดนักพัฒนา', icon: Code, target: '/merchant/developer', permission: 'merchant' },
   { id: 'settings', label: 'ตั้งค่า', icon: Settings, target: '/merchant/settings', permission: 'merchant' },
 ]
+
+export const merchantBottomNavIds = ['orders', 'tables', 'home', 'pos', 'settings'] as const
+
+export function isMerchantNavId(id: string): id is MerchantNavItem['id'] {
+  return merchantNavItems.some((item) => item.id === id)
+}
+
+export function merchantNavIdFromLocation(pathname: string, hash = '') {
+  const normalizedPathname = pathname.replace(/\/+$/, '') || '/'
+  const routeId = normalizedPathname.startsWith('/merchant/')
+    ? normalizedPathname.slice('/merchant/'.length).split('/')[0]
+    : ''
+  const normalizedHash = hash.replace(/^#/, '').trim()
+  const routeMatch = merchantNavItems.some((item) => item.id === routeId) ? routeId : ''
+  const hashMatch = merchantNavItems.some((item) => item.id === normalizedHash) ? normalizedHash : ''
+  return routeMatch || (normalizedPathname === '/merchant' ? hashMatch : '') || 'home'
+}
+
+export function isMerchantBottomNavActive(activeId: string, navId: string) {
+  return activeId === navId || (navId === 'pos' && activeId === 'products')
+}
 
 export function getMerchantNavItem(id: string) {
   return merchantNavItems.find((item) => item.id === id) || merchantNavItems[0]

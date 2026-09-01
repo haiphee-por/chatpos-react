@@ -793,7 +793,7 @@
   left: 0;
   right: 0;
   z-index: 60;
-  height: 68px;
+  height: calc(68px + env(safe-area-inset-bottom));
   background: linear-gradient(180deg, #134636 0%, #0a2d22 100%);
   border-top: 1px solid rgba(16, 185, 129, 0.2);
   box-shadow: 0 -6px 20px rgba(0, 0, 0, 0.15);
@@ -809,6 +809,8 @@
   align-items: center;
   justify-content: center;
   gap: 3px;
+  min-width: 56px;
+  min-height: 44px;
   border: 0;
   background: transparent;
   color: #a4c9bc;

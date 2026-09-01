@@ -4,7 +4,7 @@ import { MerchantKycView } from './MerchantKycView'
 import { DeveloperConsoleView } from './DeveloperConsoleView'
 import { fetchDbAssignments, fetchDbProducts, fetchDbStoresResult, clearStoredUser, getStoredUser, logoutUser, type AuthUser, type DbAssignmentRow, type DbStoreRow } from './dbApi'
 import { MerchantHome as MerchantHomeDashboard, MerchantBottomNavigation, type StoreLoadState } from './MerchantHomeView'
-import { getMerchantNavItem, merchantNavItems } from './merchantNavigation'
+import { getMerchantNavItem, isMerchantNavId, merchantNavIdFromLocation, merchantNavItems } from './merchantNavigation'
 import { generatePromptPayQrDataUrl, generateUrlQrDataUrl, getStoredPromptPayId, setStoredPromptPayId } from './promptpay'
 import { checkTransactionStatus, createTransactionCommand, quickPayMethodToChannel, transactionQrImageUrl } from './chatposApi'
 import {
@@ -290,12 +290,7 @@ const initialPaidList: PaidTransaction[] = [
 
 export function MerchantView({ currentUser }: { currentUser: AuthUser | null }) {
   const getInitialTab = () => {
-    const pathname = window.location.pathname.replace(/\/+$/, '') || '/'
-    const routeId = pathname.startsWith('/merchant/') ? pathname.slice('/merchant/'.length).split('/')[0] : ''
-    const hash = window.location.hash.replace('#', '').trim()
-    if (routeId && navItems.some((item) => item.id === routeId)) return routeId
-    if (pathname === '/merchant' && hash && navItems.some((item) => item.id === hash)) return hash
-    return 'home'
+    return merchantNavIdFromLocation(window.location.pathname, window.location.hash)
   }
 
   const [active, setActive] = useState(getInitialTab)
@@ -372,11 +367,7 @@ export function MerchantView({ currentUser }: { currentUser: AuthUser | null }) 
 
   useEffect(() => {
     const handleLocationChange = () => {
-      const pathname = window.location.pathname.replace(/\/+$/, '') || '/'
-      const routeId = pathname.startsWith('/merchant/') ? pathname.slice('/merchant/'.length).split('/')[0] : ''
-      const hash = window.location.hash.replace('#', '').trim()
-      const nextId = navItems.some((item) => item.id === routeId) ? routeId : navItems.some((item) => item.id === hash) ? hash : 'home'
-      setActive(nextId)
+      setActive(merchantNavIdFromLocation(window.location.pathname, window.location.hash))
     }
     window.addEventListener('popstate', handleLocationChange)
     window.addEventListener('hashchange', handleLocationChange)
@@ -388,9 +379,10 @@ export function MerchantView({ currentUser }: { currentUser: AuthUser | null }) 
 
   const current = navItems.find((item) => item.id === active) ?? navItems[0]
   const navigate = (id: string) => {
+    if (!isMerchantNavId(id)) return
+    const target = getMerchantNavItem(id).target
     setActive(id)
     localStorage.setItem('merchant_active_tab', id)
-    const target = getMerchantNavItem(id).target
     if (window.location.pathname !== target || window.location.hash) {
       window.history.pushState({}, '', target)
     }
@@ -427,7 +419,11 @@ export function MerchantView({ currentUser }: { currentUser: AuthUser | null }) 
             className={active === id ? 'active' : ''}
             href={target}
             key={id}
-            onClick={() => setMobileOpen(false)}
+            onClick={(event) => {
+              event.preventDefault()
+              navigate(id)
+            }}
+            aria-current={active === id ? 'page' : undefined}
           >
             <NavIcon size={17} />
             <span>{label}</span>
@@ -3708,6 +3704,7 @@ function MerchantSection({ active, label }: { active: string; label: string }) {
     pos: { title: 'ขายหน้าร้าน (POS)', description: 'เลือกสินค้าและสร้างรายการขายใหม่', icon: CreditCard },
     payment: { title: 'คิดเงินด่วน', description: 'สร้าง QR หรือรับชำระเงินสำหรับออเดอร์', icon: QrCode },
     orders: { title: 'ออเดอร์ทั้งหมด', description: 'ติดตามรายการสั่งซื้อและสถานะการชำระเงิน', icon: ClipboardList },
+    tables: { title: 'จัดการโต๊ะ', description: 'จัดการโต๊ะและ QR สำหรับรับออเดอร์จากลูกค้า', icon: Utensils },
     products: { title: 'คลังสินค้าและสต็อก', description: 'จัดการรายการสินค้า ราคา และจำนวนคงเหลือ', icon: Package },
     services: { title: 'บริการคิวร้านค้า', description: 'จัดการบริการคิว และรายการชำระแล้ว', icon: Clock },
     reports: { title: 'รายงานการเงิน', description: 'วิเคราะห์ยอดขายตามช่วงเวลาและช่องทาง', icon: ReceiptText },

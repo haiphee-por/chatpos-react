@@ -621,9 +621,10 @@ export async function fetchDbTransactions(): Promise<DbTransactionRow[]> {
   }
 }
 
-export async function fetchDbTransactionsResult(): Promise<DbFetchResult<DbTransactionRow[]>> {
+export async function fetchDbTransactionsResult(storeId?: string): Promise<DbFetchResult<DbTransactionRow[]>> {
   try {
-    const res = await fetchDbApi<{ success: boolean; data: DbTransactionRow[] }>('/transactions')
+    const query = storeId ? `?storeId=${encodeURIComponent(storeId)}` : ''
+    const res = await fetchDbApi<{ success: boolean; data: DbTransactionRow[] }>(`/transactions${query}`)
     return { data: res.data || [], error: null, fetchedAt: new Date().toISOString() }
   } catch (err: any) {
     console.error('Failed to fetch transactions with status:', err)

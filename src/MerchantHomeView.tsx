@@ -36,6 +36,7 @@ import {
 import {
   fetchDbHomeResult,
   fetchDbNotificationsResult,
+  fetchDbTransactionsResult,
   markAllDbNotificationsRead,
   markDbNotificationRead,
   type AuthUser,
@@ -43,8 +44,9 @@ import {
   type DbHomeReadModel,
   type DbNotificationRow,
   type DbStoreRow,
+  type DbTransactionRow,
 } from './dbApi'
-import { getMerchantNavItem, merchantNavItems, type MerchantNavItem } from './merchantNavigation'
+import { getMerchantNavItem, isMerchantBottomNavActive, merchantBottomNavIds, merchantNavItems, type MerchantNavItem } from './merchantNavigation'
 
 type HomeLanguage = 'th' | 'en' | 'zh'
 type LoadStatus = 'loading' | 'ready' | 'empty' | 'error'
@@ -161,6 +163,35 @@ function useNotificationData(storeId: string | null) {
   return { notifications, state, reload: loadNotifications }
 }
 
+function useRecentTransactions(storeId: string | null) {
+  const [transactions, setTransactions] = useState<DbTransactionRow[]>([])
+  const [state, setState] = useState<StoreLoadState>({ status: storeId ? 'loading' : 'empty', error: null, fetchedAt: null })
+
+  const loadTransactions = async () => {
+    if (!storeId) {
+      setTransactions([])
+      setState({ status: 'empty', error: null, fetchedAt: null })
+      return
+    }
+
+    setState((previous) => ({ ...previous, status: 'loading', error: null }))
+    const result = await fetchDbTransactionsResult(storeId)
+    if (result.error) {
+      setState((previous) => ({ ...previous, status: previous.fetchedAt ? 'ready' : 'error', error: result.error }))
+      return
+    }
+
+    setTransactions(result.data.slice(0, 3))
+    setState({ status: result.data.length ? 'ready' : 'empty', error: null, fetchedAt: result.fetchedAt })
+  }
+
+  useEffect(() => {
+    loadTransactions()
+  }, [storeId])
+
+  return { transactions, state, reload: loadTransactions }
+}
+
 export function MerchantHome({
   onNavigate,
   storeId,
@@ -177,6 +208,7 @@ export function MerchantHome({
   const [now, setNow] = useState(() => new Date())
   const { home, state: homeState, reload: reloadHome } = useHomeData(storeId)
   const { notifications, state: notificationState, reload: reloadNotifications } = useNotificationData(storeId)
+  const { transactions, state: transactionState, reload: reloadTransactions } = useRecentTransactions(storeId)
 
   useEffect(() => {
     const timer = setInterval(() => setNow(new Date()), 1000)
@@ -227,12 +259,12 @@ export function MerchantHome({
       </header>
       <div className="screen">
         <section className="home-hero reference-home">
-          <WalletHero store={displayStore} merchantId={merchantId} time={timeFormatted} isStoreOpen={displayStore.isActive} summary={home?.summary || null} isLoading={homeState.status === 'loading'} />
+          <WalletHero store={displayStore} merchantId={merchantId} time={timeFormatted} isStoreOpen={displayStore.isActive} summary={home?.summary || null} capabilities={home?.capabilities} isLoading={homeState.status === 'loading'} />
         </section>
         <section className="home-content reference-content">
           <MainMenu home={home} onNavigate={onNavigate} />
           <ChannelPanel />
-          <RecentPayments />
+          <RecentPayments transactions={transactions} state={transactionState} onRetry={reloadTransactions} onNavigate={onNavigate} />
           <SystemStatus homeState={homeState} notificationState={notificationState} />
           {homeState.error && <HomeStaleNotice message={isStale ? 'ข้อมูลหน้าหลักล่าสุดอาจไม่สด' : homeState.error} onRetry={reloadHome} />}
           {storeState.error && <HomeStaleNotice message={storeState.error} onRetry={onRetryStores} />}
@@ -269,9 +301,16 @@ function HomeLoadingState() {
   )
 }
 
-function WalletHero({ store, merchantId, time, isStoreOpen, summary, isLoading }: { store: DbStoreRow; merchantId: string | null; time: string; isStoreOpen: boolean; summary: DbHomeReadModel['summary'] | null; isLoading: boolean }) {
+function WalletHero({ store, merchantId, time, isStoreOpen, summary, capabilities, isLoading }: { store: DbStoreRow; merchantId: string | null; time: string; isStoreOpen: boolean; summary: DbHomeReadModel['summary'] | null; capabilities?: DbHomeReadModel['capabilities']; isLoading: boolean }) {
   const [balanceVisible, setBalanceVisible] = useState(true)
-  const balance = formatMoney(summary?.availableBalance ?? summary?.availableToWithdraw ?? 0, 'th')
+  const canViewBalance = capabilities?.canViewBalance === true
+  const balance = isLoading
+    ? '—'
+    : !canViewBalance
+      ? 'ไม่มีสิทธิ์'
+      : summary?.balanceStatus === 'available'
+        ? formatMoney(summary.availableBalance, 'th')
+        : 'ยังไม่พร้อม'
 
   return (
     <section className="merchant-wallet-card">
@@ -281,9 +320,9 @@ function WalletHero({ store, merchantId, time, isStoreOpen, summary, isLoading }
       </div>
       <div className="merchant-wallet-balance">
         <span>ยอดเงินพร้อมใช้</span>
-        <div><strong>{isLoading ? '—' : balanceVisible ? balance : '••••••'}</strong><em>THB</em><button onClick={() => setBalanceVisible((visible) => !visible)} type="button" aria-label={balanceVisible ? 'ซ่อนยอดเงิน' : 'แสดงยอดเงิน'}>{balanceVisible ? <Eye size={18} /> : <EyeOff size={18} />}</button></div>
+        <div><strong>{balanceVisible ? balance : '••••••'}</strong><em>THB</em><button onClick={() => setBalanceVisible((visible) => !visible)} type="button" disabled={isLoading || !canViewBalance} aria-label={balanceVisible ? 'ซ่อนยอดเงิน' : 'แสดงยอดเงิน'}>{balanceVisible ? <Eye size={18} /> : <EyeOff size={18} />}</button></div>
       </div>
-      <HomeSummary summary={summary} isLoading={isLoading} variant="wallet" />
+      <HomeSummary summary={summary} capabilities={capabilities} isLoading={isLoading} variant="wallet" />
       <div className="merchant-wallet-meta"><span>{store.name || 'ร้านค้าของคุณ'}</span><span>{merchantId || 'Merchant'}</span><time>{time}</time></div>
     </section>
   )
@@ -468,11 +507,18 @@ function MerchantIdentityStrip({ store, merchantId, time }: { store: DbStoreRow;
   )
 }
 
-function HomeSummary({ summary, isLoading, variant = 'default' }: { summary: DbHomeReadModel['summary'] | null; isLoading: boolean; variant?: 'default' | 'wallet' }) {
+function HomeSummary({ summary, capabilities, isLoading, variant = 'default' }: { summary: DbHomeReadModel['summary'] | null; capabilities?: DbHomeReadModel['capabilities']; isLoading: boolean; variant?: 'default' | 'wallet' }) {
+  const canViewBalance = capabilities?.canViewBalance === true
+  const canViewTransactions = capabilities?.canViewTransactions === true
+  const displayValue = (value: string | number | null, allowed: boolean) => {
+    if (!allowed) return 'ไม่มีสิทธิ์'
+    if (isLoading) return '—'
+    return formatMoney(value, 'th')
+  }
   const values = [
-    { label: 'ยอดรับวันนี้', value: summary?.receivedToday, unit: 'บาท', className: 'green', icon: Banknote },
-    { label: 'เงินพร้อมถอน', value: summary?.availableToWithdraw, unit: 'บาท', className: 'blue', icon: WalletCards },
-    { label: 'รายการวันนี้', value: summary?.todayTransactionCount, unit: 'รายการ', className: 'purple', icon: ReceiptText },
+    { label: 'ยอดรับวันนี้', value: canViewBalance ? summary?.receivedToday : null, unit: 'บาท', className: 'green', icon: Banknote },
+    { label: 'เงินพร้อมถอน', value: canViewBalance ? summary?.availableToWithdraw : null, unit: 'บาท', className: 'blue', icon: WalletCards },
+    { label: 'รายการวันนี้', value: canViewTransactions ? summary?.todayTransactionCount : null, unit: 'รายการ', className: 'purple', icon: ReceiptText },
   ]
 
   return (
@@ -481,7 +527,7 @@ function HomeSummary({ summary, isLoading, variant = 'default' }: { summary: DbH
         <button key={label} type="button">
           <span className={`stat-icon ${className}`}><Icon size={23} /></span>
           <small>{label}</small>
-          <strong>{isLoading ? '—' : formatMoney(value ?? null, 'th')}</strong>
+          <strong>{displayValue(value ?? null, className === 'purple' ? canViewTransactions : canViewBalance)}</strong>
           <em>{unit}</em>
         </button>
       ))}
@@ -499,11 +545,13 @@ const mainMenuDefinitions = [
 ]
 
 function MainMenu({ home, onNavigate }: { home: DbHomeReadModel | null; onNavigate: (id: string) => void }) {
-  const isEnabled = (id: string) => {
-    if (id === 'payment' || id === 'wallet' || id === 'orders' || id === 'reports' || id === 'salespage') return true
-    if (!home) return false
-    if (id === 'stoppay') return home.capabilities.canUseStopPay
-    return home.capabilities.canViewTransactions
+  const getAvailability = (id: string) => {
+    if (!home) return { enabled: false, reason: 'กำลังโหลดสิทธิ์การใช้งาน' }
+    const quickAction = home.quickActions.find((action) => action.id === id)
+    if (quickAction) return { enabled: quickAction.enabled, reason: quickAction.disabledReason }
+    if (id === 'payment') return { enabled: home.store.isActive, reason: home.store.isActive ? null : 'STORE_CLOSED' }
+    if (id === 'wallet') return { enabled: home.capabilities.canViewBalance, reason: home.capabilities.canViewBalance ? null : 'BALANCE_VIEW_FORBIDDEN' }
+    return { enabled: true, reason: null }
   }
 
   return (
@@ -515,8 +563,9 @@ function MainMenu({ home, onNavigate }: { home: DbHomeReadModel | null; onNaviga
       <div className="mh-feature-grid feature-grid">
         {mainMenuDefinitions.map((item) => {
           const Icon = item.icon
+          const availability = getAvailability(item.id)
           return (
-          <button className={`feature-card ${item.className} ${isEnabled(item.id) ? '' : 'is-disabled'}`} key={item.id} onClick={() => onNavigate(item.id)} onPointerDown={triggerButtonPress} type="button" disabled={!isEnabled(item.id)}>
+          <button aria-label={availability.enabled ? item.label : `${item.label} ไม่พร้อมใช้งาน`} className={`feature-card ${item.className} ${availability.enabled ? '' : 'is-disabled'}`} key={item.id} onClick={() => onNavigate(item.id)} onPointerDown={triggerButtonPress} title={availability.reason || undefined} type="button" disabled={!availability.enabled}>
             <span className="feature-icon"><Icon size={34} /></span>
             <span><b>{item.label}</b></span>
             <ChevronRight size={18} aria-hidden="true" />
@@ -563,7 +612,7 @@ function ChannelPanel() {
 
   return (
     <section className="channel-panel" aria-labelledby="channels-title">
-      <div className="section-title compact"><div><span>พร้อมใช้งาน</span><h2 id="channels-title">ช่องทางรับชำระ</h2></div></div>
+      <div className="section-title compact"><div><span>รองรับในระบบ</span><h2 id="channels-title">ช่องทางรับชำระ</h2></div></div>
       <div className="channel-grid">
         {channels.map(([label, source, className]) => <span key={label} aria-label={label} title={label}><i className={`channel-logo ${className}`}><img src={source} alt={`${label} logo`} /></i></span>)}
       </div>
@@ -571,21 +620,22 @@ function ChannelPanel() {
   )
 }
 
-function RecentPayments() {
-  const payments = [
-    { channel: 'PromptPay', amount: '+320.00', time: '10:32 น.', tone: 'c1', logo: '/payments/promptpay_front.png', reference: 'TXN-20260830-1032-001' },
-    { channel: 'Visa ···· 4242', amount: '+1,250.00', time: '10:15 น.', tone: 'c2', logo: '/payments/visamasaster.png', reference: 'TXN-20260830-1015-002' },
-    { channel: 'WeChat Pay', amount: '+89.00', time: '09:46 น.', tone: 'c3', logo: '/payments/wechatpay_front.png', reference: 'TXN-20260830-0946-003' },
-  ]
-  const [selectedPayment, setSelectedPayment] = useState<(typeof payments)[number] | null>(null)
+function RecentPayments({ transactions, state, onRetry, onNavigate }: { transactions: DbTransactionRow[]; state: StoreLoadState; onRetry: () => void; onNavigate: (id: string) => void }) {
+  const [selectedPayment, setSelectedPayment] = useState<DbTransactionRow | null>(null)
+  const statusLabel = (status: string) => ['paid', 'completed', 'succeeded', 'settled'].includes(status.toLowerCase()) ? 'สำเร็จ' : status
+  const paymentLabel = (transaction: DbTransactionRow) => transaction.paymentMethod || transaction.channel || 'การชำระเงิน'
 
   return (
     <section className="recent-payments" aria-labelledby="recent-payments-title">
-      <div className="section-title compact"><div><span>รับเงินเข้าร้าน</span><h2 id="recent-payments-title">รายการรับเงินล่าสุด</h2></div><button type="button">ดูทั้งหมด <ChevronRight size={14} /></button></div>
+      <div className="section-title compact"><div><span>รับเงินเข้าร้าน</span><h2 id="recent-payments-title">รายการรับเงินล่าสุด</h2></div><button type="button" onClick={() => onNavigate('transactions')}>ดูทั้งหมด <ChevronRight size={14} /></button></div>
       <div className="recent-payment-list">
-        {payments.map((payment) => <button className="recent-payment-row" key={`${payment.channel}-${payment.time}`} onClick={() => setSelectedPayment(payment)} onPointerDown={triggerButtonPress} type="button" aria-label={`ดูรายละเอียด ${payment.channel} ${payment.amount}`}><i className={`channel-logo ${payment.tone}`}><img src={payment.logo} alt={`${payment.channel} logo`} /></i><span><b>{payment.channel}</b><small>{payment.time}</small></span><strong>{payment.amount}</strong><em>สำเร็จ</em></button>)}
+        {state.status === 'loading' && <div className="mn-loading" aria-busy="true"><RefreshCw size={22} className="spin" /><span>กำลังโหลดรายการรับเงิน</span></div>}
+        {state.status !== 'loading' && transactions.map((transaction) => <button className="recent-payment-row" key={transaction.id} onClick={() => setSelectedPayment(transaction)} onPointerDown={triggerButtonPress} type="button" aria-label={`ดูรายละเอียด ${paymentLabel(transaction)}`}><i className="channel-logo c1"><ReceiptText size={20} /></i><span><b>{paymentLabel(transaction)}</b><small>{transaction.occurredAt ? formatDateTime(transaction.occurredAt, 'th') : formatDateTime(transaction.createdAt, 'th')}</small></span><strong>+{formatMoney(transaction.amount, 'th')}</strong><em>{statusLabel(transaction.status)}</em></button>)}
+        {state.status === 'empty' && <div className="mn-empty"><ReceiptText size={28} /><strong>ยังไม่มีรายการรับเงิน</strong><span>เมื่อมีธุรกรรม รายการล่าสุดจะแสดงในหน้านี้</span></div>}
+        {state.status === 'error' && <div className="mn-empty"><ShieldAlert size={28} /><strong>ยังโหลดรายการรับเงินไม่ได้</strong><span>{state.error}</span><button className="mn-footer-action" onClick={onRetry} type="button"><RefreshCw size={15} /> ลองโหลดอีกครั้ง</button></div>}
       </div>
-      {selectedPayment && <div className="recent-payment-dialog-overlay"><button className="recent-payment-dialog-backdrop" onClick={() => setSelectedPayment(null)} type="button" aria-label="ปิดรายละเอียดรายการรับเงิน" /><section className="recent-payment-dialog" role="dialog" aria-modal="true" aria-labelledby="recent-payment-dialog-title"><button className="recent-payment-dialog-close" onClick={() => setSelectedPayment(null)} type="button" aria-label="ปิดรายละเอียด"><X size={18} /></button><div className={`recent-payment-dialog-logo ${selectedPayment.tone}`}><img src={selectedPayment.logo} alt={`${selectedPayment.channel} logo`} /></div><span className="recent-payment-dialog-status">สำเร็จ</span><h3 id="recent-payment-dialog-title">รายละเอียดการรับเงิน</h3><strong className="recent-payment-dialog-amount">{selectedPayment.amount} บาท</strong><dl><div><dt>ช่องทาง</dt><dd>{selectedPayment.channel}</dd></div><div><dt>เวลา</dt><dd>{selectedPayment.time}</dd></div><div><dt>เลขอ้างอิง</dt><dd>{selectedPayment.reference}</dd></div></dl><button className="recent-payment-dialog-action" onClick={() => setSelectedPayment(null)} type="button">ปิด</button></section></div>}
+      {state.error && <HomeStaleNotice message={transactions.length ? 'รายการรับเงินล่าสุดอาจไม่สด' : state.error} onRetry={onRetry} />}
+      {selectedPayment && <div className="recent-payment-dialog-overlay"><button className="recent-payment-dialog-backdrop" onClick={() => setSelectedPayment(null)} type="button" aria-label="ปิดรายละเอียดรายการรับเงิน" /><section className="recent-payment-dialog" role="dialog" aria-modal="true" aria-labelledby="recent-payment-dialog-title"><button className="recent-payment-dialog-close" onClick={() => setSelectedPayment(null)} type="button" aria-label="ปิดรายละเอียด"><X size={18} /></button><div className="recent-payment-dialog-logo c1"><ReceiptText size={26} /></div><span className="recent-payment-dialog-status">{statusLabel(selectedPayment.status)}</span><h3 id="recent-payment-dialog-title">รายละเอียดการรับเงิน</h3><strong className="recent-payment-dialog-amount">{formatMoney(selectedPayment.amount, 'th')} บาท</strong><dl><div><dt>ช่องทาง</dt><dd>{paymentLabel(selectedPayment)}</dd></div><div><dt>เวลา</dt><dd>{selectedPayment.occurredAt ? formatDateTime(selectedPayment.occurredAt, 'th') : formatDateTime(selectedPayment.createdAt, 'th')}</dd></div><div><dt>เลขอ้างอิง</dt><dd>{selectedPayment.reference}</dd></div></dl><button className="recent-payment-dialog-action" onClick={() => setSelectedPayment(null)} type="button">ปิด</button></section></div>}
     </section>
   )
 }
@@ -730,20 +780,26 @@ function NotificationDrawer({
 }
 
 export function MerchantBottomNavigation({ active, onNavigate }: { active: string; onNavigate: (id: string) => void }) {
-  const bottomIds = ['pos', 'services', 'home', 'salespage', 'settings']
-  const items = bottomIds.map((id) => getMerchantNavItem(id))
+  const items = merchantBottomNavIds.map((id) => getMerchantNavItem(id))
+  const labels: Record<string, string> = {
+    orders: 'ออเดอร์',
+    tables: 'จัดการโต๊ะ',
+    home: 'หน้าหลัก',
+    pos: 'POS',
+    settings: 'ตั้งค่า',
+  }
   const renderItem = (item: MerchantNavItem, className = '') => {
     const Icon = item.icon
-    return <button className={`mh-bottom-item ${className} ${active === item.id ? 'active' : ''}`} key={item.id} onClick={() => onNavigate(item.id)} onPointerDown={triggerButtonPress} type="button"><Icon size={18} /><span>{item.label}</span></button>
+    return <button aria-current={isMerchantBottomNavActive(active, item.id) ? 'page' : undefined} className={`mh-bottom-item ${className} ${isMerchantBottomNavActive(active, item.id) ? 'active' : ''}`} key={item.id} onClick={() => onNavigate(item.id)} onPointerDown={triggerButtonPress} type="button"><Icon size={18} /><span>{labels[item.id] ?? item.label}</span></button>
   }
 
   return (
     <nav className="mh-global-bottom-bar" aria-label="เมนูร้านค้าบนมือถือ">
-      {renderItem({ ...items[0], label: 'POS' })}
-      {renderItem({ ...items[1], label: 'บริการจอง' })}
-      <div className="mh-bottom-center-group">{renderItem({ ...items[2], label: 'หน้าหลัก', icon: Home }, 'mh-bottom-home-btn')}</div>
-      {renderItem({ ...items[3], label: 'SalePage' })}
-      {renderItem({ ...items[4], label: 'ตั้งค่า' })}
+      {renderItem(items[0])}
+      {renderItem(items[1])}
+      <div className="mh-bottom-center-group">{renderItem({ ...items[2], icon: Home }, 'mh-bottom-home-btn')}</div>
+      {renderItem(items[3])}
+      {renderItem(items[4])}
     </nav>
   )
 }

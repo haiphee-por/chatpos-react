@@ -1,10 +1,150 @@
-# ChatPOS Merchant Home Roadmap
+# ChatPOS Merchant UI Implementation Roadmap
 
-เอกสารนี้ใช้วางแผนปรับหน้าหลักของ Merchant Portal ให้มีหน้าตาและความสามารถตามภาพอ้างอิง [419449.jpg](419449.jpg) โดยเน้น mobile-first และรองรับการใช้งานจริงของร้านค้า
+เอกสารนี้เป็น roadmap หลักสำหรับนำ UI และ interaction ที่ Manager ออกแบบไว้ใน `chatpos-payment-ai-main` เข้ามา implement ใน `chatpos-react` โดยเริ่มจาก Merchant Home และขยายไปยัง payment, orders, tables, catalog, services และ settings. ให้ใช้คู่กับ [DEVELOPER_GUIDE.md](DEVELOPER_GUIDE.md), [NEXT_STEPS_CHECKLIST.md](NEXT_STEPS_CHECKLIST.md) และ integration contract ที่เกี่ยวข้อง
 
 > สถานะเอกสาร: Draft สำหรับแตกงาน Product, UX/UI, Frontend, Backend และ QA
 >
-> อัปเดตล่าสุด: 2026-08-26
+> อัปเดตล่าสุด: 2026-09-01
+
+## 0. Reference source และกติกาการนำเข้า
+
+`chatpos-payment-ai-main` เป็น reference project สำหรับ visual language, layout และ interaction ของ Merchant UI โดยจุดอ้างอิงหลักคือ [`app/page.tsx`](../../chatpos-payment-ai-main/app/page.tsx), [`app/globals.css`](../../chatpos-payment-ai-main/app/globals.css) และ asset ใน `chatpos-payment-ai-main/public/`. โปรเจกต์นี้มี mock/seeded data และ `localStorage` persistence บางส่วน จึงใช้เป็นต้นแบบ UX เท่านั้น ไม่ใช่ source of truth ของข้อมูลธุรกิจหรือ authorization
+
+กติกาที่ต้องใช้ทุกครั้งเมื่อมี UI ใหม่จาก reference:
+
+- ใช้ `chatpos-react` เป็น source of truth ของ server session, role, Store ownership, API, PostgreSQL, payment, KYC, assignment และ audit
+- นำเข้าเฉพาะ visual, component behavior และ client interaction ที่ไม่ขัดกับ contract ของ `chatpos-react`
+- ห้ามนำ `seededProducts`, `seededTransactions`, mock orders/tables, fake balance หรือ mock success state มาเป็น production fallback
+- `localStorage` ใช้ได้เฉพาะ draft และ UI preference ที่ไม่มีผลทางธุรกิจ; server state ต้องอ่าน/เขียนผ่าน API
+- ทุกเมนูต้องมี target, owner, permission, loading, empty, error และ unavailable behavior ก่อนเปิดให้ผู้ใช้เห็นเป็น feature พร้อมใช้
+- ถ้า reference มี business behavior ที่ `chatpos-react` ยังไม่มี ให้ทำเป็น dependency/decision ก่อน ไม่จำลองผลสำเร็จใน browser
+
+### 0.1 Reference view และ target implementation
+
+| Reference view ใน `chatpos-payment-ai-main` | UI ที่อ้างอิง | Target ใน `chatpos-react` | สถานะข้อมูล |
+|---|---|---|---|
+| `home` | dashboard, balance, quick actions, header | `MerchantHomeView.tsx` และ `MerchantView.tsx` | server/API เป็น authority |
+| `payment`, `method-picker`, `other-methods` | keypad, payment tiles, method picker, QR/checkout | `QuickPayView.tsx`, `chatposApi.ts` | payment API/Backoffice เป็น authority |
+| `withdraw` | balance และ withdrawal form | `MerchantView.tsx` wallet/withdraw surface | ใช้ได้เมื่อ withdrawal/OTP/provider contract พร้อม |
+| `transactions` | payment history และ status | dedicated transaction view ใน Merchant Portal | transaction query เป็น authority |
+| `orders` | order list และ status action | `MerchantView.tsx`/`CustomerView.tsx` | ต้องมี order persistence/API |
+| `tables` | table grid, table QR และ table orders | Merchant tables view | ต้องมี table/order owner |
+| `pos` | POS shortcut และ cashier entry | `MerchantView.tsx` POS route | server payment flow เป็น authority |
+| `product-manager` | product table, category, stock, image modal | `CatalogPageView.tsx` และ Product API | Product API เป็น authority; draft เท่านั้นที่ local |
+| `settings` | account, notification และ integration settings | `ProfileSettingsModal.tsx` และ settings view | permission/secret policy เป็น authority |
+
+Reference bottom navigation ใช้ `orders`, `tables`, `home`, `pos` และ `settings`; เมนูเต็มของ `chatpos-react` อยู่ใน [`merchantNavigation.ts`](../src/merchantNavigation.ts). Sidebar, Home shortcut และ mobile bottom navigation ต้องใช้ navigation mapping ชุดเดียวกัน และ browser refresh/Back/Forward ต้องรักษา active route ให้ตรงกัน
+
+### 0.2 วิธีรับ UI ใหม่จาก reference ทีละรอบ
+
+ทุกครั้งที่มีการทยอยแก้ `chatpos-payment-ai-main` ให้แตกงานตามลำดับนี้:
+
+1. บันทึก source ที่อ้างอิง เช่น path, view, component, asset และ behavior ที่เปลี่ยน
+2. จัดประเภทการเปลี่ยนแปลงเป็น `visual`, `interaction`, `server state` หรือ `business rule`
+3. ตรวจ target route, permission, API owner และ persistence ใน `chatpos-react` ก่อนเริ่มแก้
+4. นำเข้า visual และ interaction เฉพาะส่วนที่ไม่ขัดกับ session, Store ownership, payment/KYC contract และ audit policy
+5. ทำ state ให้ครบอย่างน้อย `loading`, `ready`, `empty`, `error`, `unavailable` และ `retry` ตาม feature
+6. ทดสอบ route จาก menu, Home shortcut, refresh, browser Back/Forward และ mobile/desktop breakpoint
+7. ลบหรือกั้น mock state ที่อาจถูกใช้ใน production path แล้วอัปเดตสถานะใน roadmap/checklist
+
+หากเป็น `business rule`, schema, permission, API หรือ state transition ใหม่ ต้องมี decision/contract และ owner ก่อนนำมาแสดงเป็น feature จริง. UI ที่ reference ทำด้วย mock ให้ถือเป็น prototype จนกว่าจะมี server response และ acceptance evidence รองรับ
+
+### 0.3 Milestone สำหรับ implement
+
+| Milestone | สิ่งที่จะนำเข้าจาก reference | ผลลัพธ์ที่ต้องส่งมอบ |
+|---|---|---|
+| M1 Shell parity | header, color tokens, typography, sidebar, bottom navigation, responsive frame | route/menu ใช้งานได้, active state ตรง URL, refresh/Back/Forward ผ่าน |
+| M2 Home parity | Store context, balance summary, quick-action grid, management list, notification/profile entry | Home ใช้ server state, ไม่มี demo data, มี loading/empty/error/unavailable state |
+| M3 Payment parity | keypad, method picker, QR/checkout result, payment status | command/query ผ่าน API, idempotency ถูกต้อง, ไม่แสดง paid จาก mock state |
+| M4 Operations parity | transaction, orders, tables และ status/filter interaction | read/mutation state มาจาก API, duplicate click/stale response ไม่ทำให้สถานะผิด |
+| M5 Catalog parity | product manager, category, stock, image และ service interaction | Product/Service persistence ชัดเจน, localStorage เหลือเฉพาะ draft |
+| M6 Account parity | settings, wallet/withdraw, reports, developer entry | capability/feature flag/secret policy ถูกบังคับจาก server |
+| M7 Release parity | accessibility, responsive, performance, telemetry, rollback และ mock removal | มี screenshot/E2E/permission evidence และ production path ไม่มี mock authority |
+
+### 0.4 Checklist implement จาก reference
+
+ใช้ checklist นี้เป็นสถานะหลักของงานนำ UI จาก `chatpos-payment-ai-main` เข้ามาใน `chatpos-react`. สถานะ `[x]` หมายถึงมี implementation หรือเอกสารหลักฐานใน repository แล้ว, `[~]` หมายถึงมีบางส่วนแต่ยังขาด contract/evidence/production behavior, และ `[ ]` หมายถึงยังไม่เริ่มหรือยังไม่ผ่านเกณฑ์จบ
+
+#### M1: Shell parity และ navigation
+
+- [x] บันทึก reference view, menu และ target implementation ในหัวข้อ 0.1
+- [x] ระบุ source ของ visual reference ใน `chatpos-payment-ai-main/app/page.tsx`, `app/globals.css` และ `public/`
+- [x] รวม sidebar, Home shortcut และ `MerchantBottomNavigation` ให้ใช้ navigation mapping ชุดเดียวกันผ่าน `merchantNavigation.ts`
+- [~] ให้ URL, active menu, refresh, browser Back และ browser Forward ใช้ state เดียวกัน
+- [ ] ตรวจทุก target ใน `merchantNavigation.ts` ว่าเปิด view ได้จริง หรือมี `disabled/unavailable` state ที่ชัดเจน
+- [ ] ตรวจ mobile bottom navigation ที่ 390px และ 430px รวม safe-area และ touch target อย่างน้อย 44px
+- [ ] แนบ screenshot comparison ของ shell บน mobile และ desktop พร้อม deviation ที่ยอมรับได้
+
+**M1 เสร็จเมื่อ:** เมนูทุกตัวที่แสดงมี target และ active state ถูกต้อง, navigation ไม่ทำให้ URL กับหน้าจอไม่ตรงกัน และมี screenshot evidence ครบ
+
+#### M2: Home parity และ server data
+
+- [~] ปรับ header, Store context, balance summary, quick-action grid และ management list ตาม reference
+- [~] แสดงชื่อร้าน, Merchant ID, สาขา, status และเวลา จาก authenticated Store/server state
+- [~] เชื่อม Home summary กับ `/api/db/home` และ capability/permission ที่เกี่ยวข้อง
+- [x] เอา hardcoded store name, Merchant ID, balance, counts และ fake success state ออกจาก Home production path; recent payments อ่านจาก Store-scoped transaction API
+- [~] ทำ `loading`, `ready`, `empty`, `error`, `unavailable`, `retry` และ stale state ให้ครบทุก Home data block; Home, notification และ recent payment states มีแล้ว แต่ channel capability/readiness ยังไม่มี server field รองรับ
+- [~] ทำ notification/profile/store selector ให้ใช้ data และ mutation จริง ไม่ใช้ static action; notification และ Store selector ใช้ API จริงแล้ว แต่ profile save ยังเป็น prototype และรอ profile mutation contract
+- [ ] ทดสอบ Store switch, wrong Store, expired session, no Store และ API timeout
+
+**M2 เสร็จเมื่อ:** Home ใช้ server state ทั้งหมดสำหรับข้อมูลธุรกิจ, ไม่มี mock data ใน production path และทุก card มี state ที่ตรวจสอบได้
+
+#### M3: Payment parity
+
+- [~] ปรับ keypad, amount card, payment tiles และ method picker ตาม reference ใน `QuickPayView.tsx`
+- [~] เชื่อม payment command ผ่าน `chatposApi.ts` และ server-side routing ตาม contract
+- [ ] รองรับ PromptPay QR, Hosted Checkout, `qrString`, `qrImageUrl`, `checkoutRedirectUrl` และ expiry ตาม response จริง
+- [ ] แสดง payment loading, timeout, provider error, cancelled, pending และ paid จาก server state เท่านั้น
+- [ ] Retry timeout ด้วย idempotency key/body เดิม และห้ามสร้าง payment ซ้ำจากการ double click
+- [ ] อัปเดต transaction status จาก webhook/query ไม่ใช้ seeded transaction หรือ local success state
+- [ ] ทดสอบ payment success, failure, timeout, duplicate request, late webhook และ reconcile
+
+**M3 เสร็จเมื่อ:** Payment flow ทำงานผ่าน API/Backoffice จริง, retry ปลอดภัย, QR/checkout ใช้ได้ และสถานะใน UI ตรงกับ server
+
+#### M4: Operations parity
+
+- [ ] นำ transaction list, filter, status และ empty state จาก reference มาใช้กับ transaction API จริง
+- [ ] แยก transaction history ออกจาก order history ตามความหมายที่ Product/Finance ยืนยัน
+- [ ] นำ order list/status action มาใช้กับ persisted order API และ authorization ของ Store
+- [ ] นำ table grid, table QR และ table order interaction มาใช้โดยมี server owner
+- [ ] ป้องกัน duplicate click, stale response และ mutation race ใน orders/tables
+- [ ] ทดสอบ loading, empty, error, retry, wrong Store และ permission denied ของทุก operations view
+
+**M4 เสร็จเมื่อ:** transactions, orders และ tables ไม่พึ่ง mock/localStorage เป็น business authority และ mutation/read state แยกกันถูกต้อง
+
+#### M5: Catalog และ services parity
+
+- [~] ปรับ product table, category filter, stock state, image preview และ edit modal ตาม reference
+- [~] ใช้ `Product` API/ฐานข้อมูลเป็น authority ของสินค้า; localStorage เหลือเฉพาะ unsaved draft
+- [ ] กำหนดและ implement service/availability persistence สำหรับ services และ booking
+- [ ] ตรวจ ownership, validation, price/status history และ audit ของ product/service mutation
+- [ ] ทำ image upload/preview/error state โดยไม่เก็บไฟล์ธุรกิจเป็น mock base64 ใน production record
+- [ ] ทดสอบข้าม device, refresh, concurrent edit, invalid price/stock และ failed upload
+
+**M5 เสร็จเมื่อ:** ข้อมูลสินค้าและบริการที่บันทึกแล้วอยู่ข้าม device, มี validation/ownership และ localStorage ไม่ใช่แหล่งข้อมูลหลัก
+
+#### M6: Account และ supporting surfaces
+
+- [~] ปรับ settings, profile, notification preferences และ integration entry ให้สอดคล้องกับ reference
+- [ ] เชื่อม wallet, revenue, billing และ reports กับ source ที่ Finance/Payment owner ยืนยัน
+- [ ] คง withdraw เป็น unavailable/feature-gated จนกว่า withdrawal, OTP, provider result และ reconciliation พร้อม
+- [ ] แสดงหรือซ่อนเมนูตาม capability จาก server ไม่ใช้การซ่อนปุ่มเป็น authorization
+- [ ] ตรวจไม่ให้ bearer secret, signing secret, webhook secret, token หรือ PII อยู่ใน browser storage/URL/log
+- [ ] ทดสอบ role, capability, feature flag, session expiry และ server error ของ supporting surfaces
+
+**M6 เสร็จเมื่อ:** settings และ supporting surfaces มี owner/permission/data source ชัดเจน และ feature ที่ backend ยังไม่พร้อมไม่แสดงเป็นสำเร็จ
+
+#### M7: Release parity และ mock removal
+
+- [ ] ลบ seeded/fake business data จาก production path หรือกั้นไว้เฉพาะ demo/test environment
+- [ ] ตรวจ visual parity, text overflow, contrast, keyboard focus, screen reader label และ reduced motion
+- [ ] ตรวจ responsive ที่ 390px, 430px, tablet และ desktop โดยไม่มี horizontal overflow หรือ bottom-nav overlap
+- [ ] เพิ่ม browser E2E สำหรับ menu navigation, Home, payment, transactions, orders, products และ settings
+- [ ] เพิ่ม permission/Store isolation, retry/idempotency และ session expiry evidence
+- [ ] ตรวจ console/log/network/localStorage ไม่รั่ว secret, payment data หรือ restricted PII
+- [ ] จัดทำ rollout, rollback, monitoring, alert owner และ support evidence ก่อนเปิด feature
+
+**M7 เสร็จเมื่อ:** production path ไม่มี mock authority, มี automated/browser evidence และ Product, Design, Frontend, Backend, QA กับ Security/Compliance ลงชื่อใน scope ที่เกี่ยวข้อง
 
 ## 1. ขอบเขตและข้อสรุปสำคัญ
 
