@@ -117,6 +117,22 @@ async function seed() {
     );
 
     await query(
+      `INSERT INTO merchant_home_capabilities
+        ("storeId", "canViewBalance", "canViewTransactions", "canUseBenefits", "canUseStopPay", "canViewBilling", "updatedAt")
+       VALUES
+         ($1, true, true, false, false, false, NOW()),
+         ($2, true, true, false, false, false, NOW())
+       ON CONFLICT ("storeId") DO UPDATE SET
+         "canViewBalance" = EXCLUDED."canViewBalance",
+         "canViewTransactions" = EXCLUDED."canViewTransactions",
+         "canUseBenefits" = EXCLUDED."canUseBenefits",
+         "canUseStopPay" = EXCLUDED."canUseStopPay",
+         "canViewBilling" = EXCLUDED."canViewBilling",
+         "updatedAt" = NOW()` ,
+      [ids.store, ids.storeTwo]
+    );
+
+    await query(
       `INSERT INTO "KycVerification" (id, "userId", "storeId", "businessName", "firstName", "lastName", phone, "taxId", "bankName", "bankAccountNumber", "bankAccountName", "currentAddress", "businessAddress", "businessType", status, "currentStep", "applicantType", "approvalLevel", "kycSize", "agreementAccepted", "reviewNotes", "submittedAt", "reviewedAt", "submissionSnapshotJson", "submissionProfileVersion", "createdAt", "updatedAt")
        VALUES
          ($1, $3, $5, 'Demo Coffee Lab', 'Demo', 'Merchant', '0855555555', '0105555000001', 'Demo Bank', '1112223334', 'Demo Merchant', '88 ถนนสุขุมวิท กรุงเทพฯ', '88 ถนนสุขุมวิท กรุงเทพฯ', 'cafe', 'approved', 5, 'physical_store', 'approved', 'S', true, 'Seed happy path approved', NOW() - INTERVAL '20 days', NOW() - INTERVAL '18 days', '{"businessName":"Demo Coffee Lab","businessCategory":"ร้านกาแฟ"}'::jsonb, 2, NOW(), NOW()),

@@ -1118,10 +1118,6 @@
     font-size: 15px;
   }
 
-  .merchant-content {
-    padding: 24px 16px 90px !important;
-  }
-
   .merchant-heading {
     align-items: flex-start;
     flex-direction: column;
@@ -14394,6 +14390,7 @@ button.mh-app-card {
 .reference-page .home-header-actions {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
   justify-self: end;
   width: 100%;
   gap: 7px;
