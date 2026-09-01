@@ -228,7 +228,7 @@ Merchant UI ใช้ `chatpos-payment-ai-main/app/page.tsx` และ `app/glob
 | `/merchant/home` | `MerchantHomeView.tsx` | Home read model, Store capability, notification API และ authenticated Store context | ใช้ได้เมื่อ `MERCHANT_HOME_CONTRACT_ENABLED` และ schema พร้อม |
 | `/merchant/payment` | `QuickPayView.tsx` | transaction command, stable idempotency key, QR/checkout response และ status polling | frontend logic พร้อม; การรับเงินจริงขึ้นกับ routing flags, Store credential, Backoffice/LLGW และ callback readiness |
 | `/merchant/transactions` | `TransactionsView` | Store-scoped Transaction API พร้อม search/filter | ใช้ได้แบบ read-only; ยังไม่มี detail/export UX |
-| `/merchant/products` | `ProductsView` | Product create/read/update ผ่าน PostgreSQL, Store scope และ optimistic conflict | ใช้ได้บางส่วน; bulk import/export ถูก disable เพราะยังไม่มี API, และยังขาด private image upload/category persistence/history |
+| `/merchant/products` | `ProductsView` | Product create/read/update/archive/restore, transactional CSV import, CSV export, Store scope และ optimistic conflict ผ่าน PostgreSQL | ใช้ production path แล้วสำหรับ catalog fields, SKU, unit, active/stock policy และ bulk CSV; ยังขาด private image upload, category master, multilingual/gallery persistence และ price/stock history |
 | `/merchant/reports` | `MerchantFinanceView` | Home summary และ transaction read model | ใช้ได้บางส่วนแบบ read-only; ไม่มี real chart/date range/export |
 | `/merchant/wallet` | `MerchantFinanceView` | balance summary และรายการธุรกรรมจาก server | ดูได้; withdrawal/auto payout/bank change ยังไม่ใช่ production mutation |
 | `/merchant/kyc` | `MerchantKycView.tsx` | KYC case/document version/chat/assignment API และ Store/Case authorization | implement แล้วแต่ feature/integration-gated; ต้องมี storage/scanner/Backoffice evidence |
@@ -250,7 +250,7 @@ Merchant UI ใช้ `chatpos-payment-ai-main/app/page.tsx` และ `app/glob
 3. Services และ SalesPage ที่ยังเป็น demo ต้องถูกกั้นด้วย `allowDemoMerchantSurfaces`; production ต้องแสดง unavailable พร้อมเหตุผล
 4. ปุ่มที่ backend ยังไม่มีต้อง disabled/unavailable ห้ามใช้ `alert()` หรือ local state แสดงผลสำเร็จปลอม
 5. Payment ต้องใช้ `createTransactionCommand`, `transactionQrImageUrl`, idempotency key และ server status เดิม แม้ UI จะยกมาจาก Payment AI
-6. Products ต้องใช้ Product API เป็น authority; import/export, category และ image upload ห้ามแสดงว่าสำเร็จก่อนมี endpoint จริง
+6. Products ต้องใช้ Product API เป็น authority; CSV import/export ใช้ Store-scoped endpoint, archive แทน hard delete และ category/image upload ห้ามแสดงว่าสำเร็จก่อนมี endpoint จริง
 7. Wallet ต้องคง withdrawal เป็น unavailable จนมี OTP, durable ledger, provider result และ reconciliation
 
 Visual layer ปัจจุบันใช้ Payment AI tokens, Tahoma-first Thai type, dark AI header, teal/cyan/violet accent, glass cards และ gold focus ring ทั้งระบบแล้ว: Landing, Login, Registration, Customer Ordering, Booking, Catalog, standalone QuickPay/Developer และ Merchant route ทั้งหมด. Transactions/Product/Services/Developer table ถูกจัดเป็น stacked cards บน phone shell; KYC คง document/chat logic เดิมภายใต้ Payment AI card treatment. Demo route แสดง `DEMO ONLY`, Developer แสดง `TESTING SURFACE` และ route ที่ไม่มี logic ใช้ unavailable state แทน UI สำเร็จปลอม
@@ -411,10 +411,10 @@ Merchant เลือกประเภทกิจการและกรอ�
 ข้อมูลร้านค้าเป็น profile ของ Store ส่วนสินค้าและบริการเป็นข้อมูลที่ Merchant ใช้เปิดขายจริง ควรแยกสถานะและ audit ออกจาก KYC:
 
 - ร้านค้า: ชื่อร้าน, ที่อยู่, เบอร์, ประเภทร้าน, เวลาเปิด-ปิด, ช่องทางขาย และสถานะเปิดใช้งาน
-- สินค้า: ชื่อ, SKU, หมวดหมู่, รายละเอียด, ราคาขาย, ต้นทุน, stock, รูปภาพ และสถานะ active
+- สินค้า: ชื่อ, SKU, หมวดหมู่, รายละเอียด, ราคาขาย, ต้นทุน, stock, หน่วย, รูปภาพ, นโยบายตัดสต็อก และสถานะ active/archive
 - บริการ: ชื่อบริการ, รายละเอียด, ราคา, ระยะเวลา, จำนวนคิว/slot, เงื่อนไขการจอง และสถานะ active
 
-ตาราง `Product` มีอยู่ใน migration และถูกใช้โดย `/api/db/products` แล้ว ส่วนข้อมูลบริการและตารางเวลาปัจจุบันยังมีส่วนที่อยู่ใน prototype/localStorage จึงควรเพิ่มตาราง service/availability เมื่อจะรองรับหลายอุปกรณ์หรือ production
+ตาราง `Product` มีอยู่ใน migration และถูกใช้โดย `/api/db/products` แล้ว. Migration `014_product_catalog_management.sql` เพิ่ม `unit`, `archivedAt`, catalog index และ Store-scoped active SKU uniqueness. CSV import บังคับ SKU ทุกแถว, รับสูงสุด 500 แถวต่อ request, rollback ทั้งชุดเมื่อมีแถวไม่ถูกต้อง และ upsert รายการที่มี SKU ตรงกัน จึงสามารถนำไฟล์เดิมเข้าซ้ำโดยไม่สร้างสินค้าซ้ำ. ส่วนข้อมูลบริการและตารางเวลาปัจจุบันยังมีส่วนที่อยู่ใน prototype/localStorage จึงควรเพิ่มตาราง service/availability เมื่อจะรองรับหลายอุปกรณ์หรือ production
 
 กติกาการบันทึก:
 
@@ -630,6 +630,12 @@ Non-PromptPay channels ต้องส่ง `channel` เป็นชื่อ 
 | `GET` | `/transactions` | ดึงธุรกรรม |
 | `POST` | `/transactions/create` | สร้างธุรกรรม |
 | `GET` | `/products` | ดึงสินค้า |
+| `POST` | `/products` | เพิ่มสินค้าพร้อมราคา ต้นทุน SKU หน่วย สต็อก และ sale/stock policy |
+| `PATCH` | `/products/:id` | แก้ไขสินค้าด้วย optimistic `expectedUpdatedAt` |
+| `DELETE` | `/products/:id?storeId=` | archive สินค้าและปิดขายโดยไม่ลบประวัติ order |
+| `POST` | `/products/:id/restore` | คืนสินค้าออกจากคลังถาวร |
+| `GET` | `/products/export?storeId=` | ดึง catalog สำหรับสร้าง CSV สูงสุด 5,000 รายการ |
+| `POST` | `/products/import` | import/upsert catalog สูงสุด 500 แถวใน database transaction เดียว |
 | `GET` | `/commissions` | ดึงค่าคอมมิชชัน |
 
 ### Public order/payment API
@@ -721,7 +727,7 @@ See [docs/PHASE5_SECURITY_OPERATIONS.md](PHASE5_SECURITY_OPERATIONS.md) for secr
 
 - display cache ของ user session ซึ่งไม่ใช่ authority; server session เป็นแหล่งอ้างอิงจริง
 - active tab และ hash ของ dashboard
-- draft/legacy state ของสินค้า หมวดหมู่ บริการ และการจอง; `ProductsView` ใช้ Product API แล้ว แต่ POS/public catalog ยังมี transitional local state
+- draft/legacy state ของหมวดหมู่ บริการ และการจอง; `ProductsView`, Merchant POS และ public table order ใช้ Product API แล้ว แต่ legacy public catalog บาง route ยังมี transitional local state
 - sales pages, QR slugs และ channel groups
 - customer orders, staff calls และ live merchant orders
 - pending checkout และ legacy UI cache บางส่วน; transaction history และ Home recent payments ต้องอ่านจาก server API

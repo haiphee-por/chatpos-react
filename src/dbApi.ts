@@ -269,6 +269,7 @@ export interface DbFetchResult<T> {
 
 export interface DbProductRow {
   id: string
+  storeId: string
   name: string
   description: string | null
   price: string
@@ -277,11 +278,12 @@ export interface DbProductRow {
   category: string | null
   image: string | null
   sku: string | null
+  unit: string
   isActive: boolean
   trackStock: boolean
+  archivedAt: string | null
   createdAt: string
   updatedAt: string
-  store_name: string | null
 }
 
 export interface DbRestaurantTableRow {
@@ -821,10 +823,12 @@ export async function fetchDbProducts(): Promise<DbProductRow[]> {
   }
 }
 
-export async function fetchDbProductsResult(storeId?: string): Promise<DbFetchResult<DbProductRow[]>> {
+export async function fetchDbProductsResult(storeId?: string, includeArchived = false): Promise<DbFetchResult<DbProductRow[]>> {
   try {
-    const query = storeId ? `?storeId=${encodeURIComponent(storeId)}` : ''
-    const res = await fetchDbApi<{ success: boolean; data: DbProductRow[] }>(`/products${query}`)
+    const query = new URLSearchParams()
+    if (storeId) query.set('storeId', storeId)
+    if (includeArchived) query.set('includeArchived', 'true')
+    const res = await fetchDbApi<{ success: boolean; data: DbProductRow[] }>(`/products${query.size ? `?${query.toString()}` : ''}`)
     return { data: res.data || [], error: null, fetchedAt: new Date().toISOString() }
   } catch (err: any) {
     return { data: [], error: err?.message || 'โหลดสินค้าไม่สำเร็จ', fetchedAt: null }
@@ -841,9 +845,12 @@ export type DbProductMutationPayload = {
   category?: string | null
   image?: string | null
   sku?: string | null
+  unit?: string
   isActive?: boolean
   trackStock?: boolean
 }
+
+export type DbProductImportRow = Omit<DbProductMutationPayload, 'storeId'>
 
 export async function createDbProduct(payload: DbProductMutationPayload) {
   return fetchDbApi<{ success: boolean; product: DbProductRow }>('/products', {
@@ -857,6 +864,33 @@ export async function updateDbProduct(id: string, payload: Partial<DbProductMuta
   return fetchDbApi<{ success: boolean; product: DbProductRow }>(`/products/${encodeURIComponent(id)}`, {
     method: 'PATCH',
     body: JSON.stringify(payload),
+  })
+}
+
+export async function fetchDbProductExportRows(storeId: string, includeArchived = false) {
+  const query = new URLSearchParams({ storeId })
+  if (includeArchived) query.set('includeArchived', 'true')
+  const response = await fetchDbApi<{ success: boolean; data: DbProductRow[] }>(`/products/export?${query.toString()}`)
+  return response.data || []
+}
+
+export async function importDbProducts(storeId: string, rows: DbProductImportRow[]) {
+  return fetchDbApi<{ success: boolean; result: { created: number; updated: number; total: number } }>('/products/import', {
+    method: 'POST',
+    body: JSON.stringify({ storeId, rows }),
+  })
+}
+
+export async function archiveDbProduct(id: string, storeId: string) {
+  return fetchDbApi<{ success: boolean; idempotentReplay: boolean; product: DbProductRow }>(`/products/${encodeURIComponent(id)}?storeId=${encodeURIComponent(storeId)}`, {
+    method: 'DELETE',
+  })
+}
+
+export async function restoreDbProduct(id: string, storeId: string) {
+  return fetchDbApi<{ success: boolean; idempotentReplay: boolean; product: DbProductRow }>(`/products/${encodeURIComponent(id)}/restore`, {
+    method: 'POST',
+    body: JSON.stringify({ storeId }),
   })
 }
 

@@ -25,6 +25,7 @@ type PublicProduct = {
   stock: string
   category: string | null
   image: string | null
+  unit: string
   trackStock: boolean
 }
 
@@ -131,7 +132,7 @@ export function TableOrderView({ token }: { token: string }) {
       </main>}
 
       {stage === 'review' && <main className="table-order-main review">
-        <section className="table-order-review-card"><header><ClipboardList /><div><small>ORDER REVIEW</small><h1>ตรวจสอบรายการ</h1><p>{context.table.name}{context.table.zone ? ` · ${context.table.zone}` : ''}</p></div></header>{cart.map((line) => <div className="table-order-line" key={line.product.id}><span><strong>{line.product.name}</strong><small>฿{money(line.product.price)} / ชิ้น</small></span><div><button type="button" onClick={() => change(line.product.id, -1)}><Minus /></button><b>{line.quantity}</b><button type="button" onClick={() => change(line.product.id, 1)}><Plus /></button></div><strong>฿{money(Number(line.product.price) * line.quantity)}</strong></div>)}<label><span>หมายเหตุถึงร้าน</span><textarea value={note} onChange={(event) => setNote(event.target.value)} rows={3} maxLength={1000} placeholder="เช่น ไม่ใส่ผัก แยกน้ำแข็ง" /></label><footer><span><small>ยอดรวม {itemCount} รายการ</small><strong>฿{money(total)}</strong></span><button type="button" onClick={() => { void submit() }} disabled={submitting}><Send />{submitting ? 'กำลังส่ง...' : 'ส่งออเดอร์'}</button></footer></section>
+        <section className="table-order-review-card"><header><ClipboardList /><div><small>ORDER REVIEW</small><h1>ตรวจสอบรายการ</h1><p>{context.table.name}{context.table.zone ? ` · ${context.table.zone}` : ''}</p></div></header>{cart.map((line) => <div className="table-order-line" key={line.product.id}><span><strong>{line.product.name}</strong><small>฿{money(line.product.price)} / {line.product.unit || 'ชิ้น'}</small></span><div><button type="button" onClick={() => change(line.product.id, -1)}><Minus /></button><b>{line.quantity}</b><button type="button" onClick={() => change(line.product.id, 1)}><Plus /></button></div><strong>฿{money(Number(line.product.price) * line.quantity)}</strong></div>)}<label><span>หมายเหตุถึงร้าน</span><textarea value={note} onChange={(event) => setNote(event.target.value)} rows={3} maxLength={1000} placeholder="เช่น ไม่ใส่ผัก แยกน้ำแข็ง" /></label><footer><span><small>ยอดรวม {itemCount} รายการ</small><strong>฿{money(total)}</strong></span><button type="button" onClick={() => { void submit() }} disabled={submitting}><Send />{submitting ? 'กำลังส่ง...' : 'ส่งออเดอร์'}</button></footer></section>
         {error && <div className="table-order-error" role="alert">{error}</div>}
       </main>}
 

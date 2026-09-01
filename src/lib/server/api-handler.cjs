@@ -50,6 +50,14 @@ const {
   updateTable,
 } = require('./integration/orderService.cjs');
 const {
+  archiveProduct,
+  createProduct,
+  importProducts,
+  listProducts,
+  restoreProduct,
+  updateProduct,
+} = require('./integration/productService.cjs');
+const {
   boundedInteger,
   getStoppayTransition,
   getTransactionFilters,
@@ -462,9 +470,9 @@ async function handleApiRequest(req, res) {
         if (!tableResult.rowCount) throw new SecurityError('Table order link was not found', 'TABLE_TOKEN_NOT_FOUND', 404);
         const table = tableResult.rows[0];
         const products = await pool.query(`
-          SELECT id, name, description, price, stock, category, image, "trackStock"
+          SELECT id, name, description, price, stock, category, image, unit, "trackStock"
           FROM "Product"
-          WHERE "storeId" = $1 AND "isActive" = true AND ("trackStock" = false OR stock > 0)
+          WHERE "storeId" = $1 AND "isActive" = true AND "archivedAt" IS NULL AND ("trackStock" = false OR stock > 0)
           ORDER BY category NULLS LAST, name
           LIMIT 200`, [table.storeId]);
         res.statusCode = 200;
@@ -2100,32 +2108,33 @@ async function handleApiRequest(req, res) {
       }
 
       // ── 12. Product catalog ────────────────────────────────────────
-      if (req.method === 'GET' && (url === '/api/db/products' || url.startsWith('/api/db/products?'))) {
+      if (req.method === 'GET' && requestPath === '/api/db/products/export') {
         const query = requestQuery(url);
         const storeId = await resolveAuthorizedStore({ principal, requestedStoreId: query.get('storeId') });
-        const result = await pool.query(`
-          SELECT 
-            p.id,
-            p.name,
-            p.description,
-            p.price,
-            p.cost,
-            p.stock,
-            p.category,
-            p.image,
-            p.sku,
-            p."isActive",
-            p."trackStock",
-            p."createdAt",
-            s.name as store_name
-          FROM "Product" p
-          LEFT JOIN "Store" s ON p."storeId" = s.id
-          WHERE p."storeId" = $1
-          ORDER BY p."createdAt" DESC
-          LIMIT 100;
-        `, [storeId]);
+        const data = await listProducts({ pool, storeId, includeArchived: query.get('includeArchived') === 'true', limit: 5_000 });
         res.statusCode = 200;
-        res.end(JSON.stringify({ success: true, count: result.rows.length, data: result.rows }));
+        res.end(JSON.stringify({ success: true, count: data.length, data }));
+        return;
+      }
+
+      if (req.method === 'GET' && requestPath === '/api/db/products') {
+        const query = requestQuery(url);
+        const storeId = await resolveAuthorizedStore({ principal, requestedStoreId: query.get('storeId') });
+        const data = await listProducts({ pool, storeId, includeArchived: query.get('includeArchived') === 'true', limit: query.get('limit') || 100 });
+        res.statusCode = 200;
+        res.end(JSON.stringify({ success: true, count: data.length, data }));
+        return;
+      }
+
+      if (req.method === 'POST' && requestPath === '/api/db/products/import') {
+        assertRole(principal, ['merchant']);
+        await enforcePrincipalRateLimit({ principal, requestPath, limit: 5, windowSeconds: 60 });
+        const body = await parseJsonBody(req, 4 * 1024 * 1024);
+        const storeId = await resolveAuthorizedStore({ principal, requestedStoreId: body.storeId });
+        const result = await importProducts({ pool, storeId, rows: body.rows });
+        await writeAudit({ poolOrClient: pool, principal, action: 'PRODUCTS_IMPORTED', targetType: 'product_catalog', targetId: storeId, after: result, requestId: req.headers['x-request-id'] || null });
+        res.statusCode = 200;
+        res.end(JSON.stringify({ success: true, result }));
         return;
       }
 
@@ -2134,25 +2143,24 @@ async function handleApiRequest(req, res) {
         await enforcePrincipalRateLimit({ principal, requestPath, limit: 30, windowSeconds: 60 });
         const body = await parseJsonBody(req);
         const storeId = await resolveAuthorizedStore({ principal, requestedStoreId: body.storeId });
-        const name = typeof body.name === 'string' ? body.name.trim() : '';
-        const price = Number(body.price);
-        const cost = body.cost === undefined || body.cost === null || body.cost === '' ? 0 : Number(body.cost);
-        const stock = body.stock === undefined || body.stock === null || body.stock === '' ? 0 : Number(body.stock);
-        const image = typeof body.image === 'string' ? body.image.trim() : null;
-        if (!name || name.length > 255 || !Number.isFinite(price) || price < 0 || !Number.isFinite(cost) || cost < 0 || !Number.isFinite(stock) || stock < 0 || (image && (image.length > 2_048 || image.startsWith('data:')))) {
-          res.statusCode = 422;
-          res.end(JSON.stringify({ success: false, error: { code: 'PRODUCT_VALIDATION_FAILED', message: 'ข้อมูลสินค้าไม่ถูกต้อง' } }));
-          return;
-        }
-        const result = await pool.query(`
-          INSERT INTO "Product" ("storeId", name, description, price, cost, stock, category, image, sku, "isActive", "trackStock", "createdAt", "updatedAt")
-          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW(), NOW())
-          RETURNING id, "storeId", name, description, price, cost, stock, category, image, sku, "isActive", "trackStock", "createdAt", "updatedAt"
-        `, [storeId, name, typeof body.description === 'string' ? body.description.trim().slice(0, 2_000) : null, price, cost, stock, typeof body.category === 'string' ? body.category.trim().slice(0, 100) : null, image, typeof body.sku === 'string' ? body.sku.trim().slice(0, 100) : null, body.isActive !== false, body.trackStock === true]);
-        const product = result.rows[0];
+        const product = await createProduct({ pool, storeId, input: body });
         await writeAudit({ poolOrClient: pool, principal, action: 'PRODUCT_CREATED', targetType: 'product', targetId: product.id, after: { storeId, name: product.name, price: product.price, stock: product.stock }, requestId: req.headers['x-request-id'] || null });
         res.statusCode = 201;
         res.end(JSON.stringify({ success: true, product }));
+        return;
+      }
+
+      const productRestoreRoute = requestPath.match(/^\/api\/db\/products\/([^/]+)\/restore$/);
+      if (req.method === 'POST' && productRestoreRoute) {
+        assertRole(principal, ['merchant']);
+        await enforcePrincipalRateLimit({ principal, requestPath, limit: 30, windowSeconds: 60 });
+        const body = await parseJsonBody(req);
+        const storeId = await resolveAuthorizedStore({ principal, requestedStoreId: body.storeId });
+        const productId = decodeURIComponent(productRestoreRoute[1]);
+        const result = await restoreProduct({ pool, storeId, productId });
+        if (!result.idempotentReplay) await writeAudit({ poolOrClient: pool, principal, action: 'PRODUCT_RESTORED', targetType: 'product', targetId: productId, before: { archivedAt: result.current.archivedAt }, after: { archivedAt: null }, requestId: req.headers['x-request-id'] || null });
+        res.statusCode = 200;
+        res.end(JSON.stringify({ success: true, idempotentReplay: result.idempotentReplay, product: result.product }));
         return;
       }
 
@@ -2163,43 +2171,24 @@ async function handleApiRequest(req, res) {
         const body = await parseJsonBody(req);
         const storeId = await resolveAuthorizedStore({ principal, requestedStoreId: body.storeId });
         const productId = decodeURIComponent(productMutationRoute[1]);
-        const existing = await pool.query('SELECT * FROM "Product" WHERE id = $1 AND "storeId" = $2 LIMIT 1', [productId, storeId]);
-        if (existing.rowCount === 0) {
-          res.statusCode = 404;
-          res.end(JSON.stringify({ success: false, error: { code: 'PRODUCT_NOT_FOUND', message: 'ไม่พบสินค้าในร้านนี้' } }));
-          return;
-        }
-        const current = existing.rows[0];
-        if (body.expectedUpdatedAt && new Date(body.expectedUpdatedAt).getTime() !== new Date(current.updatedAt).getTime()) {
-          res.statusCode = 409;
-          res.end(JSON.stringify({ success: false, error: { code: 'PRODUCT_VERSION_CONFLICT', message: 'ข้อมูลสินค้าถูกแก้ไขแล้ว กรุณาโหลดใหม่' } }));
-          return;
-        }
-        const name = body.name === undefined ? current.name : String(body.name).trim();
-        const price = body.price === undefined ? Number(current.price) : Number(body.price);
-        const cost = body.cost === undefined ? Number(current.cost) : Number(body.cost);
-        const stock = body.stock === undefined ? Number(current.stock) : Number(body.stock);
-        const image = body.image === undefined ? current.image : (typeof body.image === 'string' ? body.image.trim() : null);
-        if (!name || name.length > 255 || !Number.isFinite(price) || price < 0 || !Number.isFinite(cost) || cost < 0 || !Number.isFinite(stock) || stock < 0 || (image && (image.length > 2_048 || image.startsWith('data:')))) {
-          res.statusCode = 422;
-          res.end(JSON.stringify({ success: false, error: { code: 'PRODUCT_VALIDATION_FAILED', message: 'ข้อมูลสินค้าไม่ถูกต้อง' } }));
-          return;
-        }
-        const result = await pool.query(`
-          UPDATE "Product"
-          SET name = $1, description = $2, price = $3, cost = $4, stock = $5, category = $6, image = $7, sku = $8, "isActive" = $9, "trackStock" = $10, "updatedAt" = NOW()
-          WHERE id = $11 AND "storeId" = $12 AND ($13::timestamptz IS NULL OR "updatedAt" = $13::timestamptz)
-          RETURNING id, "storeId", name, description, price, cost, stock, category, image, sku, "isActive", "trackStock", "createdAt", "updatedAt"
-        `, [name, body.description === undefined ? current.description : String(body.description).trim().slice(0, 2_000), price, cost, stock, body.category === undefined ? current.category : String(body.category).trim().slice(0, 100), image, body.sku === undefined ? current.sku : String(body.sku).trim().slice(0, 100), body.isActive === undefined ? current.isActive : body.isActive === true, body.trackStock === undefined ? current.trackStock : body.trackStock === true, productId, storeId, body.expectedUpdatedAt || null]);
-        if (result.rowCount === 0) {
-          res.statusCode = 409;
-          res.end(JSON.stringify({ success: false, error: { code: 'PRODUCT_VERSION_CONFLICT', message: 'ข้อมูลสินค้าถูกแก้ไขแล้ว กรุณาโหลดใหม่' } }));
-          return;
-        }
-        const product = result.rows[0];
-        await writeAudit({ poolOrClient: pool, principal, action: 'PRODUCT_UPDATED', targetType: 'product', targetId: product.id, before: { price: current.price, stock: current.stock, isActive: current.isActive }, after: { price: product.price, stock: product.stock, isActive: product.isActive }, requestId: req.headers['x-request-id'] || null });
+        const result = await updateProduct({ pool, storeId, productId, input: body });
+        const product = result.product;
+        await writeAudit({ poolOrClient: pool, principal, action: 'PRODUCT_UPDATED', targetType: 'product', targetId: product.id, before: { price: result.current.price, cost: result.current.cost, stock: result.current.stock, isActive: result.current.isActive, trackStock: result.current.trackStock }, after: { price: product.price, cost: product.cost, stock: product.stock, isActive: product.isActive, trackStock: product.trackStock }, requestId: req.headers['x-request-id'] || null });
         res.statusCode = 200;
         res.end(JSON.stringify({ success: true, product }));
+        return;
+      }
+
+      if (req.method === 'DELETE' && productMutationRoute) {
+        assertRole(principal, ['merchant']);
+        await enforcePrincipalRateLimit({ principal, requestPath, limit: 30, windowSeconds: 60 });
+        const query = requestQuery(url);
+        const storeId = await resolveAuthorizedStore({ principal, requestedStoreId: query.get('storeId') });
+        const productId = decodeURIComponent(productMutationRoute[1]);
+        const result = await archiveProduct({ pool, storeId, productId });
+        if (!result.idempotentReplay) await writeAudit({ poolOrClient: pool, principal, action: 'PRODUCT_ARCHIVED', targetType: 'product', targetId: productId, before: { isActive: result.current.isActive, archivedAt: null }, after: { isActive: false, archivedAt: result.product.archivedAt }, requestId: req.headers['x-request-id'] || null });
+        res.statusCode = 200;
+        res.end(JSON.stringify({ success: true, idempotentReplay: result.idempotentReplay, product: result.product }));
         return;
       }
 

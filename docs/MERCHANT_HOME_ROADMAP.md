@@ -17,7 +17,7 @@
 | `/merchant/home` | Payment AI header, balance strip, assistant card, payment tiles และ bottom nav | `/api/db/home`, notifications และ Store-scoped capability | **ใช้ได้เมื่อ Home contract เปิด** | Store/session/timeout browser matrix และ rollout evidence |
 | `/merchant/payment` | Payment AI amount, channel picker, keypad, QR/result modal | `createTransactionCommand`, idempotency key, status polling และ persisted Transaction | **logic implement แล้ว แต่ขึ้นกับ integration readiness** | ต้องเปิด transaction routing/query flags, Store credential, Backoffice/LLGW และ webhook/reconcile ที่ผ่าน staging |
 | `/merchant/transactions` | filter, search และ responsive transaction cards/table | Store-scoped `/api/db/transactions` | **ใช้ได้แบบ read-only** | detail view, pagination UX, export และ browser permission evidence |
-| `/merchant/products` | product/stock list, filter, create/edit modal | PostgreSQL Product API, Store ownership และ optimistic `updatedAt` conflict | **ใช้ได้บางส่วน** | delete/bulk import/export, category persistence, private image upload และ history; ปุ่ม import/export ถูก disable แล้ว ไม่แสดง fake success |
+| `/merchant/products` | product/stock list, filter, create/edit/archive/restore modal และ CSV controls | PostgreSQL Product API, Store ownership, optimistic `updatedAt` conflict และ transactional import | **production catalog path ใช้ได้** | category master, multilingual/gallery persistence, private image upload และ price/stock history |
 | `/merchant/reports` | Payment AI cards และรายการล่าสุด | `/api/db/home` + `/api/db/transactions` | **ใช้ได้บางส่วนแบบ read-only** | date range, real chart/top-product aggregation และ export API |
 | `/merchant/wallet` | balance metrics, transaction list และ unavailable payout panel | `/api/db/home` + `/api/db/transactions` | **ดูข้อมูลได้; ถอนเงินยังใช้ไม่ได้** | verified bank account model, OTP, durable withdrawal ledger, provider result และ reconciliation |
 | `/merchant/kyc` | KYC workspace, document timeline/version และ chat | PostgreSQL KYC APIs, Store/Case authorization, signed Backoffice integration | **implement แล้วแบบ feature/integration-gated** | private storage/scanner/encryption และ Backoffice staging evidence ก่อน production sign-off |
@@ -40,7 +40,7 @@
 - Bottom navigation ใช้ `merchantNavigation.ts` ชุดเดียวกันทุก route และ route ที่ไม่มี logic จริงต้องแสดง unavailable แทน success/demo ใน production
 - Merchant route ทั้งหมดใช้ Payment AI phone shell/header/bottom navigation แล้ว. Body ของ QuickPay, Transactions, Products, Finance, Settings, KYC, POS, Orders, Services, SalesPage, Developer และ unavailable state ใช้ card/control treatment เดียวกัน โดยคง API/handler ของ `chatpos-react`
 - POS, Orders, Services และ SalesPage แสดง `DEMO ONLY`; Developer แสดง `TESTING SURFACE`; Tables, Benefits, STOPPAY และ Billing แสดง unavailable ตาม capability/implementation จริง
-- Settings ปิด control ที่ยังไม่มี persistence/API, Product import/export ถูก disable และ QR order policy ถูก disable; ห้ามแสดง `alert()` success แทน mutation จริง
+- Settings ปิด control ที่ยังไม่มี persistence/API; Product CSV import/export และ archive/restore ใช้ Store-scoped API จริงแล้ว และ QR order policy ที่ไม่มี owner ยังถูก disable; ห้ามแสดง `alert()` success แทน mutation จริง
 - Global Payment AI tokens/theme ใช้กับ Landing, Merchant Login, Registration, Customer Ordering, Booking, Catalog, standalone QuickPay และ standalone/embedded Developer แล้ว นอกเหนือจาก Merchant route ทั้งหมด
 - เพิ่ม shared Thai voice engine, ไฟล์เสียง 42 clips, LINE MP3 fallback และ Web Speech สำหรับ QuickPay keypad/method/amount/payment success กับ Customer order/payment completion แล้ว; Merchant order-arrival speech ยังรอ Order API/event owner
 
@@ -159,9 +159,9 @@ Reference bottom navigation ใช้ `orders`, `tables`, `home`, `pos` แล�
 #### M5: Catalog และ services parity
 
 - [~] ปรับ product table, category filter, stock state, image preview และ edit modal ตาม reference; Product table, loading/error/empty state และ edit modal ใช้งานแล้ว แต่ visual comparison ยังรอ
-- [~] ใช้ `Product` API/ฐานข้อมูลเป็น authority ของสินค้า; `ProductsView` ใช้ Store-scoped API จริงแล้ว แต่ POS/CatalogPage และ category/service state บางส่วนยังเป็น transitional localStorage
+- [x] ใช้ `Product` API/ฐานข้อมูลเป็น authority ของ ProductsView, Merchant POS และ public table order พร้อม Store scope, SKU, unit, active/stock policy, archive/restore และ CSV import/export; legacy CatalogPage กับ category/service state บางส่วนยังเป็น transitional localStorage
 - [ ] กำหนดและ implement service/availability persistence สำหรับ services และ booking
-- [~] ตรวจ ownership, validation, price/status history และ audit ของ product/service mutation; Product create/update มี Store scope, validation, audit และ optimistic `updatedAt` conflict แล้ว แต่ price/status history และ service mutation ยังไม่มี
+- [~] ตรวจ ownership, validation, price/status history และ audit ของ product/service mutation; Product create/update/archive/restore/import มี Store scope, validation, audit และ optimistic `updatedAt` conflict แล้ว แต่ price/stock history และ service mutation ยังไม่มี
 - [~] ทำ image upload/preview/error state โดยไม่เก็บไฟล์ธุรกิจเป็น mock base64 ใน production record; ตอนนี้รับเฉพาะ URL/path, ปฏิเสธ `data:` และมี preview แต่ยังไม่มี private upload/storage adapter หรือ failed-upload evidence
 - [ ] ทดสอบข้าม device, refresh, concurrent edit, invalid price/stock และ failed upload
 

@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
+import Papa from 'papaparse'
 import { ProfileSettingsModal } from './ProfileSettingsModal'
 import { MerchantKycView } from './MerchantKycView'
 import { DeveloperConsoleView } from './DeveloperConsoleView'
-import { createDbProduct, fetchDbAssignments, fetchDbBenefitsResult, fetchDbHomeResult, fetchDbProducts, fetchDbProductsResult, fetchDbStoppay, fetchDbStoresResult, fetchDbTransactionsResult, transitionDbStoppay, updateDbProduct, clearStoredUser, getStoredUser, logoutUser, type AuthUser, type DbAssignmentRow, type DbBenefitRow, type DbHomeReadModel, type DbProductRow, type DbStoppayState, type DbStoreRow, type DbTransactionRow } from './dbApi'
+import { archiveDbProduct, createDbProduct, fetchDbAssignments, fetchDbBenefitsResult, fetchDbHomeResult, fetchDbProductExportRows, fetchDbProducts, fetchDbProductsResult, fetchDbStoppay, fetchDbStoresResult, fetchDbTransactionsResult, importDbProducts, restoreDbProduct, transitionDbStoppay, updateDbProduct, clearStoredUser, getStoredUser, logoutUser, type AuthUser, type DbAssignmentRow, type DbBenefitRow, type DbHomeReadModel, type DbProductImportRow, type DbProductRow, type DbStoppayState, type DbStoreRow, type DbTransactionRow } from './dbApi'
 import { MerchantHome as MerchantHomeDashboard, MerchantBottomNavigation, type StoreLoadState } from './MerchantHomeView'
 import { MerchantOrdersView, MerchantPosView, MerchantTablesView } from './MerchantOperationsView'
 import { QuickPayView as RoutedQuickPayView } from './QuickPayView'
@@ -23,6 +24,7 @@ import {
   Clock,
   Copy,
   CreditCard,
+  Download,
   Delete,
   Eye,
   EyeOff,
@@ -53,6 +55,7 @@ import {
   Pencil,
   ShoppingBag,
   Truck,
+  Upload,
   ArrowUpDown,
   Filter,
   Home,
@@ -211,7 +214,13 @@ export type CatalogItem = {
   category: string
   type: 'service' | 'product'
   price: number
+  cost?: number
   stock: number | null
+  sku?: string | null
+  unit?: string
+  isActive?: boolean
+  trackStock?: boolean
+  archivedAt?: string | null
   soldCount: number
   status: 'active' | 'out_of_stock' | 'paused'
   // Multi-language descriptions (Short & Detailed)
@@ -1131,7 +1140,12 @@ function ItemFormModal({
   const [isCustomCategory, setIsCustomCategory] = useState(false)
   const [customCategoryName, setCustomCategoryName] = useState('')
   const [price, setPrice] = useState('')
+  const [cost, setCost] = useState('')
   const [stock, setStock] = useState('')
+  const [sku, setSku] = useState('')
+  const [unit, setUnit] = useState('ชิ้น')
+  const [isActive, setIsActive] = useState(true)
+  const [trackStock, setTrackStock] = useState(true)
 
   const [images, setImages] = useState<string[]>([])
   const [imageUrlInput, setImageUrlInput] = useState('')
@@ -1142,7 +1156,7 @@ function ItemFormModal({
   const handleAddImage = () => {
     if (!imageUrlInput.trim()) return
     playTapSound('pop')
-    setImages((prev) => [...prev, imageUrlInput.trim()])
+    setImages([imageUrlInput.trim()])
     setImageUrlInput('')
   }
 
@@ -1153,17 +1167,17 @@ function ItemFormModal({
 
   const handleAddPresetImage = (url: string) => {
     playTapSound('pop')
-    if (images.includes(url)) return
-    setImages((prev) => [...prev, url])
+    setImages([url])
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setFormError('')
     const parsedPrice = Number(price)
+    const parsedCost = Number(cost || 0)
     const parsedStock = Number(stock)
-    if (!Number.isFinite(parsedPrice) || parsedPrice < 0 || (type === 'product' && (!Number.isFinite(parsedStock) || parsedStock < 0))) {
-      setFormError('กรุณาตรวจสอบราคาและสต็อกให้เป็นจำนวนที่ถูกต้อง')
+    if (!Number.isFinite(parsedPrice) || parsedPrice < 0 || !Number.isFinite(parsedCost) || parsedCost < 0 || (type === 'product' && (!Number.isFinite(parsedStock) || parsedStock < 0))) {
+      setFormError('กรุณาตรวจสอบราคา ต้นทุน และสต็อกให้เป็นจำนวนที่ถูกต้อง')
       return
     }
     const finalCat = isCustomCategory && customCategoryName.trim()
@@ -1184,7 +1198,12 @@ function ItemFormModal({
       category: finalCat,
       type,
       price: parsedPrice,
+      cost: type === 'product' ? parsedCost : 0,
       stock: type === 'product' ? parsedStock : null,
+      sku: type === 'product' ? sku.trim() || null : null,
+      unit: type === 'product' ? unit.trim() || 'ชิ้น' : 'ครั้ง',
+      isActive,
+      trackStock: type === 'product' ? trackStock : false,
       shortDescTh,
       shortDescEn,
       shortDescCn,
@@ -1216,7 +1235,12 @@ function ItemFormModal({
     setCustomCategoryName('')
     setIsCustomCategory(false)
     setPrice('')
+    setCost('')
     setStock('')
+    setSku('')
+    setUnit('ชิ้น')
+    setIsActive(true)
+    setTrackStock(true)
     setImages([])
     setFormError('')
     onClose()
@@ -1231,8 +1255,8 @@ function ItemFormModal({
               {type === 'product' ? <Package size={22} /> : <Sparkles size={22} />}
             </div>
             <div>
-              <h3>{type === 'product' ? 'เพิ่มสินค้าใหม่ (3 ภาษา & คลังภาพ)' : 'เพิ่มบริการใหม่ (3 ภาษา & คลังภาพ)'}</h3>
-              <p>กรอกข้อมูล 3 ภาษา (ไทย/อังกฤษ/จีน), หมวดหมู่, ราคาขาย และแนบรูปภาพหลายรูป</p>
+              <h3>{type === 'product' ? 'เพิ่มสินค้าใหม่' : 'เพิ่มบริการใหม่'}</h3>
+              <p>กรอกข้อมูลสินค้า ราคา ต้นทุน สต็อก และสถานะการเปิดขาย</p>
             </div>
           </div>
           <button className="qs-modal-close" onClick={() => { playTapSound('click'); onClose() }} type="button">
@@ -1486,6 +1510,11 @@ function ItemFormModal({
                   </div>
                 </div>
 
+                {type === 'product' && <div className="qs-form-group">
+                  <label htmlFor="item-cost">ต้นทุนต่อหน่วย (บาท)</label>
+                  <div className="qs-price-input-wrapper"><span className="qs-currency-prefix">฿</span><input id="item-cost" type="number" min="0" step="0.01" value={cost} onChange={(e) => setCost(e.target.value)} placeholder="0.00" /></div>
+                </div>}
+
                 {type === 'product' && (
                   <div className="qs-form-group">
                     <label htmlFor="item-stock">จำนวนสต็อกเริ่มต้น *</label>
@@ -1494,27 +1523,37 @@ function ItemFormModal({
                         id="item-stock"
                         type="number"
                         min="0"
+                        step="0.001"
                         value={stock}
                         onChange={(e) => setStock(e.target.value)}
                         placeholder="0"
                         required
                       />
-                      <span className="qs-unit-suffix">ชิ้น</span>
+                      <span className="qs-unit-suffix">{unit}</span>
                     </div>
                   </div>
                 )}
+
+                {type === 'product' && <>
+                  <div className="qs-form-group"><label htmlFor="item-sku">SKU</label><input id="item-sku" value={sku} maxLength={100} onChange={(e) => setSku(e.target.value)} placeholder="เช่น DRINK-THAI-001" /></div>
+                  <div className="qs-form-group"><label htmlFor="item-unit">หน่วยสินค้า *</label><input id="item-unit" list="product-unit-options" value={unit} maxLength={30} onChange={(e) => setUnit(e.target.value)} required /><datalist id="product-unit-options"><option value="ชิ้น" /><option value="แก้ว" /><option value="ขวด" /><option value="กล่อง" /><option value="จาน" /><option value="กิโลกรัม" /><option value="กรัม" /><option value="ลิตร" /></datalist></div>
+                  <div className="qs-product-switches">
+                    <label><input type="checkbox" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} /><span><strong>เปิดขาย</strong><small>แสดงสินค้าใน POS และหน้าสั่งซื้อ</small></span></label>
+                    <label><input type="checkbox" checked={trackStock} onChange={(e) => setTrackStock(e.target.checked)} /><span><strong>ตัดสต็อก</strong><small>ตรวจจำนวนคงเหลือและตัดเมื่อออเดอร์เสร็จ</small></span></label>
+                  </div>
+                </>}
               </div>
             </div>
 
-            {/* 4. Multiple Images Section */}
+            {/* 4. Primary image */}
             <div className="qs-images-section">
               <div className="qs-images-header">
                 <div className="qs-img-header-left">
                   <ImageIcon size={17} color="#059669" />
-                  <span>คลังรูปภาพประกอบ (แนบได้หลายภาพ):</span>
+                  <span>รูปภาพหลัก:</span>
                 </div>
                 {images.length > 0 && (
-                  <span className="qs-img-count-chip">{images.length} ภาพ</span>
+                  <span className="qs-img-count-chip">เลือกแล้ว</span>
                 )}
               </div>
 
@@ -1522,7 +1561,7 @@ function ItemFormModal({
                 <input
                   value={imageUrlInput}
                   onChange={(e) => setImageUrlInput(e.target.value)}
-                  placeholder="วาง URL รูปภาพสินค้า หรือคลิกเลือกภาพตัวอย่างด้านล่าง..."
+                  placeholder="วาง URL รูปภาพสินค้า หรือคลิกเลือกภาพตัวอย่างด้านล่าง"
                 />
                 <button type="button" className="qs-add-img-btn" onClick={handleAddImage}>
                   <Plus size={15} /> เพิ่มรูป
@@ -1589,7 +1628,7 @@ function ItemFormModal({
               ยกเลิก
             </button>
             <button type="submit" className="qs-btn-submit" disabled={isSaving}>
-              {isSaving ? 'กำลังบันทึก...' : `บันทึก${type === 'product' ? 'สินค้า' : 'บริการ'} (${images.length} รูปภาพ)`}
+              {isSaving ? 'กำลังบันทึก...' : `บันทึก${type === 'product' ? 'สินค้า' : 'บริการ'}`}
             </button>
           </div>
         </form>
@@ -1799,9 +1838,15 @@ function catalogItemFromDb(product: DbProductRow): CatalogItem {
     category: product.category || 'สินค้าทั่วไป',
     type: 'product',
     price: Number(product.price) || 0,
+    cost: Number(product.cost) || 0,
     stock: Number(product.stock) || 0,
+    sku: product.sku,
+    unit: product.unit || 'ชิ้น',
+    isActive: product.isActive,
+    trackStock: product.trackStock,
+    archivedAt: product.archivedAt,
     soldCount: 0,
-    status: product.isActive ? ((Number(product.stock) || 0) === 0 ? 'out_of_stock' : 'active') : 'paused',
+    status: product.isActive ? (product.trackStock && (Number(product.stock) || 0) === 0 ? 'out_of_stock' : 'active') : 'paused',
     shortDescTh: product.description || '',
     images: product.image ? [product.image] : [],
     updatedAt: product.updatedAt,
@@ -1814,8 +1859,12 @@ function ProductsView({ storeId }: { storeId: string | null }) {
   const [productState, setProductState] = useState<'loading' | 'ready' | 'empty' | 'error'>(storeId ? 'loading' : 'empty')
   const [productError, setProductError] = useState('')
   const [isSaving, setIsSaving] = useState(false)
+  const [isTransferring, setIsTransferring] = useState(false)
+  const [productNotice, setProductNotice] = useState('')
+  const [includeArchived, setIncludeArchived] = useState(false)
+  const importInputRef = useRef<HTMLInputElement | null>(null)
 
-  const [activeFilter, setActiveFilter] = useState<'all' | 'in_stock' | 'low_stock' | 'out_of_stock'>('all')
+  const [activeFilter, setActiveFilter] = useState<'all' | 'in_stock' | 'low_stock' | 'out_of_stock' | 'archived'>('all')
   const [activeCategory, setActiveCategory] = useState<string>('all')
   const [isQuickAddCatOpen, setIsQuickAddCatOpen] = useState(false)
   const [newCatInput, setNewCatInput] = useState('')
@@ -1832,7 +1881,7 @@ function ProductsView({ storeId }: { storeId: string | null }) {
     }
     setProductState('loading')
     setProductError('')
-    const result = await fetchDbProductsResult(storeId)
+    const result = await fetchDbProductsResult(storeId, includeArchived)
     if (result.error) {
       setProductState('error')
       setProductError(result.error)
@@ -1846,7 +1895,7 @@ function ProductsView({ storeId }: { storeId: string | null }) {
 
   useEffect(() => {
     void loadProducts()
-  }, [storeId])
+  }, [storeId, includeArchived])
 
   const handleAddCategory = (newCat: string) => {
     const trimmed = newCat.trim()
@@ -1866,11 +1915,14 @@ function ProductsView({ storeId }: { storeId: string | null }) {
         name: newItem.name,
         description: newItem.fullDescTh || newItem.shortDescTh || null,
         price: newItem.price,
+        cost: newItem.cost || 0,
         stock: newItem.stock ?? 0,
         category: newItem.category,
         image: newItem.images?.[0] || null,
-        isActive: true,
-        trackStock: true,
+        sku: newItem.sku || null,
+        unit: newItem.unit || 'ชิ้น',
+        isActive: newItem.isActive !== false,
+        trackStock: newItem.trackStock === true,
       })
       const savedProduct = catalogItemFromDb(response.product)
       setCatalog((current) => [savedProduct, ...current])
@@ -1881,13 +1933,13 @@ function ProductsView({ storeId }: { storeId: string | null }) {
     }
   }
 
-  const handleUpdateProduct = async (updates: { name: string; price: number; stock: number; category: string; image: string | null }) => {
+  const handleUpdateProduct = async (updates: { name: string; description: string | null; price: number; cost: number; stock: number; category: string; image: string | null; sku: string | null; unit: string; isActive: boolean; trackStock: boolean }) => {
     if (!selectedItem) return
     const currentProduct = catalog.find((product) => product.id === selectedItem.id)
     if (!currentProduct) return
     setIsSaving(true)
     try {
-      const response = await updateDbProduct(selectedItem.id, { ...updates, expectedUpdatedAt: (selectedItem as CatalogItem & { updatedAt?: string }).updatedAt })
+      const response = await updateDbProduct(selectedItem.id, { storeId: storeId || undefined, ...updates, expectedUpdatedAt: selectedItem.updatedAt })
       const updatedProduct = catalogItemFromDb(response.product)
       setCatalog((current) => current.map((product) => product.id === updatedProduct.id ? updatedProduct : product))
       setSelectedItem(updatedProduct)
@@ -1898,26 +1950,162 @@ function ProductsView({ storeId }: { storeId: string | null }) {
     }
   }
 
+  const handleArchiveProduct = async () => {
+    if (!storeId || !selectedItem || !window.confirm(`เก็บ “${selectedItem.name}” เข้าคลังถาวรและหยุดขายทันทีหรือไม่`)) return
+    setIsSaving(true)
+    setProductError('')
+    try {
+      const response = await archiveDbProduct(selectedItem.id, storeId)
+      if (includeArchived) {
+        const archivedProduct = catalogItemFromDb(response.product)
+        setCatalog((current) => current.map((product) => product.id === archivedProduct.id ? archivedProduct : product))
+      } else {
+        setCatalog((current) => current.filter((product) => product.id !== selectedItem.id))
+      }
+      setSelectedItem(null)
+      setIsEditModalOpen(false)
+      setProductNotice('เก็บสินค้าเข้าคลังถาวรแล้ว')
+    } catch (error) {
+      setProductError(error instanceof Error ? error.message : 'เก็บสินค้าเข้าคลังถาวรไม่สำเร็จ')
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  const handleRestoreProduct = async (item: CatalogItem) => {
+    if (!storeId) return
+    setIsSaving(true)
+    setProductError('')
+    try {
+      const response = await restoreDbProduct(item.id, storeId)
+      const restoredProduct = catalogItemFromDb(response.product)
+      setCatalog((current) => current.map((product) => product.id === restoredProduct.id ? restoredProduct : product))
+      setProductNotice(`คืนสินค้า “${restoredProduct.name}” แล้ว`)
+    } catch (error) {
+      setProductError(error instanceof Error ? error.message : 'คืนสินค้าไม่สำเร็จ')
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  const handleExportProducts = async () => {
+    if (!storeId) return
+    setIsTransferring(true)
+    setProductError('')
+    try {
+      const exportArchived = activeFilter === 'archived'
+      const exportRows = await fetchDbProductExportRows(storeId, exportArchived)
+      const products = exportRows.filter((product) => exportArchived ? Boolean(product.archivedAt) : !product.archivedAt)
+      const rows = products.map((product) => ({
+        name: product.name,
+        description: product.description || '',
+        price: product.price,
+        cost: product.cost,
+        stock: product.stock,
+        category: product.category || '',
+        image: product.image || '',
+        sku: product.sku || '',
+        unit: product.unit,
+        isActive: product.isActive,
+        trackStock: product.trackStock,
+      }))
+      const csv = Papa.unparse(rows, { columns: ['name', 'description', 'price', 'cost', 'stock', 'category', 'image', 'sku', 'unit', 'isActive', 'trackStock'], escapeFormulae: true })
+      const url = URL.createObjectURL(new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8' }))
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `chatpos-products-${new Date().toISOString().slice(0, 10)}.csv`
+      link.click()
+      URL.revokeObjectURL(url)
+      setProductNotice(`ส่งออก ${products.length} รายการแล้ว`)
+    } catch (error) {
+      setProductError(error instanceof Error ? error.message : 'ส่งออกสินค้าไม่สำเร็จ')
+    } finally {
+      setIsTransferring(false)
+    }
+  }
+
+  const handleImportProducts = async (file: File) => {
+    if (!storeId) return
+    setIsTransferring(true)
+    setProductError('')
+    setProductNotice('')
+    try {
+      const parsed = await new Promise<Papa.ParseResult<Record<string, string>>>((resolve, reject) => {
+        Papa.parse<Record<string, string>>(file, { header: true, skipEmptyLines: 'greedy', transformHeader: (header) => header.trim(), complete: resolve, error: reject })
+      })
+      const parseError = parsed.errors[0]
+      if (parseError) {
+        const rowLabel = typeof parseError.row === 'number' ? ` แถว ${parseError.row + 2}` : ''
+        throw new Error(`CSV${rowLabel}: ${parseError.message}`)
+      }
+      const parseBoolean = (value: string | undefined, fallback: boolean) => {
+        const normalized = String(value || '').trim().toLowerCase()
+        if (!normalized) return fallback
+        if (['true', '1', 'yes', 'y', 'เปิด', 'ใช่'].includes(normalized)) return true
+        if (['false', '0', 'no', 'n', 'ปิด', 'ไม่'].includes(normalized)) return false
+        throw new Error(`ค่าบูลีน “${value}” ไม่ถูกต้อง`)
+      }
+      const rows: DbProductImportRow[] = parsed.data.map((row, index) => {
+        try {
+          if (!row.name?.trim()) throw new Error('ไม่มีชื่อสินค้า')
+          if (!row.sku?.trim()) throw new Error('ไม่มี SKU ซึ่งจำเป็นสำหรับการนำเข้า')
+          if (row.price === undefined || row.price.trim() === '') throw new Error('ไม่มีราคาขาย')
+          const parsedPrice = Number(row.price)
+          const parsedCost = Number(row.cost || 0)
+          const parsedStock = Number(row.stock || 0)
+          if (![parsedPrice, parsedCost, parsedStock].every((value) => Number.isFinite(value) && value >= 0)) throw new Error('ราคา ต้นทุน หรือสต็อกไม่ถูกต้อง')
+          return {
+            name: row.name.trim(),
+            description: row.description?.trim() || null,
+            price: parsedPrice,
+            cost: parsedCost,
+            stock: parsedStock,
+            category: row.category?.trim() || null,
+            image: row.image?.trim() || null,
+            sku: row.sku.trim(),
+            unit: row.unit?.trim() || 'ชิ้น',
+            isActive: parseBoolean(row.isActive, true),
+            trackStock: parseBoolean(row.trackStock, true),
+          }
+        } catch (error) {
+          throw new Error(`แถว ${index + 2}: ${error instanceof Error ? error.message : 'ข้อมูลไม่ถูกต้อง'}`)
+        }
+      })
+      const response = await importDbProducts(storeId, rows)
+      await loadProducts()
+      setProductNotice(`นำเข้าสำเร็จ ${response.result.total} รายการ: สร้างใหม่ ${response.result.created}, อัปเดตตาม SKU ${response.result.updated}`)
+    } catch (error) {
+      setProductError(error instanceof Error ? error.message : 'นำเข้าสินค้าไม่สำเร็จ')
+    } finally {
+      setIsTransferring(false)
+      if (importInputRef.current) importInputRef.current.value = ''
+    }
+  }
+
   const filteredProducts = catalog.filter((item) => {
     const matchesQuery =
       item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       item.category.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (item.sku && item.sku.toLowerCase().includes(searchQuery.toLowerCase())) ||
       (item.nameEn && item.nameEn.toLowerCase().includes(searchQuery.toLowerCase())) ||
       (item.nameCn && item.nameCn.toLowerCase().includes(searchQuery.toLowerCase()))
     
     const matchesCategory = activeCategory === 'all' || item.category === activeCategory
 
     if (!matchesCategory) return false
+    if (activeFilter === 'archived') return matchesQuery && Boolean(item.archivedAt)
+    if (item.archivedAt) return false
 
-    if (activeFilter === 'in_stock') return matchesQuery && (item.stock ?? 0) > 10
-    if (activeFilter === 'low_stock') return matchesQuery && (item.stock ?? 0) > 0 && (item.stock ?? 0) <= 10
-    if (activeFilter === 'out_of_stock') return matchesQuery && (item.stock ?? 0) === 0
+    if (activeFilter === 'in_stock') return matchesQuery && item.isActive && (!item.trackStock || (item.stock ?? 0) > 10)
+    if (activeFilter === 'low_stock') return matchesQuery && item.isActive && item.trackStock && (item.stock ?? 0) > 0 && (item.stock ?? 0) <= 10
+    if (activeFilter === 'out_of_stock') return matchesQuery && item.trackStock && (item.stock ?? 0) === 0
     return matchesQuery
   })
 
   return (
     <div className="queue-services-page ai-products-view">
       {productError && <div className="merchant-data-alert" role="alert"><ShieldAlert size={18} /><span>{productError}</span><button type="button" onClick={() => { void loadProducts() }} disabled={productState === 'loading'}><RefreshCw size={14} /> ลองใหม่</button></div>}
+      {productNotice && <div className="merchant-data-alert product-success-notice" role="status"><CheckCircle2 size={18} /><span>{productNotice}</span><button type="button" onClick={() => setProductNotice('')} aria-label="ปิดข้อความ"><X size={14} /></button></div>}
       {productState === 'loading' && <div className="merchant-transaction-state" aria-busy="true"><RefreshCw size={24} className="spin" /><span>กำลังโหลดสินค้าและสต็อก</span></div>}
       {/* Action Hero Cards */}
       <section className="ov-hero-action-cards">
@@ -1939,7 +2127,7 @@ function ProductsView({ storeId }: { storeId: string | null }) {
 
         <div
           className="qs-card qs-card-blue"
-          onClick={() => { playTapSound('click'); alert('จัดการคลังสินค้า') }}
+          onClick={() => { playTapSound('click'); setActiveFilter('low_stock'); setActiveCategory('all') }}
           role="button"
           tabIndex={0}
         >
@@ -1965,22 +2153,25 @@ function ProductsView({ storeId }: { storeId: string | null }) {
           </div>
 
           <div className="qs-excel-actions">
+            <input ref={importInputRef} type="file" accept=".csv,text/csv" hidden onChange={(event) => { const file = event.target.files?.[0]; if (file) void handleImportProducts(file) }} />
             <button
               type="button"
               className="qs-excel-btn import"
-              disabled
-              title="ยังไม่มี Product bulk import API"
+              disabled={isTransferring || !storeId}
+              onClick={() => importInputRef.current?.click()}
+              title="รองรับสูงสุด 500 แถว และอัปเดตสินค้าที่มี SKU ตรงกัน"
             >
-              นำเข้า Excel/CSV · ยังไม่พร้อม
+              <Upload size={15} /> {isTransferring ? 'กำลังประมวลผล...' : 'นำเข้า CSV'}
             </button>
 
             <button
               type="button"
               className="qs-excel-btn export"
-              disabled
-              title="ยังไม่มี Product export API"
+              disabled={isTransferring || !storeId}
+              onClick={() => { void handleExportProducts() }}
+              title="ส่งออกไฟล์ CSV ที่เปิดด้วย Excel ได้"
             >
-              ส่งออก Excel · ยังไม่พร้อม
+              <Download size={15} /> ส่งออก CSV
             </button>
           </div>
         </div>
@@ -1991,28 +2182,35 @@ function ProductsView({ storeId }: { storeId: string | null }) {
             onClick={() => { playTapSound('pop'); setActiveFilter('all') }}
             type="button"
           >
-            สินค้าทั้งหมด ({catalog.length})
+            สินค้าทั้งหมด ({catalog.filter((product) => !product.archivedAt).length})
           </button>
           <button
             className={activeFilter === 'in_stock' ? 'active' : ''}
             onClick={() => { playTapSound('pop'); setActiveFilter('in_stock') }}
             type="button"
           >
-            พร้อมขาย ({catalog.filter((p) => (p.stock ?? 0) > 10).length})
+            พร้อมขาย ({catalog.filter((product) => !product.archivedAt && product.isActive && (!product.trackStock || (product.stock ?? 0) > 10)).length})
           </button>
           <button
             className={activeFilter === 'low_stock' ? 'active' : ''}
             onClick={() => { playTapSound('pop'); setActiveFilter('low_stock') }}
             type="button"
           >
-            สต็อกใกล้หมด ({catalog.filter((p) => (p.stock ?? 0) > 0 && (p.stock ?? 0) <= 10).length})
+            สต็อกใกล้หมด ({catalog.filter((product) => !product.archivedAt && product.isActive && product.trackStock && (product.stock ?? 0) > 0 && (product.stock ?? 0) <= 10).length})
           </button>
           <button
             className={activeFilter === 'out_of_stock' ? 'active' : ''}
             onClick={() => { playTapSound('pop'); setActiveFilter('out_of_stock') }}
             type="button"
           >
-            สินค้าหมด ({catalog.filter((p) => (p.stock ?? 0) === 0).length})
+            สินค้าหมด ({catalog.filter((product) => !product.archivedAt && product.trackStock && (product.stock ?? 0) === 0).length})
+          </button>
+          <button
+            className={activeFilter === 'archived' ? 'active' : ''}
+            onClick={() => { playTapSound('pop'); setIncludeArchived(true); setActiveFilter('archived') }}
+            type="button"
+          >
+            คลังถาวร ({catalog.filter((product) => product.archivedAt).length})
           </button>
         </div>
 
@@ -2109,7 +2307,7 @@ function ProductsView({ storeId }: { storeId: string | null }) {
             <Search size={16} />
             <input
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="ค้นหาชื่อสินค้า (ไทย / EN / 中文)..."
+              placeholder="ค้นหาชื่อสินค้า SKU หรือหมวดหมู่"
               value={searchQuery}
             />
           </div>
@@ -2157,10 +2355,9 @@ function ProductsView({ storeId }: { storeId: string | null }) {
                         <span className="qs-short-desc-line">{item.shortDescTh}</span>
                       )}
                       <div className="qs-lang-badges-row">
-                        <span className="qs-lang-tag active">🇹🇭 TH</span>
-                        {item.nameEn && <span className="qs-lang-tag active">🇬🇧 EN</span>}
-                        {item.nameCn && <span className="qs-lang-tag active">🇨🇳 CN</span>}
+                        {item.sku && <span className="qs-lang-tag active">SKU {item.sku}</span>}
                         <span className="qs-cat-tag">หมวด: {item.category}</span>
+                        {item.archivedAt ? <span className="qs-product-state archived">คลังถาวร</span> : item.isActive ? <span className="qs-product-state active">เปิดขาย</span> : <span className="qs-product-state paused">ปิดขาย</span>}
                       </div>
                     </div>
                   </td>
@@ -2168,34 +2365,25 @@ function ProductsView({ storeId }: { storeId: string | null }) {
                     <strong className="qs-price">฿{item.price.toLocaleString()}</strong>
                   </td>
                   <td>
-                    {(item.stock ?? 0) === 0 ? (
+                    {!item.trackStock ? (
+                      <span className="qs-stock-status qs-stock-ok">ไม่ตัดสต็อก · {item.unit}</span>
+                    ) : (item.stock ?? 0) === 0 ? (
                       <span className="qs-stock-status qs-stock-low">
-                        ❌ สินค้าหมด (0 ชิ้น)
+                        สินค้าหมด (0 {item.unit})
                       </span>
                     ) : (item.stock ?? 0) <= 10 ? (
                       <span className="qs-stock-status qs-stock-low">
-                        ⚠️ สต็อกต่ำ ({item.stock} ชิ้น)
+                        สต็อกต่ำ ({item.stock} {item.unit})
                       </span>
                     ) : (
                       <span className="qs-stock-status qs-stock-ok">
-                        คงเหลือ {item.stock} ชิ้น
+                        คงเหลือ {item.stock} {item.unit}
                       </span>
                     )}
                   </td>
                   <td className="muted">{item.soldCount} ชิ้น</td>
                   <td>
-                    <button
-                      className="qs-edit-btn"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        playTapSound('pop')
-                        setSelectedItem(item)
-                        setIsEditModalOpen(true)
-                      }}
-                      type="button"
-                    >
-                      ดูข้อมูล/แก้ไข
-                    </button>
+                    {item.archivedAt ? <button className="qs-edit-btn" onClick={(event) => { event.stopPropagation(); void handleRestoreProduct(item) }} type="button" disabled={isSaving}>คืนสินค้า</button> : <button className="qs-edit-btn" onClick={(event) => { event.stopPropagation(); playTapSound('pop'); setSelectedItem(item); setIsEditModalOpen(true) }} type="button">ดูข้อมูล/แก้ไข</button>}
                   </td>
                 </tr>
               ))}
@@ -2226,27 +2414,40 @@ function ProductsView({ storeId }: { storeId: string | null }) {
         isSaving={isSaving}
         onClose={() => setIsEditModalOpen(false)}
         onSave={handleUpdateProduct}
+        onArchive={handleArchiveProduct}
       />
     </div>
   )
 }
 
 
-function ProductEditModal({ item, isSaving, onClose, onSave }: { item: CatalogItem | null; isSaving: boolean; onClose: () => void; onSave: (updates: { name: string; price: number; stock: number; category: string; image: string | null }) => Promise<void> }) {
+function ProductEditModal({ item, isSaving, onClose, onSave, onArchive }: { item: CatalogItem | null; isSaving: boolean; onClose: () => void; onSave: (updates: { name: string; description: string | null; price: number; cost: number; stock: number; category: string; image: string | null; sku: string | null; unit: string; isActive: boolean; trackStock: boolean }) => Promise<void>; onArchive: () => Promise<void> }) {
   const [name, setName] = useState('')
+  const [description, setDescription] = useState('')
   const [price, setPrice] = useState('')
+  const [cost, setCost] = useState('')
   const [stock, setStock] = useState('')
   const [category, setCategory] = useState('')
   const [image, setImage] = useState('')
+  const [sku, setSku] = useState('')
+  const [unit, setUnit] = useState('ชิ้น')
+  const [isActive, setIsActive] = useState(true)
+  const [trackStock, setTrackStock] = useState(true)
   const [error, setError] = useState('')
 
   useEffect(() => {
     if (!item) return
     setName(item.name)
+    setDescription(item.fullDescTh || item.shortDescTh || '')
     setPrice(String(item.price))
+    setCost(String(item.cost || 0))
     setStock(String(item.stock ?? 0))
     setCategory(item.category)
     setImage(item.images?.[0] || '')
+    setSku(item.sku || '')
+    setUnit(item.unit || 'ชิ้น')
+    setIsActive(item.isActive !== false)
+    setTrackStock(item.trackStock === true)
     setError('')
   }, [item])
 
@@ -2255,14 +2456,15 @@ function ProductEditModal({ item, isSaving, onClose, onSave }: { item: CatalogIt
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault()
     const parsedPrice = Number(price)
+    const parsedCost = Number(cost)
     const parsedStock = Number(stock)
-    if (!name.trim() || !Number.isFinite(parsedPrice) || parsedPrice < 0 || !Number.isFinite(parsedStock) || parsedStock < 0 || image.startsWith('data:')) {
-      setError('กรุณาตรวจสอบชื่อ ราคา สต็อก และรูปภาพให้ถูกต้อง')
+    if (!name.trim() || !unit.trim() || !Number.isFinite(parsedPrice) || parsedPrice < 0 || !Number.isFinite(parsedCost) || parsedCost < 0 || !Number.isFinite(parsedStock) || parsedStock < 0 || image.startsWith('data:')) {
+      setError('กรุณาตรวจสอบชื่อ ราคา ต้นทุน สต็อก หน่วย และรูปภาพให้ถูกต้อง')
       return
     }
     setError('')
     try {
-      await onSave({ name: name.trim(), price: parsedPrice, stock: parsedStock, category: category.trim(), image: image.trim() || null })
+      await onSave({ name: name.trim(), description: description.trim() || null, price: parsedPrice, cost: parsedCost, stock: parsedStock, category: category.trim(), image: image.trim() || null, sku: sku.trim() || null, unit: unit.trim(), isActive, trackStock })
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : 'บันทึกสินค้าไม่สำเร็จ')
     }
@@ -2276,11 +2478,15 @@ function ProductEditModal({ item, isSaving, onClose, onSave }: { item: CatalogIt
           <div className="qs-modal-body">
             {error && <div className="merchant-data-alert" role="alert"><ShieldAlert size={18} /><span>{error}</span></div>}
             <div className="qs-form-group"><label htmlFor="product-edit-name">ชื่อสินค้า</label><input id="product-edit-name" value={name} onChange={(event) => setName(event.target.value)} required /></div>
-            <div className="qs-category-price-grid"><div className="qs-form-group"><label htmlFor="product-edit-price">ราคาขาย</label><input id="product-edit-price" type="number" min="0" step="0.01" value={price} onChange={(event) => setPrice(event.target.value)} required /></div><div className="qs-form-group"><label htmlFor="product-edit-stock">สต็อก</label><input id="product-edit-stock" type="number" min="0" step="1" value={stock} onChange={(event) => setStock(event.target.value)} required /></div></div>
+            <div className="qs-form-group"><label htmlFor="product-edit-description">คำอธิบาย</label><textarea id="product-edit-description" rows={3} value={description} onChange={(event) => setDescription(event.target.value)} /></div>
+            <div className="qs-category-price-grid"><div className="qs-form-group"><label htmlFor="product-edit-price">ราคาขาย</label><input id="product-edit-price" type="number" min="0" step="0.01" value={price} onChange={(event) => setPrice(event.target.value)} required /></div><div className="qs-form-group"><label htmlFor="product-edit-cost">ต้นทุน</label><input id="product-edit-cost" type="number" min="0" step="0.01" value={cost} onChange={(event) => setCost(event.target.value)} required /></div></div>
+            <div className="qs-category-price-grid"><div className="qs-form-group"><label htmlFor="product-edit-stock">สต็อก</label><input id="product-edit-stock" type="number" min="0" step="0.001" value={stock} onChange={(event) => setStock(event.target.value)} required /></div><div className="qs-form-group"><label htmlFor="product-edit-unit">หน่วย</label><input id="product-edit-unit" value={unit} maxLength={30} onChange={(event) => setUnit(event.target.value)} required /></div></div>
+            <div className="qs-form-group"><label htmlFor="product-edit-sku">SKU</label><input id="product-edit-sku" value={sku} maxLength={100} onChange={(event) => setSku(event.target.value)} /></div>
             <div className="qs-form-group"><label htmlFor="product-edit-category">หมวดหมู่</label><input id="product-edit-category" value={category} onChange={(event) => setCategory(event.target.value)} /></div>
             <div className="qs-form-group"><label htmlFor="product-edit-image">URL รูปภาพ</label><input id="product-edit-image" type="url" value={image} onChange={(event) => setImage(event.target.value)} placeholder="https://... หรือ /assets/..." /></div>
+            <div className="qs-product-switches"><label><input type="checkbox" checked={isActive} onChange={(event) => setIsActive(event.target.checked)} /><span><strong>เปิดขาย</strong><small>แสดงใน POS และหน้าสั่งซื้อ</small></span></label><label><input type="checkbox" checked={trackStock} onChange={(event) => setTrackStock(event.target.checked)} /><span><strong>ตัดสต็อก</strong><small>ตรวจและตัดจำนวนคงเหลือ</small></span></label></div>
           </div>
-          <div className="qs-modal-footer"><button type="button" className="qs-btn-cancel" onClick={onClose}>ยกเลิก</button><button type="submit" className="qs-btn-submit" disabled={isSaving}>{isSaving ? 'กำลังบันทึก...' : 'บันทึกการแก้ไข'}</button></div>
+          <div className="qs-modal-footer qs-product-edit-footer"><button type="button" className="qs-btn-archive" onClick={() => { void onArchive() }} disabled={isSaving}><Trash2 size={15} /> เก็บเข้าคลังถาวร</button><span /><button type="button" className="qs-btn-cancel" onClick={onClose}>ยกเลิก</button><button type="submit" className="qs-btn-submit" disabled={isSaving}>{isSaving ? 'กำลังบันทึก...' : 'บันทึกการแก้ไข'}</button></div>
         </form>
       </div>
     </div>
