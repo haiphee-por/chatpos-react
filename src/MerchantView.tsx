@@ -67,6 +67,7 @@ import {
   ShieldCheck,
   Key,
   Fingerprint,
+  Gift,
   Volume2,
   Palette,
   Database,
@@ -9643,7 +9644,6 @@ function SettingsView({ onOpenProfile, onNavigate }: { onOpenProfile?: () => voi
   const [speechSpeed, setSpeechSpeed] = useState('1.0x')
   const [voiceGender, setVoiceGender] = useState('female' as VoiceGender)
   const [volumeLevel, setVolumeLevel] = useState(10)
-  const qrPayMode: QrPayMode = 'pay_first'
 
   const speedPresets = ['0.5x', '1.0x', '1.5x', '2.0x', '2.5x', '3.0x']
 
@@ -9930,13 +9930,13 @@ function SettingsView({ onOpenProfile, onNavigate }: { onOpenProfile?: () => voi
         <div className="st-qr-options">
           {/* Option 1: จ่ายเงินทันที */}
           <button
-            className={`st-radio-card ${qrPayMode === 'pay_first' ? 'active' : ''}`}
+            className="st-radio-card active"
             disabled
             title="รอ Order/Table policy API"
             type="button"
           >
             <div className="st-radio-icon">
-              <div className={`st-radio-dot ${qrPayMode === 'pay_first' ? 'checked' : ''}`} />
+              <div className="st-radio-dot checked" />
             </div>
             <div className="st-radio-body">
               <strong>จ่ายเงินทันที (Always Pay First)</strong>
@@ -9946,13 +9946,13 @@ function SettingsView({ onOpenProfile, onNavigate }: { onOpenProfile?: () => voi
 
           {/* Option 2: กินก่อนจ่ายทีหลัง */}
           <button
-            className={`st-radio-card ${qrPayMode === 'pay_later' ? 'active' : ''}`}
+            className="st-radio-card"
             disabled
             title="รอ Order/Table policy API"
             type="button"
           >
             <div className="st-radio-icon">
-              <div className={`st-radio-dot ${qrPayMode === 'pay_later' ? 'checked' : ''}`} />
+              <div className="st-radio-dot" />
             </div>
             <div className="st-radio-body">
               <strong>กินก่อนจ่ายทีหลัง (Always Pay Later)</strong>
@@ -9962,13 +9962,13 @@ function SettingsView({ onOpenProfile, onNavigate }: { onOpenProfile?: () => voi
 
           {/* Option 3: ควบคุมทีละโต๊ะ */}
           <button
-            className={`st-radio-card ${qrPayMode === 'table_controlled' ? 'active' : ''}`}
+            className="st-radio-card"
             disabled
             title="รอ Order/Table policy API"
             type="button"
           >
             <div className="st-radio-icon">
-              <div className={`st-radio-dot ${qrPayMode === 'table_controlled' ? 'checked' : ''}`} />
+              <div className="st-radio-dot" />
             </div>
             <div className="st-radio-body">
               <strong>ควบคุมทีละโต๊ะ (Adjustable per Table)</strong>
